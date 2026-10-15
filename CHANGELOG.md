@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Changed
+
+- Pull requests that are merged or closed on GitHub now leave your lists within a minute or two, without pressing Sync with GitHub. New activity on any pull request you're involved in, such as comments, new commits or a merge, also shows up as soon as GitHub notifies you, instead of at the next full sync every five minutes.
+
 ## [0.8.0] - 2026-10-15
 
 ### Added
