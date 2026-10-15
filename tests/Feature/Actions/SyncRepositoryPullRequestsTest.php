@@ -110,6 +110,22 @@ it('keeps a review request made after the user\'s latest review', function () {
         ->attention()->toBe(ReviewAttention::AwaitingMyReview);
 });
 
+it('wakes a snoozed pull request when new commits are pushed to it', function () {
+    $account = GithubAccount::factory()->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    $pushedTo = PullRequest::factory()->for($repository)->snoozed()->create(['number' => 1, 'head_sha' => 'oldsha']);
+    $unchanged = PullRequest::factory()->for($repository)->snoozed()->create(['number' => 2, 'head_sha' => 'samesha']);
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([
+        githubPullRequestNode(['number' => 1, 'headRefOid' => 'newsha']),
+        githubPullRequestNode(['number' => 2, 'headRefOid' => 'samesha']),
+    ]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($pushedTo->fresh()->snoozed_until)->toBeNull()
+        ->and($unchanged->fresh()->snoozed_until)->not->toBeNull();
+});
+
 it('closes pull requests that are no longer open on GitHub', function () {
     $account = GithubAccount::factory()->create();
     $repository = Repository::factory()->create();

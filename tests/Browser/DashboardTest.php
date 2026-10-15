@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\PullRequest;
 use App\Models\Repository;
 use Tests\Browser\Support\FakeGithub;
 
@@ -180,4 +181,31 @@ it('asks you to choose repositories when you track none', function () {
         ->assertSee("You aren't tracking any repositories yet")
         ->assertSee('Choose repositories')
         ->assertNoJavaScriptErrors();
+});
+
+it('snoozes a pull request out of the list and its counts, and brings it back', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+
+    $page = visit('/')
+        ->hover('div.group:has-text("Add rate limiting")')
+        ->click('div.group:has-text("Add rate limiting") button[title="Snooze"]')
+        ->click('internal:role=menuitem[name="For 1 week"i]')
+        ->waitForText('Snoozed for a week.')
+        ->assertDontSee('Add rate limiting')
+        ->assertSeeIn('button[title="Show only: awaiting your review"]', '2')
+        ->assertSeeIn('[data-sidebar="menu-badge"]', '2')
+        ->click('button[aria-pressed]:has-text("Snoozed")')
+        ->assertSee('Add rate limiting')
+        ->assertSee('Snoozed until');
+
+    expect(PullRequest::firstWhere('number', 101)->isSnoozed())->toBeTrue();
+
+    $page->click('div.group:has-text("Add rate limiting") button[title="Change or end the snooze"]')
+        ->click('internal:role=menuitem[name="Unsnooze"i]')
+        ->waitForText('No longer snoozed.')
+        ->assertSeeIn('[data-sidebar="menu-badge"]', '3')
+        ->assertNoJavaScriptErrors();
+
+    expect(PullRequest::firstWhere('number', 101)->isSnoozed())->toBeFalse();
 });

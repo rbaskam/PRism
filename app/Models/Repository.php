@@ -83,6 +83,16 @@ class Repository extends Model
     }
 
     /**
+     * Open pull requests waiting on the user's review, leaving out snoozed ones.
+     *
+     * @return HasMany<PullRequest, $this>
+     */
+    public function pullRequestsAwaitingMyReview(): HasMany
+    {
+        return $this->pullRequests()->awaitingMyReview();
+    }
+
+    /**
      * Get the local checkout Claude can read for extra context, if one is configured and exists.
      */
     public function localCheckoutPath(): ?string
@@ -109,7 +119,7 @@ class Repository extends Model
     {
         $query->withCount([
             'openPullRequests as open_pull_requests_count',
-            'openPullRequests as awaiting_my_review_count' => fn (Builder $query) => $query->where('is_review_requested_from_me', true),
+            'pullRequestsAwaitingMyReview as awaiting_my_review_count',
             'openPullRequests as approved_by_me_count' => fn (Builder $query) => $query
                 ->where('is_review_requested_from_me', false)
                 ->where('my_review_state', ReviewState::Approved),

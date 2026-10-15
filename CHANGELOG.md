@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- Snooze a pull request for a day, three days or a week, from its row in a pull request list or from its page. A snoozed pull request leaves your lists and the "awaiting your review" counts, including the sidebar and Dock badges, until the snooze ends or new commits are pushed to it. Turn on the Snoozed filter to see snoozed pull requests or end a snooze early.
+
 ## [0.7.1] - 2026-10-15
 
 ### Fixed

@@ -164,3 +164,16 @@ it('opens a file on GitHub from the desktop app without reloading the changed fi
         ->assertNoJavaScriptErrors();
     Shell::assertOpenedExternal('https://github.com/acme/api/pull/101/files');
 });
+
+it('snoozes the pull request from its page', function () {
+    $pullRequest = PullRequest::firstWhere('number', 101);
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=button[name="Snooze"s]')
+        ->click('internal:role=menuitem[name="For 3 days"i]')
+        ->waitForText('Snoozed for 3 days.')
+        ->assertSee('Snoozed until')
+        ->assertNoJavaScriptErrors();
+
+    expect($pullRequest->fresh()->isSnoozed())->toBeTrue();
+});

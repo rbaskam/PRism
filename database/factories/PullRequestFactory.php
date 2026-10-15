@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\ReviewState;
 use App\Models\PullRequest;
 use App\Models\Repository;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -64,6 +65,16 @@ class PullRequestFactory extends Factory
             'is_review_requested_from_me' => true,
             'is_review_requested_directly' => false,
             'requested_via_teams' => [$team],
+        ]);
+    }
+
+    /**
+     * Indicate that the user snoozed the pull request, until three days from now unless given.
+     */
+    public function snoozed(?CarbonInterface $until = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'snoozed_until' => $until ?? now()->addDays(3),
         ]);
     }
 

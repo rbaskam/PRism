@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import ExternalLink from '@/components/ExternalLink.vue';
 import AttentionBadge from '@/components/pull-requests/AttentionBadge.vue';
+import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { attentionStyles, checksLabel, timeAgo } from '@/lib/pull-requests';
+import { attentionStyles, checksLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { PullRequest } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
 import {
+    AlarmClock,
     ArrowRight,
     CircleCheck,
     CircleDashed,
@@ -90,6 +92,7 @@ function visitPullRequest(event: MouseEvent): void {
 const hasStatusBadges = computed(
     () =>
         props.pullRequest.attention !== 'none' ||
+        props.pullRequest.snoozed_until !== null ||
         props.pullRequest.is_review_requested_directly ||
         props.pullRequest.requested_via_teams.length > 0 ||
         props.pullRequest.has_commits_since_my_review ||
@@ -106,7 +109,7 @@ const hasStatusBadges = computed(
             cn(
                 'group flex cursor-pointer flex-col gap-x-4 gap-y-2 border-l-[3px] py-3 pl-3 pr-4 transition-colors focus-within:bg-accent/50 hover:bg-accent/50 sm:flex-row sm:pl-4',
                 style.border,
-                pullRequest.attention === 'awaiting' && 'bg-red-500/[0.03] dark:bg-red-500/[0.06]',
+                pullRequest.attention === 'awaiting' && !pullRequest.snoozed_until && 'bg-red-500/[0.03] dark:bg-red-500/[0.06]',
             )
         "
         @click="visitPullRequest"
@@ -169,6 +172,10 @@ const hasStatusBadges = computed(
 
                 <div v-if="hasStatusBadges" class="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <AttentionBadge v-if="pullRequest.attention !== 'none'" :attention="pullRequest.attention" />
+                    <Badge v-if="pullRequest.snoozed_until" variant="muted" :title="`Snoozed until ${formatSnoozedUntil(pullRequest.snoozed_until)}`">
+                        <AlarmClock />
+                        Snoozed until {{ formatSnoozedUntil(pullRequest.snoozed_until) }}
+                    </Badge>
                     <Badge v-if="pullRequest.is_review_requested_directly" variant="outline" title="Your review was requested by name">
                         <UserRound />
                         Requested from you
@@ -225,6 +232,7 @@ const hasStatusBadges = computed(
 
         <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 pl-11 text-xs text-muted-foreground sm:flex-col sm:items-end sm:pl-0">
             <div class="flex items-center gap-2">
+                <SnoozeMenu :pull-request="pullRequest" compact />
                 <ExternalLink
                     :href="pullRequest.html_url"
                     class="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"

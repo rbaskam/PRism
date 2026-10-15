@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import ExternalLink from '@/components/ExternalLink.vue';
+import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { attentionStyles, checksLabel, timeAgo } from '@/lib/pull-requests';
+import { attentionStyles, checksLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
 import type { PullRequest, PullRequestPermissions, SharedData, SubmitReviewEvent } from '@/types';
 import { usePage } from '@inertiajs/vue3';
 import {
+    AlarmClock,
     AlertTriangle,
     ArrowRight,
     Check,
@@ -20,7 +22,7 @@ import { computed } from 'vue';
 import FixWithClaudeButton from './FixWithClaudeButton.vue';
 import GithubAvatar from './GithubAvatar.vue';
 import RunReviewButton from './RunReviewButton.vue';
-import { formatDateTime } from './utils';
+import { formatDateTime, pageVisit } from './utils';
 
 const props = defineProps<{
     pullRequest: PullRequest;
@@ -90,6 +92,10 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
                     <Badge :variant="attention.badge">
                         <span class="size-1.5 rounded-full" :class="attention.dot" />
                         {{ attention.label }}
+                    </Badge>
+                    <Badge v-if="pullRequest.snoozed_until" variant="muted">
+                        <AlarmClock />
+                        Snoozed until {{ formatSnoozedUntil(pullRequest.snoozed_until) }}
                     </Badge>
                     <Badge v-if="pullRequest.state === 'closed'" variant="secondary">Closed</Badge>
                     <Badge v-if="pullRequest.is_draft" variant="muted">
@@ -220,6 +226,7 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
                     <MessageSquare />
                     Comment
                 </Button>
+                <SnoozeMenu :pull-request="pullRequest" :visit-options="pageVisit()" />
             </div>
         </div>
 

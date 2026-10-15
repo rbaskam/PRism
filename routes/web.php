@@ -17,6 +17,7 @@ use App\Http\Controllers\PullRequestCommentController;
 use App\Http\Controllers\PullRequestController;
 use App\Http\Controllers\PullRequestFileViewController;
 use App\Http\Controllers\PullRequestReviewController;
+use App\Http\Controllers\PullRequestSnoozeController;
 use App\Http\Controllers\ReplyDraftController;
 use App\Http\Controllers\RepositoryController;
 use App\Http\Controllers\ReviewFindingController;
@@ -82,6 +83,8 @@ Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
             Route::post('pull-requests/{pullRequest}/review-runs', [ReviewRunController::class, 'store'])->name('pull-requests.review-runs.store');
             Route::patch('pull-requests/{pullRequest}/findings', [ReviewFindingController::class, 'bulkUpdate'])->name('pull-requests.findings.bulk-update');
             Route::post('pull-requests/{pullRequest}/reviews', [PullRequestReviewController::class, 'store'])->name('pull-requests.reviews.store');
+            Route::post('pull-requests/{pullRequest}/snooze', [PullRequestSnoozeController::class, 'store'])->name('pull-requests.snooze.store');
+            Route::delete('pull-requests/{pullRequest}/snooze', [PullRequestSnoozeController::class, 'destroy'])->name('pull-requests.snooze.destroy');
             Route::post('pull-requests/{pullRequest}/comments', [PullRequestCommentController::class, 'store'])->name('pull-requests.comments.store');
             Route::post('pull-requests/{pullRequest}/threads/resolve', [ReviewThreadController::class, 'resolve'])->name('pull-requests.threads.resolve');
             Route::post('pull-requests/{pullRequest}/reply-drafts', [ReplyDraftController::class, 'store'])->name('pull-requests.reply-drafts.store');

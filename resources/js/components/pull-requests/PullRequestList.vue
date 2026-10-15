@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
 import {
+    isSnoozed,
     sortOptions,
     summarisePullRequests,
     usePullRequestFilters,
@@ -19,7 +20,7 @@ import {
 import type { PullRequest } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { useStorage } from '@vueuse/core';
-import { ChevronRight, ChevronsDownUp, ChevronsUpDown, FilterX, GitPullRequest, SearchX } from 'lucide-vue-next';
+import { AlarmClock, ChevronRight, ChevronsDownUp, ChevronsUpDown, FilterX, GitPullRequest, SearchX } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 
 const props = withDefaults(
@@ -46,10 +47,14 @@ const { filters, visiblePullRequests, activeFilterCount, updateFilter, clearFilt
     () => props.pullRequests,
 );
 
-/** Closed pull requests only count when "Recently closed" is on. */
+/** Closed and snoozed pull requests only count when "Recently closed" or "Snoozed" is on. */
 const pullRequestsInScope = computed(() =>
-    filters.value.showClosed ? props.pullRequests : props.pullRequests.filter((pullRequest) => pullRequest.state === 'open'),
+    props.pullRequests.filter(
+        (pullRequest) => (filters.value.showClosed || pullRequest.state === 'open') && (filters.value.showSnoozed || !isSnoozed(pullRequest)),
+    ),
 );
+
+const snoozedCount = computed(() => props.pullRequests.filter((pullRequest) => pullRequest.state === 'open' && isSnoozed(pullRequest)).length);
 
 const stats = computed(() => summarisePullRequests(pullRequestsInScope.value));
 
@@ -156,7 +161,7 @@ function toggleAllGroups(): void {
         <template v-else>
             <PullRequestStats :stats="stats" :active="activeStats" @select="selectStat" />
 
-            <PullRequestFilters v-model="filters" :stats="stats" :teams="teams" :repositories="repositories" />
+            <PullRequestFilters v-model="filters" :stats="stats" :teams="teams" :repositories="repositories" :snoozed-count="snoozedCount" />
 
             <div class="flex flex-col gap-2">
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
@@ -209,7 +214,18 @@ function toggleAllGroups(): void {
 
                 <div class="overflow-hidden rounded-lg border bg-card shadow-sm">
                     <EmptyState
-                        v-if="visiblePullRequests.length === 0"
+                        v-if="visiblePullRequests.length === 0 && activeFilterCount === 0 && snoozedCount > 0"
+                        :icon="AlarmClock"
+                        :title="`Everything here is snoozed (${snoozedCount})`"
+                        description="Snoozed pull requests come back when the snooze ends or new commits are pushed."
+                    >
+                        <Button variant="outline" size="sm" @click="updateFilter('showSnoozed', true)">
+                            <AlarmClock />
+                            Show snoozed
+                        </Button>
+                    </EmptyState>
+                    <EmptyState
+                        v-else-if="visiblePullRequests.length === 0"
                         :icon="SearchX"
                         title="No pull requests match your filters"
                         description="Try removing a filter or searching for something else."
