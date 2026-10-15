@@ -222,11 +222,12 @@ class AppSettings
     }
 
     /**
-     * Whether desktop alerts of this kind are switched on.
+     * Whether alerts of this kind are switched on in Settings → Notifications. They are listed under the bell in the
+     * header, and shown as desktop notifications too when sendsDesktopNotifications() is on.
      */
-    public function sendsAlert(AlertType $type): bool
+    public function wantsAlert(AlertType $type): bool
     {
-        return $this->sendsDesktopNotifications() && (bool) $this->get('notifications.'.$type->value, $type->isOnByDefault());
+        return (bool) $this->get('notifications.'.$type->value, $type->isOnByDefault());
     }
 
     /**
@@ -240,11 +241,6 @@ class AppSettings
     public function notificationSound(): NotificationSound
     {
         return NotificationSound::tryFrom((string) $this->get(self::NOTIFY_SOUND)) ?? NotificationSound::Default;
-    }
-
-    public function notifiesWhenReviewFinishes(): bool
-    {
-        return $this->sendsAlert(AlertType::ReviewFinished);
     }
 
     public function isAppLockEnabled(): bool

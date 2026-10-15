@@ -3,6 +3,7 @@
 use App\Jobs\CheckForUpdates;
 use App\Jobs\PollNotifications;
 use App\Jobs\SyncGithub;
+use App\Models\Alert;
 use App\Models\GithubAccount;
 use Illuminate\Support\Facades\Schedule;
 
@@ -15,3 +16,4 @@ $githubIsConnected = fn (): bool => GithubAccount::query()->exists();
 Schedule::job(new PollNotifications)->everyMinute()->when($githubIsConnected);
 Schedule::job(new SyncGithub)->everyFiveMinutes()->when($githubIsConnected);
 Schedule::job(new CheckForUpdates)->everySixHours();
+Schedule::command('model:prune', ['--model' => [Alert::class]])->daily();

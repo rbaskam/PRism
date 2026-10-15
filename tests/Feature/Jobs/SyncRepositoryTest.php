@@ -4,6 +4,7 @@ use App\Enums\AlertType;
 use App\Enums\ClaudeAuthMode;
 use App\Jobs\RunPullRequestReview;
 use App\Jobs\SyncRepository;
+use App\Models\Alert;
 use App\Models\GithubAccount;
 use App\Models\Repository;
 use App\Models\ReviewRun;
@@ -65,4 +66,9 @@ it('sends a desktop alert for a new pull request when that alert is switched on'
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/api/notification')
         && $request['title'] === 'New pull request'
         && str_contains($request['body'] ?? $request['message'] ?? '', 'Add dark mode'));
+    $pullRequest = $repository->pullRequests()->sole();
+    expect(Alert::sole())
+        ->type->toBe(AlertType::NewPullRequests)
+        ->pull_request_id->toBe($pullRequest->id)
+        ->url->toBe("/pull-requests/{$pullRequest->id}");
 });

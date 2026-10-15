@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AlertsBell from '@/components/AlertsBell.vue';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItemType } from '@/types';
@@ -41,6 +42,7 @@ withDefaults(
         </div>
         <div class="ml-auto flex items-center gap-2">
             <slot name="actions" />
+            <AlertsBell />
         </div>
     </header>
 </template>

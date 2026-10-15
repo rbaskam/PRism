@@ -3,12 +3,12 @@
 namespace App\Jobs;
 
 use App\Enums\AiTaskStatus;
+use App\Enums\AlertType;
 use App\Models\CodeQuestion;
 use App\Models\GithubAccount;
-use App\Services\AppSettings;
+use App\Services\Alerts;
 use App\Services\Claude\ClaudeCode;
 use App\Services\Claude\ClaudeException;
-use App\Services\DesktopNotifier;
 use App\Services\Git\PullRequestCheckout;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -30,7 +30,7 @@ class AnswerCodeQuestion implements ShouldQueue
         $this->onQueue(RunPullRequestReview::QUEUE);
     }
 
-    public function handle(ClaudeCode $claude, PullRequestCheckout $checkout, AppSettings $settings, DesktopNotifier $notifier): void
+    public function handle(ClaudeCode $claude, PullRequestCheckout $checkout, Alerts $alerts): void
     {
         $question = $this->question;
         $pullRequest = $question->pullRequest->load('repository');
@@ -65,9 +65,7 @@ class AnswerCodeQuestion implements ShouldQueue
             'duration_ms' => $result->durationMs ?? (int) ((hrtime(true) - $startedAt) / 1_000_000),
         ]);
 
-        if ($settings->notifiesWhenReviewFinishes()) {
-            $notifier->send('Claude answered your question', $question->location(), DesktopNotifier::PULL_REQUEST_REFERENCE.$pullRequest->id);
-        }
+        $alerts->raise(AlertType::ReviewFinished, 'Claude answered your question', $question->location(), Alerts::pullRequestUrl($pullRequest, 'questions'), $pullRequest);
     }
 
     public function failed(?Throwable $exception): void

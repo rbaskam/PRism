@@ -119,13 +119,16 @@ function sendTest(): void {
 
         <SettingsLayout>
             <form class="space-y-6" @submit.prevent="save">
-                <HeadingSmall title="Desktop notifications" description="Get an alert when something on GitHub needs you." />
+                <HeadingSmall
+                    title="Notifications"
+                    description="Choose what you get alerts about. They are listed under the bell at the top of every page, and shown on your desktop too when desktop notifications are on."
+                />
 
                 <div class="flex items-start gap-3 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
                     <Info class="mt-0.5 size-4 shrink-0" />
                     <p>
-                        {{ $page.props.name }} checks GitHub every minute and syncs your repositories every five minutes. Choose which alerts you get
-                        below; everything still shows up in the Inbox. Click a notification to open the pull request.
+                        {{ $page.props.name }} checks GitHub every minute and syncs your repositories every five minutes. Every GitHub notification
+                        still shows up in the Inbox. Click an alert to open the pull request where it happened.
                     </p>
                 </div>
 
@@ -144,7 +147,9 @@ function sendTest(): void {
                     <div class="flex items-start justify-between gap-4 p-4">
                         <div class="space-y-1">
                             <Label for="desktop" class="cursor-pointer">Show desktop notifications</Label>
-                            <p class="text-sm text-muted-foreground">Turn this off to silence every alert below.</p>
+                            <p class="text-sm text-muted-foreground">
+                                Turn this off to stop the pop-ups. Alerts you switch on below are still listed under the bell.
+                            </p>
                             <InputError :message="form.errors.desktop" />
                         </div>
                         <Switch id="desktop" v-model:checked="form.desktop" class="mt-0.5" />
@@ -176,33 +181,20 @@ function sendTest(): void {
                     </div>
 
                     <template v-for="group in groups" :key="group.title">
-                        <p
-                            :class="
-                                cn(
-                                    'bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-opacity',
-                                    !form.desktop && 'opacity-50',
-                                )
-                            "
-                        >
+                        <p class="bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {{ group.title }}
                         </p>
                         <div
                             v-for="toggle in group.toggles"
                             :key="toggle.key"
-                            :class="
-                                cn(
-                                    'flex items-start justify-between gap-4 p-4 pl-8 transition-opacity',
-                                    toggle.key === 'follow_up_activity' && 'pl-12',
-                                    !form.desktop && 'opacity-50',
-                                )
-                            "
+                            :class="cn('flex items-start justify-between gap-4 p-4 pl-8', toggle.key === 'follow_up_activity' && 'pl-12')"
                         >
                             <div class="space-y-1">
                                 <Label :for="toggle.key" class="cursor-pointer">{{ toggle.label }}</Label>
                                 <p class="text-sm text-muted-foreground">{{ toggle.description }}</p>
                                 <InputError :message="form.errors[toggle.key]" />
                             </div>
-                            <Switch :id="toggle.key" v-model:checked="form[toggle.key]" :disabled="!form.desktop" class="mt-0.5" />
+                            <Switch :id="toggle.key" v-model:checked="form[toggle.key]" class="mt-0.5" />
                         </div>
                     </template>
                 </div>

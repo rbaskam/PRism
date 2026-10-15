@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Actions\QueuePullRequestReview;
 use App\Enums\AiTaskStatus;
+use App\Models\Alert;
 use App\Models\GithubAccount;
 use App\Models\GithubNotification;
 use App\Models\PullRequest;
@@ -72,7 +73,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * Sidebar badges, plus the pull requests Claude is reviewing so the sidebar can link to them.
      *
-     * @return array{awaiting_review: int, unread_inbox: int, active_reviews: int, reviewing: list<array{pull_request_id: int, reference: string, title: string, status: string}>}
+     * @return array{awaiting_review: int, unread_inbox: int, unread_alerts: int, active_reviews: int, reviewing: list<array{pull_request_id: int, reference: string, title: string, status: string}>}
      */
     private function counts(): array
     {
@@ -94,6 +95,7 @@ class HandleInertiaRequests extends Middleware
         return [
             'awaiting_review' => PullRequest::query()->awaitingMyReview()->count(),
             'unread_inbox' => GithubNotification::query()->where('is_unread', true)->count(),
+            'unread_alerts' => Alert::query()->unread()->count(),
             'active_reviews' => count($reviewing),
             'reviewing' => $reviewing,
         ];

@@ -10,6 +10,14 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- A notifications bell at the top of every page lists everything PRism alerted you about in the last 30 days, such as review requests, new pull requests, mentions and finished AI reviews, with a count of the ones you haven't read and Mark all as read. Clicking an alert takes you to where it happened: a finished review opens the pull request's AI findings, a comment or mention opens its conversation, and an answer or Claude's changes open the Questions or Changes tab.
+
+### Changed
+
+- The switches in Settings → Notifications now choose what you get alerts about, and "Show desktop notifications" only controls the pop-ups. With pop-ups off, the alerts you switched on are still listed under the bell.
+
 ## [0.9.0] - 2026-10-15
 
 ### Changed
