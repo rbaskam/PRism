@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-15
+
 ### Fixed
 
 - Files changed no longer gets stuck on "Loading the changed files from GitHub…" after you open a file on GitHub or sync with GitHub while looking at a pull request.
