@@ -1,14 +1,14 @@
 {
     "timings": {
-        "Tests\\Browser\\DashboardTest": 2.878,
-        "Tests\\Browser\\InboxTest": 1.314,
-        "Tests\\Browser\\LockTest": 0.4736,
-        "Tests\\Browser\\OnboardingTest": 0.549,
-        "Tests\\Browser\\PullRequestTest": 1.0779,
-        "Tests\\Browser\\RepositoriesTest": 0.8685,
-        "Tests\\Browser\\SettingsTest": 2.3832,
-        "Tests\\Browser\\ThemeTest": 6.6005
+        "Tests\\Browser\\DashboardTest": 4.2657,
+        "Tests\\Browser\\InboxTest": 1.3309,
+        "Tests\\Browser\\LockTest": 0.4949,
+        "Tests\\Browser\\OnboardingTest": 0.5358,
+        "Tests\\Browser\\PullRequestTest": 1.7435,
+        "Tests\\Browser\\RepositoriesTest": 0.9515,
+        "Tests\\Browser\\SettingsTest": 2.2878,
+        "Tests\\Browser\\ThemeTest": 6.8082
     },
     "checksum": "ef04af1bf01d29eb50333ed6e6fd17dc",
-    "updated_at": "2026-10-15T10:44:39+00:00"
+    "updated_at": "2026-10-15T13:45:44+00:00"
 }
