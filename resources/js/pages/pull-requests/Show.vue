@@ -67,14 +67,15 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
 const activeTab = ref('findings');
 
 /*
- * Diffs can be large, so they are only fetched from GitHub once the Files changed tab is opened.
+ * Diffs can be large, so they are only fetched from GitHub once the Files changed tab is opened. A full page reload
+ * (e.g. after syncing with GitHub) leaves them out again, so they are fetched again while the tab is open.
  */
 const loadingFiles = ref(false);
 
 watch(
-    activeTab,
-    (tab) => {
-        if (tab !== 'files' || props.files || loadingFiles.value) {
+    [activeTab, () => props.files],
+    ([tab, files]) => {
+        if (tab !== 'files' || files || loadingFiles.value) {
             return;
         }
 

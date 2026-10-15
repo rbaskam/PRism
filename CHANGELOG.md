@@ -14,6 +14,19 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 - Snooze a pull request for a day, three days or a week, from its row in a pull request list or from its page. A snoozed pull request leaves your lists and the "awaiting your review" counts, including the sidebar and Dock badges, until the snooze ends or new commits are pushed to it. Turn on the Snoozed filter to see snoozed pull requests or end a snooze early.
 
+## [0.7.1] - 2026-10-15
+
+### Fixed
+
+- Files changed no longer gets stuck on "Loading the changed files from GitHub…" after you open a file on GitHub or sync with GitHub while looking at a pull request.
+
+## [0.7.0] - 2026-10-15
+
+### Added
+
+- In Files changed, the files-viewed progress (for example "13 of 55 files viewed") stays at the top while you scroll through a large pull request.
+- Ticking Viewed on a file now scrolls straight to the next file you haven't viewed, so you can review a pull request file by file without scrolling.
+
 ## [0.6.1] - 2026-10-15
 
 ### Fixed

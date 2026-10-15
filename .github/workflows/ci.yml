@@ -56,8 +56,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Shards are balanced by the timings in tests/.pest/shards.json; refresh them with
-        # `vendor/bin/pest --testsuite=Browser --update-shards` after adding browser tests.
+        # Shards are balanced by the per-file timings in tests/.pest/shards.json; refresh them with
+        # `vendor/bin/pest --testsuite=Browser --update-shards` only when a new browser test file is added.
         shard: [1, 2]
     steps:
       - uses: actions/checkout@v5

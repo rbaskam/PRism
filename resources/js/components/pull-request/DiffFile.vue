@@ -7,7 +7,7 @@ import type { PullRequest, PullRequestFile } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { useIntersectionObserver } from '@vueuse/core';
 import { ChevronRight, ExternalLink as ExternalLinkIcon, FileWarning, Sparkles } from 'lucide-vue-next';
-import { computed, nextTick, ref } from 'vue';
+import { computed, ref } from 'vue';
 import AskClaudeComposer from './AskClaudeComposer.vue';
 import type { QuestionThread } from './code-questions';
 import CodeQuestionThread from './CodeQuestionThread.vue';
@@ -152,24 +152,20 @@ const afterIndexes = computed(() => {
     return indexes;
 });
 
-/** Like GitHub: marking a file viewed collapses it, and keeps its header in view if it was stuck to the top. */
+/** Marking a file viewed collapses it; the files panel then scrolls on to the next file. */
 function toggleViewed(value: boolean): void {
     emit('toggle-viewed', value);
-
-    if (value) {
-        nextTick(() => {
-            if (root.value && root.value.getBoundingClientRect().top < 0) {
-                root.value.scrollIntoView({ block: 'start' });
-            }
-        });
-    }
 }
 </script>
 
 <template>
-    <section ref="root" :data-file-path="file.path" class="overflow-clip rounded-lg border bg-card text-card-foreground">
+    <section
+        ref="root"
+        :data-file-path="file.path"
+        class="scroll-mt-[calc(var(--files-toolbar-height,0px)+0.5rem)] overflow-clip rounded-lg border bg-card text-card-foreground"
+    >
         <header
-            class="sticky top-0 z-10 flex items-center gap-2 bg-card/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+            class="sticky top-[var(--files-toolbar-height,0px)] z-10 flex items-center gap-2 bg-card/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/80"
             :class="expanded ? 'border-b' : ''"
         >
             <button

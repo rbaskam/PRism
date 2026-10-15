@@ -6,9 +6,9 @@ import { sendJson } from '@/lib/http';
 import { cn } from '@/lib/utils';
 import type { CodeQuestion, PullRequest, PullRequestFile, PullRequestFiles, PullRequestPermissions } from '@/types';
 import { router } from '@inertiajs/vue3';
-import { useEventListener } from '@vueuse/core';
+import { useElementBounding, useEventListener } from '@vueuse/core';
 import { AlertTriangle, Check, ChevronsDownUp, ChevronsUpDown, Info, ListTree, Loader2, RotateCcw, Search, Sparkles, X } from 'lucide-vue-next';
-import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue';
 import { groupQuestionThreads, threadsByPath, type QuestionThread, type RevealTarget } from './code-questions';
 import DiffFile from './DiffFile.vue';
 
@@ -69,6 +69,14 @@ const totalDeletions = computed(() => allFiles.value.reduce((total, file) => tot
 const viewedCount = computed(() => allFiles.value.filter((file) => viewed[file.path]).length);
 const viewedPercentage = computed(() => (allFiles.value.length ? Math.round((viewedCount.value / allFiles.value.length) * 100) : 0));
 
+/*
+ * The toolbar with the viewed progress sticks to the top while scrolling. Its height is shared as a CSS variable so
+ * each file's sticky header, and any file scrolled to, lines up just below it.
+ */
+const toolbar = useTemplateRef<HTMLElement>('toolbar');
+const { height: toolbarHeight } = useElementBounding(toolbar);
+const stickyOffset = computed(() => `${Math.ceil(toolbarHeight.value)}px`);
+
 const visibleFiles = computed(() => {
     const term = filter.value.trim().toLowerCase();
 
@@ -120,6 +128,8 @@ async function setViewed(file: PullRequestFile, value: boolean): Promise<void> {
         if (selection.value?.path === file.path) {
             clearSelection();
         }
+
+        showNextUnviewed(file);
     }
 
     try {
@@ -137,6 +147,33 @@ async function setViewed(file: PullRequestFile, value: boolean): Promise<void> {
         changedSinceViewed[file.path] = previous.changed;
         viewedError.value = error instanceof Error ? error.message : 'Could not update viewed state.';
     }
+}
+
+/**
+ * After a file is marked viewed (and collapses), bring the next file that hasn't been viewed to the top, so a long
+ * pull request can be reviewed file after file without scrolling. With nothing left after it, keep its header in view.
+ */
+function showNextUnviewed(file: PullRequestFile): void {
+    const index = allFiles.value.findIndex((candidate) => candidate.path === file.path);
+    const next = allFiles.value.slice(index + 1).find((candidate) => !viewed[candidate.path] && visibleFiles.value.includes(candidate));
+
+    if (next) {
+        expanded[next.path] = true;
+    }
+
+    nextTick(() => {
+        if (next) {
+            fileCard(next.path)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+
+            return;
+        }
+
+        const card = fileCard(file.path);
+
+        if (card && card.getBoundingClientRect().top < toolbarHeight.value) {
+            card.scrollIntoView({ block: 'start' });
+        }
+    });
 }
 
 function retry(): void {
@@ -256,7 +293,7 @@ watch(
 </script>
 
 <template>
-    <div class="space-y-3">
+    <div class="space-y-3" :style="{ '--files-toolbar-height': stickyOffset }">
         <div
             v-if="files.error"
             class="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
@@ -281,11 +318,20 @@ watch(
         </div>
 
         <template v-if="allFiles.length > 0">
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-3 py-2">
+            <div
+                ref="toolbar"
+                role="toolbar"
+                aria-label="Changed files"
+                class="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-3 py-2 shadow-sm"
+            >
                 <div class="flex items-center gap-2">
-                    <span class="text-xs">
-                        <span class="font-semibold tabular-nums">{{ viewedCount }}</span> of
-                        <span class="tabular-nums">{{ allFiles.length }}</span> files viewed
+                    <span v-if="viewedCount === allFiles.length" class="flex items-center gap-1 text-xs font-medium">
+                        <Check class="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                        {{ allFiles.length === 1 ? 'File viewed' : `All ${allFiles.length} files viewed` }}
+                    </span>
+                    <span v-else class="text-xs">
+                        <span class="font-semibold tabular-nums">{{ viewedCount }}</span> of <span class="tabular-nums">{{ allFiles.length }}</span>
+                        {{ allFiles.length === 1 ? 'file' : 'files' }} viewed
                     </span>
                     <div
                         class="h-1.5 w-24 overflow-hidden rounded-full bg-muted"
