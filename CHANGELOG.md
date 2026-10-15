@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-15
+
 ### Added
 
 - In Files changed, the files-viewed progress (for example "13 of 55 files viewed") stays at the top while you scroll through a large pull request.
