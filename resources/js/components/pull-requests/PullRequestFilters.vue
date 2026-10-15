@@ -11,7 +11,7 @@ import { attentionStyles } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { ReviewAttention } from '@/types';
 import { onKeyStroke } from '@vueuse/core';
-import { Archive, CircleX, EyeOff, Search, Sparkles, X } from 'lucide-vue-next';
+import { AlarmClock, Archive, CircleX, EyeOff, Search, Sparkles, X } from 'lucide-vue-next';
 import { computed, useTemplateRef } from 'vue';
 
 const props = withDefaults(
@@ -21,10 +21,13 @@ const props = withDefaults(
         teams?: string[];
         /** When given, a repository select is shown. */
         repositories?: { id: number; full_name: string }[] | null;
+        /** Open pull requests the user snoozed; the Snoozed chip only shows when there are some. */
+        snoozedCount?: number;
     }>(),
     {
         teams: () => [],
         repositories: null,
+        snoozedCount: 0,
     },
 );
 
@@ -192,6 +195,20 @@ function onSearchEscape(event: KeyboardEvent): void {
                 >
                     <component :is="toggle.icon" />
                     {{ toggle.label }}
+                </button>
+                <button
+                    v-if="snoozedCount > 0 || filters.showSnoozed"
+                    type="button"
+                    :aria-pressed="filters.showSnoozed"
+                    :class="chipClass(filters.showSnoozed)"
+                    title="Also show pull requests you snoozed"
+                    @click="update('showSnoozed', !filters.showSnoozed)"
+                >
+                    <AlarmClock />
+                    Snoozed
+                    <span class="tabular-nums" :class="filters.showSnoozed ? 'text-primary-foreground/70' : 'text-muted-foreground'">
+                        {{ snoozedCount }}
+                    </span>
                 </button>
             </div>
         </div>

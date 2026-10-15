@@ -54,6 +54,6 @@ class SyncRepository implements ShouldBeUnique, ShouldQueue
                 ->each(fn (PullRequest $pullRequest) => $queueReview->handle($pullRequest));
         }
 
-        $notifier->setBadgeCount(PullRequest::query()->open()->where('is_review_requested_from_me', true)->count());
+        $notifier->setBadgeCount(PullRequest::query()->awaitingMyReview()->count());
     }
 }

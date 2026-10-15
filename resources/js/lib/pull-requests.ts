@@ -85,6 +85,11 @@ export function timeAgo(iso: string | null | undefined): string {
     return 'just now';
 }
 
+/** "Mon 20 Oct, 14:05", for when a snooze ends. */
+export function formatSnoozedUntil(iso: string): string {
+    return new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 /** "2m 14s" */
 export function formatDuration(milliseconds: number | null | undefined): string {
     if (milliseconds == null) {

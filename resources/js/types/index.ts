@@ -155,6 +155,8 @@ export interface PullRequest {
     my_review_state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | null;
     my_review_submitted_at: string | null;
     has_commits_since_my_review: boolean;
+    /** When a snooze ends; null when the pull request isn't snoozed (or the snooze has ended). */
+    snoozed_until: string | null;
     is_review_requested_from_me: boolean;
     is_review_requested_directly: boolean;
     /** Teams ("org/slug") the user belongs to that were asked to review. */

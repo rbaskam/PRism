@@ -54,6 +54,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $conversation_synced_at
  * @property array{files: list<array<string, mixed>>, github_viewed_states: array<string, string>}|null $files_snapshot
  * @property string|null $files_head_sha
+ * @property Carbon|null $snoozed_until
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -115,6 +116,7 @@ class PullRequest extends Model
         'conversation_synced_at',
         'files_snapshot',
         'files_head_sha',
+        'snoozed_until',
     ];
 
     /**
@@ -142,7 +144,20 @@ class PullRequest extends Model
             'conversation' => 'array',
             'conversation_synced_at' => 'datetime',
             'files_snapshot' => 'array',
+            'snoozed_until' => 'datetime',
         ];
+    }
+
+    /**
+     * A snoozed pull request wakes up as soon as new commits are pushed to it.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (PullRequest $pullRequest): void {
+            if ($pullRequest->snoozed_until !== null && $pullRequest->isDirty('head_sha') && $pullRequest->getOriginal('head_sha') !== null) {
+                $pullRequest->snoozed_until = null;
+            }
+        });
     }
 
     /**
@@ -232,6 +247,27 @@ class PullRequest extends Model
     }
 
     /**
+     * Scope the query to pull requests the user hasn't snoozed, or whose snooze has ended.
+     *
+     * @param  Builder<PullRequest>  $query
+     */
+    public function scopeNotSnoozed(Builder $query): void
+    {
+        $query->where(fn (Builder $query) => $query->whereNull('snoozed_until')->orWhere('snoozed_until', '<=', now()));
+    }
+
+    /**
+     * Scope the query to open pull requests waiting on the user's review, leaving out snoozed ones. This is what the
+     * sidebar, the Dock badge and the repository cards count.
+     *
+     * @param  Builder<PullRequest>  $query
+     */
+    public function scopeAwaitingMyReview(Builder $query): void
+    {
+        $query->open()->where('is_review_requested_from_me', true)->notSnoozed();
+    }
+
+    /**
      * Scope the query to pull requests the connected user is involved in.
      *
      * @param  Builder<PullRequest>  $query
@@ -260,6 +296,11 @@ class PullRequest extends Model
                 ->whereNull('resolved_at')
                 ->where('status', FindingStatus::New),
         ]);
+    }
+
+    public function isSnoozed(): bool
+    {
+        return $this->snoozed_until?->isFuture() ?? false;
     }
 
     /**

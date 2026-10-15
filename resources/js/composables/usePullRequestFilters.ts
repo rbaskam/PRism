@@ -18,6 +18,8 @@ export interface PullRequestFilterState {
     onlyFailingChecks: boolean;
     /** Also show pull requests closed or merged in the last two weeks (e.g. to get back to their AI reviews). */
     showClosed: boolean;
+    /** Also show pull requests the user snoozed. */
+    showSnoozed: boolean;
     sort: PullRequestSort;
     groupByRepository: boolean;
 }
@@ -59,9 +61,14 @@ export function defaultPullRequestFilters(): PullRequestFilterState {
         onlyWithFindings: false,
         onlyFailingChecks: false,
         showClosed: false,
+        showSnoozed: false,
         sort: 'updated',
         groupByRepository: false,
     };
+}
+
+export function isSnoozed(pullRequest: PullRequest): boolean {
+    return pullRequest.snoozed_until !== null;
 }
 
 export function hasFailingChecks(pullRequest: PullRequest): boolean {
@@ -117,6 +124,10 @@ export function pullRequestMatchesFilters(pullRequest: PullRequest, filters: Pul
     }
 
     if (!filters.showClosed && pullRequest.state !== 'open') {
+        return false;
+    }
+
+    if (!filters.showSnoozed && isSnoozed(pullRequest)) {
         return false;
     }
 
@@ -190,6 +201,7 @@ export function countActiveFilters(filters: PullRequestFilterState): number {
         filters.onlyWithFindings,
         filters.onlyFailingChecks,
         filters.showClosed,
+        filters.showSnoozed,
     ].filter(Boolean).length;
 }
 

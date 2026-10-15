@@ -92,7 +92,7 @@ class HandleInertiaRequests extends Middleware
             ->all();
 
         return [
-            'awaiting_review' => PullRequest::query()->open()->where('is_review_requested_from_me', true)->count(),
+            'awaiting_review' => PullRequest::query()->awaitingMyReview()->count(),
             'unread_inbox' => GithubNotification::query()->where('is_unread', true)->count(),
             'active_reviews' => count($reviewing),
             'reviewing' => $reviewing,
