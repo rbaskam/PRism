@@ -86,13 +86,13 @@ it('filters by search, repository and how your review was requested', function (
         ->assertSee('Showing 1 of 6 pull requests')
         ->click('internal:role=button[name="Clear filters"i]');
 
-    $page->select('[aria-label="Filter by repository"] select', (string) Repository::firstWhere('name', 'web')->id)
+    $page->select('select[aria-label="Filter by repository"]', (string) Repository::firstWhere('name', 'web')->id)
         ->assertSee('Redesign settings')
         ->assertSee('Bump dependencies')
         ->assertDontSee('Add rate limiting')
         ->click('internal:role=button[name="Clear filters"i]');
 
-    $page->select('[aria-label="Filter by how your review was requested"] select', 'team:acme/reviewers')
+    $page->select('select[aria-label="Filter by how your review was requested"]', 'team:acme/reviewers')
         ->assertSee('Fix login redirect')
         ->assertSee('Showing 1 of 6 pull requests')
         ->assertNoJavaScriptErrors();

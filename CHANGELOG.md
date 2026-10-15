@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Fixed
+
+- Screen readers now announce what each drop-down is for, such as the repository, review request and sort filters on the pull request list, and clicking a drop-down's label (for example "Sound" in Settings → Notifications) now selects it.
+
 ## [0.6.0] - 2026-10-15
 
 ### Added
