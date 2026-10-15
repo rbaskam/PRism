@@ -1,0 +1,97 @@
+# Changelog
+
+All notable changes to PRism are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Every pull request adds its user-facing changes under **Unreleased**. When it is merged, the release workflow turns
+**Unreleased** into the next version: breaking changes or a `### Removed` section bump the major version, `### Added`,
+`### Changed` or `### Deprecated` the minor version, and anything else (`### Fixed`, `### Security`) the patch version.
+
+## [Unreleased]
+
+## [0.6.0] - 2026-10-15
+
+### Added
+
+- Choose the sound desktop notifications play in Settings → Notifications, or turn sounds off. On macOS you can pick any of the built-in system sounds; on Windows you can keep the default sound or have none. Send test notification plays your pick before you save it.
+- Pick an accent colour (Neutral, Blue, Green, Violet, Rose or Orange) in Settings → Appearance. It colours buttons, switches, focus rings and the selected item in the sidebar, in both light and dark mode.
+
+## [0.5.2] - 2026-10-15
+
+### Fixed
+
+- A pull request you had just approved, or otherwise reviewed, went back to "Awaiting your review" in the pull request list for a few minutes when your review had been requested through a team.
+
+## [0.5.1] - 2026-10-14
+
+### Fixed
+
+- Marking a notification as read in the Inbox failed with "GitHub returned 500".
+
+## [0.5.0] - 2026-10-14
+
+### Changed
+
+- Clicking a review request or other pull request notification, on the desktop or in the Inbox, opens the pull request in PRism instead of the browser, even if it hasn't synced yet or is in a repository you don't track.
+
+## [0.4.0] - 2026-10-14
+
+### Added
+
+- "Recently closed" filter on pull request lists, so you can get back to AI reviews of pull requests closed or merged in the last two weeks.
+- Choose which desktop alerts you get in Settings → Notifications: review requests, mentions, activity on your own pull requests, replies where you commented, CI results, new pull requests in your repositories, and finished AI work.
+## [0.3.0] - 2026-10-14
+
+### Changed
+
+- Clicking "AI review running" in the sidebar opens the pull request being reviewed, or lists them when several reviews are running.
+- Review requests and mentions now alert once per pull request instead of on every later comment or commit. Turn on "Later activity on those pull requests" to get those too.
+- A more thorough default AI review prompt: it reads the changed files in full and checks correctness, security, performance, tests and maintainability, with clear severity levels. A prompt you've customised is kept.
+
+### Fixed
+
+- Closed or merged pull requests no longer count as awaiting your review.
+
+- Messages such as "AI review started" no longer pop up again and again while a review is running.
+
+## [0.2.0] - 2026-10-14
+
+### Changed
+
+- Pages load much faster in the desktop app: PHP's code cache (OPcache) is now switched on, and pull request conversations and diffs are saved, so they open instantly until something changes on GitHub. Use "Refresh from GitHub" on the Conversation tab to fetch the latest straight away.
+- The app's identifier is now `io.github.rbaskam.prism`. macOS may ask you to allow PRism's notifications again after updating.
+
+### Fixed
+
+- The Apple Silicon (arm64) Mac app opens instead of quitting straight away.
+- Desktop notifications for review requests and mentions stopped after the first check.
+
+## [0.1.1] - 2026-10-13
+
+### Fixed
+
+- Updating the app keeps your saved GitHub and Claude connections. Each installation now has its own encryption key that survives updates. If you're coming from 0.1.0, you'll be asked to reconnect GitHub once.
+
+## [0.1.0] - 2026-10-13
+
+### Added
+
+- Desktop app for macOS and Windows built with NativePHP.
+- Onboarding: connect GitHub (GitHub CLI login, personal access token or "Sign in with GitHub"), choose repositories, and optionally connect Claude Code.
+- "My pull requests" dashboard across every tracked repository, coloured by where each pull request stands for you: red when it awaits your review, green once you approved it.
+- Review requests sent to your GitHub teams (for example tech leads) are recognised and labelled "via @org/team".
+- Filters, sorting and grouping for pull request lists, plus a page per repository.
+- AI reviews with Claude Code using a customisable prompt. Findings are saved, can be marked read, not useful or not a blocker, and re-runs re-check earlier findings instead of repeating them.
+- Approve, request changes or comment on pull requests, optionally attaching findings as inline comments.
+- Read and reply to review threads and conversation comments, resolve threads, and let Claude draft replies.
+- Files changed view with "Viewed" checkboxes kept in sync with github.com.
+- Highlight lines in a diff and ask Claude about them, with follow-up questions; answers are saved.
+- Settings controlling what the app may write to GitHub (posting findings, replying to comments).
+- Inbox of GitHub notifications and desktop alerts for review requests and mentions.
+- Organisation repositories are listed even when GitHub leaves them out of your own repository list, with a warning and a direct link when an organisation needs single sign-on authorisation. Warnings can be hidden.
+- Point PRism at the folder where you keep your clones to link local checkouts. Reviews and questions then read the code at the pull request's exact commit.
+- "Fix with Claude": Claude makes fixes in a separate worktree, you review the diff, then push to the branch or open a new pull request.
+- App lock with a PIN, Touch ID on Macs, auto-lock after inactivity and locking on launch.
+- Update check against GitHub releases, an About page with the changelog, and a "What's new" note after updating.
+- New PRism name and logo.

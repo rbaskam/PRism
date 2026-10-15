@@ -1,0 +1,201 @@
+name: Release
+
+# Runs after CI passes on main (i.e. after a pull request is merged). When CHANGELOG.md has entries under
+# "## [Unreleased]", it works out the next version, cuts the release in the changelog, tags it, builds the
+# macOS and Windows apps, and publishes a GitHub release with the installers attached.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Rebuild and publish an existing version tag (for example 0.1.0). Leave empty to release whatever is under Unreleased.
+        required: false
+        default: ''
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    name: Prepare release
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      # main is protected, so the release commit is pushed with a deploy key that may bypass the
+      # protection (RELEASE_DEPLOY_KEY, created by .github/scripts/setup-repository.sh).
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          token: ${{ github.token }}
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist --no-scripts && composer dump-autoload
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Work out the next version
+        id: version
+        env:
+          REBUILD_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$REBUILD_VERSION" ]; then
+            version="${REBUILD_VERSION#v}"
+            git rev-parse "v${version}" >/dev/null 2>&1 || { echo "::error::Tag v${version} does not exist"; exit 1; }
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+            echo "Rebuilding v${version}"
+          else
+            version="$(php artisan changelog next-version)"
+            if [ -z "$version" ]; then
+              echo "Nothing under '## [Unreleased]' in CHANGELOG.md, so there is nothing to release."
+            else
+              echo "Releasing v${version}"
+            fi
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Cut the release in CHANGELOG.md and tag it
+        if: steps.version.outputs.version != '' && steps.version.outputs.rebuild != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          php artisan changelog release "$VERSION"
+          php artisan changelog notes "$VERSION" > release-notes.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore(release): v${VERSION}"
+          git tag "v${VERSION}"
+          if ! git push origin HEAD:main; then
+            echo "::error::Could not push the release commit to the protected main branch. The repository owner needs to run .github/scripts/setup-repository.sh once, which adds the RELEASE_DEPLOY_KEY this workflow pushes with."
+            exit 1
+          fi
+          git push origin "v${VERSION}"
+
+      - name: Create a draft GitHub release
+        if: steps.version.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists; its installers will be replaced."
+          else
+            php artisan changelog notes "$VERSION" > release-notes.md
+            gh release create "v${VERSION}" --draft --verify-tag --title "PRism v${VERSION}" --notes-file release-notes.md
+          fi
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: prepare
+    if: needs.prepare.outputs.version != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon + Intel)
+            runner: macos-latest
+            os: mac
+            arch: all
+          - name: Windows (x64)
+            runner: windows-latest
+            os: win
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v${{ needs.prepare.outputs.version }}
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sqlite3, zip, intl, fileinfo, openssl, curl
+          tools: composer:v2
+          coverage: none
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist --no-dev --optimize-autoloader --no-scripts
+          composer dump-autoload --no-dev --optimize
+          npm ci
+
+      - name: Prepare the app environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          # shellcheck disable=SC2016 # the single-quoted PHP is intentional
+          php -r '$env = file_get_contents(".env"); $env = preg_replace("/^NATIVEPHP_APP_VERSION=.*$/m", "NATIVEPHP_APP_VERSION=".getenv("VERSION"), $env); $env = preg_replace("/^APP_ENV=.*$/m", "APP_ENV=production", $env); $env = preg_replace("/^APP_DEBUG=.*$/m", "APP_DEBUG=false", $env); file_put_contents(".env", $env);'
+          grep NATIVEPHP_APP_VERSION .env
+
+      # Code signing is optional. Add these secrets to sign and notarise the macOS app; without them
+      # the app is unsigned and macOS asks users to confirm opening it the first time.
+      # Empty signing variables make electron-builder look for a certificate file at "", so they are
+      # only exported when the secrets exist.
+      - name: Build the app
+        env:
+          SIGNING_CERTIFICATE: ${{ secrets.CSC_LINK }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.NATIVEPHP_APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.NATIVEPHP_APPLE_ID_PASS }}
+          APPLE_TEAM_ID: ${{ secrets.NATIVEPHP_APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$SIGNING_CERTIFICATE" ]; then
+            export CSC_LINK="$SIGNING_CERTIFICATE" CSC_KEY_PASSWORD="$SIGNING_CERTIFICATE_PASSWORD"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          if [ -n "$APPLE_ID" ]; then
+            export NATIVEPHP_APPLE_ID="$APPLE_ID" NATIVEPHP_APPLE_ID_PASS="$APPLE_ID_PASSWORD" NATIVEPHP_APPLE_TEAM_ID="$APPLE_TEAM_ID"
+          fi
+          php artisan native:build ${{ matrix.os }} ${{ matrix.arch }} --no-interaction
+
+      - name: Attach the installers to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(nativephp/electron/dist/*.dmg nativephp/electron/dist/*.zip nativephp/electron/dist/*.exe nativephp/electron/dist/*.blockmap nativephp/electron/dist/latest*.yml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No installers were built"; ls -la nativephp/electron/dist || true; exit 1
+          fi
+          gh release upload "v${VERSION}" "${files[@]}" --clobber
+
+  publish:
+    name: Publish release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: gh release edit "v${VERSION}" --repo "${{ github.repository }}" --draft=false --latest
