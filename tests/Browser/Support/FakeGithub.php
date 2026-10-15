@@ -281,6 +281,10 @@ final class FakeGithub
             ]]]]]);
         }
 
+        if (str_contains($query, 'markFileAsViewed')) {
+            return Http::response(['data' => ['markFileAsViewed' => ['clientMutationId' => null]]]);
+        }
+
         if (str_contains($query, 'reviewThreads')) {
             $node = $this->pullRequests[$repository][$variables['number']] ?? null;
 

@@ -4,6 +4,34 @@ use App\Models\PullRequest;
 use Native\Desktop\Facades\Shell;
 use Tests\Browser\Support\FakeGithub;
 
+/**
+ * JavaScript that waits for smooth scrolling to settle, then says whether the sticky "Changed files" toolbar is at
+ * the top of the window with the given file's card just below it.
+ */
+function fileIsJustBelowTheToolbar(string $path): string
+{
+    return <<<JS
+        function () {
+            return new Promise((resolve) => {
+                const started = performance.now();
+                const check = () => {
+                    const toolbar = document.querySelector('[role="toolbar"][aria-label="Changed files"]').getBoundingClientRect();
+                    const file = document.querySelector('[data-file-path="{$path}"]').getBoundingClientRect();
+                    const aligned = Math.abs(toolbar.top) < 2 && Math.abs(file.top - toolbar.bottom - 8) <= 4;
+
+                    if (aligned || performance.now() - started > 3000) {
+                        resolve(aligned);
+                    } else {
+                        requestAnimationFrame(check);
+                    }
+                };
+
+                check();
+            });
+        }
+        JS;
+}
+
 beforeEach(function () {
     onboardedAccount(['login' => 'octocat']);
     trackedRepository('acme/api');
@@ -66,6 +94,42 @@ it('approves the pull request on GitHub and takes it out of your queue', functio
     $page->navigate('/')
         ->assertSeeIn('button[title="Show only: awaiting your review"]', '0')
         ->assertSeeIn('button[title="Show only: approved by you"]', '1')
+        ->assertNoJavaScriptErrors();
+});
+
+it('keeps the viewed progress in sight and moves on to the next file when you mark one viewed', function () {
+    $files = array_map(fn (int $number): array => [
+        'filename' => sprintf('src/File%02d.php', $number),
+        'additions' => 20,
+        'patch' => "@@ -0,0 +1,20 @@\n".implode("\n", array_map(fn (int $line): string => "+// line {$line}", range(1, 20))),
+    ], range(1, 30));
+    $this->github->withFiles('acme/api', 101, $files);
+    $pullRequest = PullRequest::firstWhere('number', 101);
+
+    $page = visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=tab[name="Files changed"i]')
+        ->waitForText('src/File01.php')
+        ->assertSee('0 of 30 files viewed')
+        ->click('section[data-file-path="src/File01.php"] [role="checkbox"]')
+        ->assertSee('1 of 30 files viewed');
+
+    expect($page->script(fileIsJustBelowTheToolbar('src/File02.php')))->toBeTrue();
+
+    $page->click('section[data-file-path="src/File02.php"] [role="checkbox"]')
+        ->assertSee('2 of 30 files viewed')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script(fileIsJustBelowTheToolbar('src/File03.php')))->toBeTrue();
+});
+
+it('says when every file has been viewed', function () {
+    $pullRequest = PullRequest::firstWhere('number', 101);
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=tab[name="Files changed"i]')
+        ->waitForText('app/Http/Middleware/RateLimit.php')
+        ->click('section[data-file-path="app/Http/Middleware/RateLimit.php"] [role="checkbox"]')
+        ->waitForText('File viewed')
         ->assertNoJavaScriptErrors();
 });
 
