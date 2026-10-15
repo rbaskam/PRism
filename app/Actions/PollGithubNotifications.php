@@ -15,8 +15,9 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
- * Pulls the user's GitHub notifications, raises the desktop alerts the user switched on, and
- * refreshes repositories where a review was newly requested.
+ * Pulls the user's GitHub notifications, raises the desktop alerts the user switched on, and syncs the repository
+ * of every pull request with new activity: a new review request, a comment, or the pull request being merged or
+ * closed. Merged and closed pull requests then leave the lists within a minute or two, without a full sync.
  */
 class PollGithubNotifications
 {
@@ -40,6 +41,13 @@ class PollGithubNotifications
 
         foreach ($result['notifications'] as $thread) {
             $notification = $this->store($thread);
+
+            if ($notification->subject_type === 'PullRequest' && ($notification->wasRecentlyCreated || $notification->wasChanged('github_updated_at'))) {
+                $repositoriesToSync->push($notification->repository_full_name);
+            }
+
+            $this->linkPullRequest($notification);
+
             $alert = AlertType::fromGithubReason($notification->reason);
 
             if (! $notification->is_unread || $alert === null) {
@@ -51,10 +59,6 @@ class PollGithubNotifications
             }
 
             $isNew = $notification->desktop_notified_at === null;
-
-            if ($isNew && $notification->reason === 'review_requested') {
-                $repositoriesToSync->push($notification->repository_full_name);
-            }
 
             if (! $isFirstPoll && $this->wantsAlert($alert, $isNew)) {
                 $this->notifier->send(
@@ -92,14 +96,21 @@ class PollGithubNotifications
             'github_updated_at' => Carbon::parse($thread['updated_at']),
         ]);
 
+        return $notification;
+    }
+
+    /**
+     * Link the notification to its pull request once that pull request has synced. This is a separate save from
+     * store(), so it runs after handle() has checked what store() changed.
+     */
+    private function linkPullRequest(GithubNotification $notification): void
+    {
         if ($notification->pull_request_id === null && ($number = $notification->pullRequestNumber()) !== null) {
             $notification->update(['pull_request_id' => PullRequest::query()
-                ->whereRelation('repository', 'full_name', $repositoryName)
+                ->whereRelation('repository', 'full_name', $notification->repository_full_name)
                 ->where('number', $number)
                 ->value('id')]);
         }
-
-        return $notification;
     }
 
     /**

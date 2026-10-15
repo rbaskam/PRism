@@ -178,3 +178,55 @@ it('does not alert about CI results unless switched on', function () {
 
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/api/notification'));
 });
+
+it('closes a pull request merged on GitHub as soon as its notification updates, without waiting for the next full sync', function () {
+    $account = GithubAccount::factory()->create(['notifications_polled_at' => now()->subMinute()]);
+    $repository = trackedRepository('acme/app');
+    $pullRequest = PullRequest::factory()->for($repository)->awaitingMyReview()->create(['number' => 12]);
+    GithubNotification::factory()->create([
+        'github_id' => '100',
+        'github_updated_at' => '2026-10-13 09:00:00',
+        'desktop_notified_at' => '2026-10-13 09:00:00',
+    ]);
+    Http::fake([
+        'api.github.com/notifications*' => Http::response([githubNotificationThread('100', 'review_requested', 12, '2026-10-14T09:00:00Z')]),
+        'api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([])),
+        '*/api/*' => Http::response(),
+    ]);
+
+    app(PollGithubNotifications::class)->handle($account);
+
+    expect($pullRequest->fresh())
+        ->state->toBe(PullRequest::STATE_CLOSED)
+        ->closed_at->not->toBeNull();
+});
+
+it('leaves repositories alone when nothing changed on their pull requests', function () {
+    Queue::fake([SyncRepository::class]);
+    $account = GithubAccount::factory()->create(['notifications_polled_at' => now()->subMinute()]);
+    trackedRepository('acme/app');
+    GithubNotification::factory()->create(['github_id' => '100', 'github_updated_at' => '2026-10-13 09:00:00']);
+    Http::fake([
+        'api.github.com/notifications*' => Http::response([githubNotificationThread('100', 'review_requested', 12, '2026-10-13T09:00:00Z')]),
+    ]);
+
+    app(PollGithubNotifications::class)->handle($account);
+
+    Queue::assertNotPushed(SyncRepository::class);
+});
+
+it('does not sync a repository for activity on its issues', function () {
+    Queue::fake([SyncRepository::class]);
+    $account = GithubAccount::factory()->create(['notifications_polled_at' => now()->subMinute()]);
+    trackedRepository('acme/app');
+    $issue = githubNotificationThread('200', 'mention');
+    $issue['subject'] = ['title' => 'Login page is slow', 'url' => 'https://api.github.com/repos/acme/app/issues/7', 'type' => 'Issue'];
+    Http::fake([
+        'api.github.com/notifications*' => Http::response([$issue]),
+        '*/api/*' => Http::response(['reference' => 'x']),
+    ]);
+
+    app(PollGithubNotifications::class)->handle($account);
+
+    Queue::assertNotPushed(SyncRepository::class);
+});
