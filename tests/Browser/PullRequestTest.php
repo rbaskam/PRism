@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\PullRequest;
+use Native\Desktop\Facades\Shell;
 use Tests\Browser\Support\FakeGithub;
 
 /**
@@ -130,4 +131,36 @@ it('says when every file has been viewed', function () {
         ->click('section[data-file-path="app/Http/Middleware/RateLimit.php"] [role="checkbox"]')
         ->waitForText('File viewed')
         ->assertNoJavaScriptErrors();
+});
+
+it('keeps showing the changed files after syncing with GitHub', function () {
+    $pullRequest = PullRequest::firstWhere('number', 101);
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=tab[name="Files changed"i]')
+        ->waitForText('app/Http/Middleware/RateLimit.php')
+        ->click('Sync with GitHub')
+        ->waitForText('Syncing with GitHub…')
+        ->waitForText('app/Http/Middleware/RateLimit.php')
+        ->assertDontSee('Loading the changed files from GitHub…')
+        ->assertNoJavaScriptErrors();
+});
+
+it('opens a file on GitHub from the desktop app without reloading the changed files', function () {
+    config(['nativephp-internal.running' => true]);
+    Shell::fake();
+    $pullRequest = PullRequest::firstWhere('number', 101);
+
+    $page = visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=tab[name="Files changed"i]')
+        ->waitForText('app/Http/Middleware/RateLimit.php')
+        ->click('section[data-file-path="app/Http/Middleware/RateLimit.php"] header a[href$="/files"]');
+
+    // The app serves one request at a time, so this request is answered after the one that opened the link.
+    $page->script('function () { return fetch("/settings/about").then((response) => response.status); }');
+
+    $page->assertSee('app/Http/Middleware/RateLimit.php')
+        ->assertDontSee('Loading the changed files from GitHub…')
+        ->assertNoJavaScriptErrors();
+    Shell::assertOpenedExternal('https://github.com/acme/api/pull/101/files');
 });
