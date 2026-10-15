@@ -71,11 +71,13 @@ it('saves the review prompt and what Claude may do', function () {
 it('saves which desktop alerts you get and their sound', function () {
     $page = visit('/settings/notifications')
         ->click('#mentions')
-        ->select('#sound select', 'none')
+        ->click('label[for="sound"]')
+        ->assertScript('document.activeElement?.id', 'sound')
+        ->select('#sound', 'none')
         ->click('Save');
 
     $page->navigate('/settings/notifications')
-        ->assertSelected('#sound select', 'none')
+        ->assertSelected('#sound', 'none')
         ->assertNoJavaScriptErrors();
 
     $settings = app(AppSettings::class);
