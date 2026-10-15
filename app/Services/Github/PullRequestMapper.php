@@ -20,14 +20,18 @@ class PullRequestMapper
     public function attributes(array $node, GithubAccount $account): array
     {
         $myLogin = $account->login;
+        $isAuthoredByMe = strcasecmp($node['author']['login'] ?? '', $myLogin) === 0;
         $requestedReviewers = $this->withoutRequestsAnsweredByMe($this->requestedReviewers($node), $node, $account);
-        $myTeams = collect($requestedReviewers)
+        // GitHub doesn't let you review your own pull request, so a request sent to one of your teams (e.g. by
+        // CODEOWNERS) isn't one for you.
+        $requestsForMe = $isAuthoredByMe ? [] : $requestedReviewers;
+        $myTeams = collect($requestsForMe)
             ->where('type', 'team')
             ->filter(fn (array $reviewer): bool => $this->isMe($reviewer, $account))
             ->map(fn (array $reviewer): string => "{$reviewer['organization']}/{$reviewer['slug']}")
             ->values()
             ->all();
-        $isRequestedDirectly = collect($requestedReviewers)
+        $isRequestedDirectly = collect($requestsForMe)
             ->contains(fn (array $reviewer): bool => $reviewer['type'] === 'user' && $this->isMe($reviewer, $account));
         $myReview = $this->myLatestReview($node, $myLogin);
         $isOpen = $node['state'] === 'OPEN';
@@ -63,7 +67,7 @@ class PullRequestMapper
                 'name' => $label['name'],
                 'color' => $label['color'],
             ])->all(),
-            'is_authored_by_me' => strcasecmp($node['author']['login'] ?? '', $myLogin) === 0,
+            'is_authored_by_me' => $isAuthoredByMe,
             'is_assigned_to_me' => collect($this->nodes($node, 'assignees'))
                 ->contains(fn (array $assignee): bool => strcasecmp($assignee['login'], $myLogin) === 0),
             'github_created_at' => Carbon::parse($node['createdAt']),

@@ -85,13 +85,13 @@ it('filters by search, repository and how your review was requested', function (
     $page->fill('[aria-label="Search pull requests"]', 'login')
         ->assertSee('Fix login redirect')
         ->assertSee('Showing 1 of 6 pull requests')
-        ->click('internal:role=button[name="Clear filters"i]');
+        ->click('internal:role=button[name="Clear all"i]');
 
     $page->select('select[aria-label="Filter by repository"]', (string) Repository::firstWhere('name', 'web')->id)
         ->assertSee('Redesign settings')
         ->assertSee('Bump dependencies')
         ->assertDontSee('Add rate limiting')
-        ->click('internal:role=button[name="Clear filters"i]');
+        ->click('internal:role=button[name="Clear all"i]');
 
     $page->select('select[aria-label="Filter by how your review was requested"]', 'team:acme/reviewers')
         ->assertSee('Fix login redirect')
@@ -110,7 +110,7 @@ it('filters by status and hides drafts or shows only failing checks', function (
         ->assertSee('Upgrade Laravel')
         ->assertSee('Bump dependencies')
         ->assertSee('Showing 2 of 6 pull requests')
-        ->click('internal:role=button[name="Clear filters"i]');
+        ->click('internal:role=button[name="Clear all"i]');
 
     $page->click('Hide drafts')
         ->assertDontSee('New onboarding flow')
@@ -208,4 +208,27 @@ it('snoozes a pull request out of the list and its counts, and brings it back', 
         ->assertNoJavaScriptErrors();
 
     expect(PullRequest::firstWhere('number', 101)->isSnoozed())->toBeFalse();
+});
+
+it('spells out which filters are hiding pull requests and removes them one at a time', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+    $web = Repository::firstWhere('name', 'web');
+
+    $page = visit('/')
+        ->select('select[aria-label="Filter by repository"]', (string) $web->id)
+        ->click('[aria-label="Filter by status"] button[title="Awaiting your review"]')
+        ->assertSeeIn('[aria-label="Active filters"]', 'Repository: acme/web')
+        ->assertSeeIn('[aria-label="Active filters"]', 'Status: Awaiting')
+        ->assertScript('getComputedStyle(document.querySelector(\'select[aria-label="Filter by repository"]\')).borderColor !== getComputedStyle(document.querySelector(\'select[aria-label="Sort pull requests"]\')).borderColor')
+        ->assertSee('Showing 1 of 6 pull requests');
+
+    $page->click('[aria-label="Active filters"] button[title^="Remove the filter “Repository"]')
+        ->assertDontSeeIn('[aria-label="Active filters"]', 'Repository: acme/web')
+        ->assertSeeIn('[aria-label="Active filters"]', 'Status: Awaiting')
+        ->assertSee('Showing 3 of 6 pull requests')
+        ->click('internal:role=button[name="Clear all"i]')
+        ->assertMissing('[aria-label="Active filters"]')
+        ->assertSee('Showing 6 of 6 pull requests')
+        ->assertNoJavaScriptErrors();
 });

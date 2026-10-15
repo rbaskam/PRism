@@ -126,6 +126,27 @@ it('wakes a snoozed pull request when new commits are pushed to it', function ()
         ->and($unchanged->fresh()->snoozed_until)->not->toBeNull();
 });
 
+it('does not count a review requested from the user\'s team on their own pull request', function () {
+    $account = GithubAccount::factory()->inTeam('acme', 'reviewers')->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([
+        githubPullRequestNode([
+            'author' => ['login' => 'octocat', 'avatarUrl' => null],
+            'reviewRequests' => ['nodes' => [
+                ['requestedReviewer' => ['__typename' => 'Team', 'slug' => 'reviewers', 'name' => 'Reviewers', 'organization' => ['login' => 'acme']]],
+            ]],
+        ]),
+    ]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole())
+        ->is_review_requested_from_me->toBeFalse()
+        ->requested_via_teams->toBe([])
+        ->attention()->toBe(ReviewAttention::Authored);
+    expect(PullRequest::query()->awaitingMyReview()->count())->toBe(0);
+});
+
 it('closes pull requests that are no longer open on GitHub', function () {
     $account = GithubAccount::factory()->create();
     $repository = Repository::factory()->create();

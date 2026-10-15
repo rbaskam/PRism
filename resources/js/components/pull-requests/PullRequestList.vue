@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
 import {
+    attentionFilterOptions,
     isSnoozed,
     sortOptions,
     summarisePullRequests,
@@ -20,7 +21,7 @@ import {
 import type { PullRequest } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { useStorage } from '@vueuse/core';
-import { AlarmClock, ChevronRight, ChevronsDownUp, ChevronsUpDown, FilterX, GitPullRequest, SearchX } from 'lucide-vue-next';
+import { AlarmClock, ChevronRight, ChevronsDownUp, ChevronsUpDown, FilterX, GitPullRequest, SearchX, X } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 
 const props = withDefaults(
@@ -70,6 +71,66 @@ watch(
     },
     { immediate: true },
 );
+
+interface ActiveFilter {
+    key: string;
+    label: string;
+    remove: () => void;
+}
+
+/** Every filter that narrows the list, spelled out so it's obvious why pull requests are hidden. */
+const activeFilters = computed<ActiveFilter[]>(() => {
+    const current = filters.value;
+    const active: ActiveFilter[] = [];
+
+    if (current.search.trim() !== '') {
+        active.push({ key: 'search', label: `Search: “${current.search.trim()}”`, remove: () => updateFilter('search', '') });
+    }
+
+    for (const attention of current.attention) {
+        const label = attentionFilterOptions.find((option) => option.value === attention)?.label ?? attention;
+        active.push({
+            key: `attention:${attention}`,
+            label: `Status: ${label}`,
+            remove: () =>
+                updateFilter(
+                    'attention',
+                    current.attention.filter((value) => value !== attention),
+                ),
+        });
+    }
+
+    if (current.repository !== '') {
+        const repository = props.repositories?.find((candidate) => String(candidate.id) === current.repository);
+        active.push({ key: 'repository', label: `Repository: ${repository?.full_name ?? 'unknown'}`, remove: () => updateFilter('repository', '') });
+    }
+
+    if (current.requested !== 'any') {
+        const label =
+            current.requested === 'direct'
+                ? 'Requested from you directly'
+                : current.requested === 'team'
+                  ? 'Requested via any team'
+                  : `Requested via @${current.requested.slice('team:'.length)}`;
+        active.push({ key: 'requested', label, remove: () => updateFilter('requested', 'any') });
+    }
+
+    const toggles = [
+        ['hideDrafts', 'Drafts hidden'],
+        ['onlyWithFindings', 'With AI findings'],
+        ['onlyFailingChecks', 'Failing checks'],
+        ['showClosed', 'Including recently closed'],
+        ['showSnoozed', 'Including snoozed'],
+    ] as const;
+
+    for (const [key, label] of toggles) {
+        if (current[key]) {
+            active.push({ key, label, remove: () => updateFilter(key, false) });
+        }
+    }
+
+    return active;
+});
 
 const activeStats = computed<PullRequestStatKey[]>(() => {
     const active: PullRequestStatKey[] = [];
@@ -171,11 +232,24 @@ function toggleAllGroups(): void {
                             pullRequestsInScope.length === 1 ? '' : 's'
                         }}
                     </span>
-                    <Button v-if="activeFilterCount > 0" variant="ghost" size="sm" class="h-7 gap-1.5 px-2 text-xs" @click="clearFilters">
-                        <FilterX class="!size-3.5" />
-                        Clear filters
-                        <span class="tabular-nums text-muted-foreground">({{ activeFilterCount }})</span>
-                    </Button>
+                    <div v-if="activeFilters.length > 0" class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Active filters">
+                        <span>Filtered by</span>
+                        <button
+                            v-for="filter in activeFilters"
+                            :key="filter.key"
+                            type="button"
+                            class="inline-flex h-6 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 pl-2 pr-1.5 font-medium text-foreground transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            :title="`Remove the filter “${filter.label}”`"
+                            @click="filter.remove()"
+                        >
+                            {{ filter.label }}
+                            <X class="size-3" aria-hidden="true" />
+                        </button>
+                        <Button variant="ghost" size="sm" class="h-6 gap-1 px-2 text-xs" @click="clearFilters">
+                            <FilterX class="!size-3.5" />
+                            Clear all
+                        </Button>
+                    </div>
 
                     <div class="ml-auto flex flex-wrap items-center gap-3">
                         <template v-if="canGroupByRepository">
