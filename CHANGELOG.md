@@ -10,6 +10,11 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- In Files changed, the files-viewed progress (for example "13 of 55 files viewed") stays at the top while you scroll through a large pull request.
+- Ticking Viewed on a file now scrolls straight to the next file you haven't viewed, so you can review a pull request file by file without scrolling.
+
 ## [0.6.1] - 2026-10-15
 
 ### Fixed
