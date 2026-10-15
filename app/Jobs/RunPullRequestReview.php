@@ -4,13 +4,13 @@ namespace App\Jobs;
 
 use App\Actions\RecordReviewResult;
 use App\Enums\AiTaskStatus;
+use App\Enums\AlertType;
 use App\Models\GithubAccount;
 use App\Models\ReviewRun;
-use App\Services\AppSettings;
+use App\Services\Alerts;
 use App\Services\Claude\ClaudeCode;
 use App\Services\Claude\ClaudeException;
 use App\Services\Claude\PullRequestReviewPrompt;
-use App\Services\DesktopNotifier;
 use App\Services\Git\PullRequestCheckout;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -40,8 +40,7 @@ class RunPullRequestReview implements ShouldQueue
         PullRequestCheckout $checkout,
         PullRequestReviewPrompt $prompt,
         RecordReviewResult $recordResult,
-        AppSettings $settings,
-        DesktopNotifier $notifier,
+        Alerts $alerts,
     ): void {
         $run = $this->reviewRun;
         $pullRequest = $run->pullRequest->load('repository');
@@ -71,13 +70,13 @@ class RunPullRequestReview implements ShouldQueue
             'finished_at' => now(),
         ]);
 
-        if ($settings->notifiesWhenReviewFinishes()) {
-            $notifier->send(
-                'AI review finished',
-                "{$pullRequest->reference()}: ".trans_choice('{0} no new findings|{1} 1 new finding|[2,*] :count new findings', $run->new_findings_count),
-                DesktopNotifier::PULL_REQUEST_REFERENCE.$pullRequest->id,
-            );
-        }
+        $alerts->raise(
+            AlertType::ReviewFinished,
+            'AI review finished',
+            "{$pullRequest->reference()}: ".trans_choice('{0} no new findings|{1} 1 new finding|[2,*] :count new findings', $run->new_findings_count),
+            Alerts::pullRequestUrl($pullRequest, 'findings'),
+            $pullRequest,
+        );
     }
 
     public function failed(?Throwable $exception): void
@@ -90,8 +89,6 @@ class RunPullRequestReview implements ShouldQueue
 
         $pullRequest = $this->reviewRun->pullRequest;
 
-        if (app(AppSettings::class)->notifiesWhenReviewFinishes()) {
-            app(DesktopNotifier::class)->send('AI review failed', $pullRequest->reference(), DesktopNotifier::PULL_REQUEST_REFERENCE.$pullRequest->id);
-        }
+        app(Alerts::class)->raise(AlertType::ReviewFinished, 'AI review failed', $pullRequest->reference(), Alerts::pullRequestUrl($pullRequest, 'history'), $pullRequest);
     }
 }

@@ -2,13 +2,13 @@
 
 namespace App\Jobs;
 
+use App\Enums\AlertType;
 use App\Enums\CodeChangeStatus;
 use App\Models\CodeChange;
 use App\Models\GithubAccount;
 use App\Models\ReviewFinding;
-use App\Services\AppSettings;
+use App\Services\Alerts;
 use App\Services\Claude\ClaudeCode;
-use App\Services\DesktopNotifier;
 use App\Services\Git\Git;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -37,7 +37,7 @@ class MakeCodeChanges implements ShouldQueue
         $this->onQueue(RunPullRequestReview::QUEUE);
     }
 
-    public function handle(ClaudeCode $claude, Git $git, AppSettings $settings, DesktopNotifier $notifier): void
+    public function handle(ClaudeCode $claude, Git $git, Alerts $alerts): void
     {
         $change = $this->codeChange;
         $pullRequest = $change->pullRequest->load('repository');
@@ -100,13 +100,13 @@ class MakeCodeChanges implements ShouldQueue
             'duration_ms' => $result->durationMs,
         ]);
 
-        if ($settings->notifiesWhenReviewFinishes()) {
-            $notifier->send(
-                $commits === [] ? 'Claude made no changes' : "Claude's changes are ready to review",
-                $pullRequest->reference(),
-                DesktopNotifier::PULL_REQUEST_REFERENCE.$pullRequest->id,
-            );
-        }
+        $alerts->raise(
+            AlertType::ReviewFinished,
+            $commits === [] ? 'Claude made no changes' : "Claude's changes are ready to review",
+            $pullRequest->reference(),
+            Alerts::pullRequestUrl($pullRequest, 'changes'),
+            $pullRequest,
+        );
     }
 
     public function failed(?Throwable $exception): void

@@ -95,8 +95,8 @@ it('saves which desktop alerts the user wants', function () {
 
     $response->assertSessionHas('success', 'Notification settings saved.');
     $settings = app(AppSettings::class);
-    expect($settings->sendsAlert(AlertType::NewPullRequests))->toBeTrue()
-        ->and($settings->sendsAlert(AlertType::Mentions))->toBeFalse()
+    expect($settings->wantsAlert(AlertType::NewPullRequests))->toBeTrue()
+        ->and($settings->wantsAlert(AlertType::Mentions))->toBeFalse()
         ->and($settings->alertsOnFollowUpActivity())->toBeFalse()
         ->and($settings->notificationSound())->toBe(NotificationSound::Submarine);
 });

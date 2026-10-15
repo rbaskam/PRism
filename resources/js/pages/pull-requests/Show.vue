@@ -29,7 +29,7 @@ import type {
     ReviewRun,
     SubmitReviewEvent,
 } from '@/types';
-import { Deferred, Head, router, usePoll } from '@inertiajs/vue3';
+import { Deferred, Head, router, usePage, usePoll } from '@inertiajs/vue3';
 import { FileDiff, FileText, History, Loader2, MessageSquareCode, MessagesSquare, Sparkles, Wand2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -64,7 +64,11 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
     return items;
 });
 
-const activeTab = ref('findings');
+const tabs = ['findings', 'files', 'questions', 'changes', 'conversation', 'description', 'history'];
+
+/** Alerts link straight to a tab, e.g. ?tab=conversation for a new comment. */
+const requestedTab = new URL(usePage().url, window.location.origin).searchParams.get('tab');
+const activeTab = ref(requestedTab !== null && tabs.includes(requestedTab) ? requestedTab : 'findings');
 
 /*
  * Diffs can be large, so they are only fetched from GitHub once the Files changed tab is opened. A full page reload

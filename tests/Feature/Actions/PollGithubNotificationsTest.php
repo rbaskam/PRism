@@ -3,6 +3,7 @@
 use App\Actions\PollGithubNotifications;
 use App\Enums\AlertType;
 use App\Jobs\SyncRepository;
+use App\Models\Alert;
 use App\Models\GithubAccount;
 use App\Models\GithubNotification;
 use App\Models\PullRequest;
@@ -57,6 +58,10 @@ it('sends a desktop notification when a review is requested', function () {
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/api/notification')
         && $request['title'] === 'Review requested'
         && $request['reference'] === "github-notification:{$notification->id}");
+    expect(Alert::sole())
+        ->type->toBe(AlertType::ReviewRequests)
+        ->pull_request_id->toBe($pullRequest->id)
+        ->url->toBe("/pull-requests/{$pullRequest->id}");
     Queue::assertPushed(SyncRepository::class, fn (SyncRepository $job): bool => $job->repository->is($repository));
 });
 
@@ -229,4 +234,32 @@ it('does not sync a repository for activity on its issues', function () {
     app(PollGithubNotifications::class)->handle($account);
 
     Queue::assertNotPushed(SyncRepository::class);
+});
+
+it('opens alerts about comments on the pull request\'s conversation', function () {
+    $account = GithubAccount::factory()->create(['notifications_polled_at' => now()->subMinute()]);
+    $repository = trackedRepository('acme/app');
+    $pullRequest = PullRequest::factory()->for($repository)->authoredByMe()->create(['number' => 12]);
+    Http::fake([
+        'api.github.com/notifications*' => Http::response([githubNotificationThread('300', 'author')]),
+        '*/api/*' => Http::response(['reference' => 'x']),
+        'api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([])),
+    ]);
+
+    app(PollGithubNotifications::class)->handle($account);
+
+    expect(Alert::sole()->url)->toBe("/pull-requests/{$pullRequest->id}?tab=conversation");
+});
+
+it('keeps alerts for the bell when desktop notifications are off', function () {
+    app(AppSettings::class)->set(AppSettings::NOTIFY_DESKTOP, false);
+    $account = GithubAccount::factory()->create(['notifications_polled_at' => now()->subMinute()]);
+    Http::fake([
+        'api.github.com/notifications*' => Http::response([githubNotificationThread('400', 'mention')]),
+    ]);
+
+    app(PollGithubNotifications::class)->handle($account);
+
+    expect(Alert::sole()->title)->toBe('You were mentioned');
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/api/notification'));
 });

@@ -5,6 +5,17 @@ export function xsrfToken(): string {
     return match ? decodeURIComponent(match[1]) : '';
 }
 
+/** GET a Laravel endpoint that answers with JSON (not an Inertia response). */
+export async function getJson<T>(url: string, failureLabel = 'Request failed'): Promise<T> {
+    const response = await fetch(url, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+
+    if (!response.ok) {
+        throw new Error(`${failureLabel} (error ${response.status}).`);
+    }
+
+    return (await response.json()) as T;
+}
+
 /**
  * POST JSON to a Laravel endpoint that answers with JSON (not an Inertia response).
  * Errors are thrown with a message the UI can show as is, prefixed with `failureLabel`.

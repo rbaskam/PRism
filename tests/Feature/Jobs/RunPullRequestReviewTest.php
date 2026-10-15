@@ -1,8 +1,10 @@
 <?php
 
 use App\Enums\AiTaskStatus;
+use App\Enums\AlertType;
 use App\Enums\ClaudeAuthMode;
 use App\Jobs\RunPullRequestReview;
+use App\Models\Alert;
 use App\Models\GithubAccount;
 use App\Models\ReviewFinding;
 use App\Models\ReviewRun;
@@ -55,6 +57,9 @@ it('runs Claude Code read-only and records the findings', function () {
         ->duration_ms->toBe(95000)
         ->new_findings_count->toBe(1);
     expect(ReviewFinding::sole()->title)->toBe('Off by one');
+    expect(Alert::sole())
+        ->type->toBe(AlertType::ReviewFinished)
+        ->url->toBe("/pull-requests/{$run->pull_request_id}?tab=findings");
     Process::assertRan(function (PendingProcess $process): bool {
         $command = $process->command;
 

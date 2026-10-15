@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AlertController;
 use App\Http\Controllers\AvailableRepositoryController;
 use App\Http\Controllers\CodeChangeController;
 use App\Http\Controllers\CodeQuestionController;
@@ -100,6 +101,9 @@ Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
 
             Route::get('inbox', [InboxController::class, 'index'])->name('inbox.index');
             Route::post('inbox/read-all', [InboxController::class, 'markAllAsRead'])->name('inbox.read-all');
+            Route::get('alerts', [AlertController::class, 'index'])->name('alerts.index');
+            Route::post('alerts/read-all', [AlertController::class, 'markAllAsRead'])->name('alerts.read-all');
+            Route::post('alerts/{alert}/read', [AlertController::class, 'markAsRead'])->name('alerts.read');
             Route::post('inbox/{notification}/read', [InboxController::class, 'markAsRead'])->name('inbox.read');
             Route::get('inbox/{notification}/open', [InboxController::class, 'open'])->name('inbox.open');
 

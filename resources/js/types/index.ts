@@ -37,6 +37,8 @@ export interface SharedData {
     counts: {
         awaiting_review: number;
         unread_inbox: number;
+        /** Alerts under the bell in the header that haven't been read. */
+        unread_alerts: number;
         active_reviews: number;
         /** Pull requests Claude is reviewing right now, oldest first. */
         reviewing: { pull_request_id: number; reference: string; title: string; status: 'queued' | 'running' }[];
@@ -377,5 +379,18 @@ export interface CodeChange {
     created_pull_request_url: string | null;
     started_at: string | null;
     pushed_at: string | null;
+    created_at: string | null;
+}
+
+/** An alert PRism raised, listed under the bell in the header. */
+export interface AppAlert {
+    id: number;
+    /** The alert kind, as in Settings → Notifications: review_requests, mentions, new_pull_requests, review_finished… */
+    type: string;
+    title: string;
+    body: string | null;
+    /** A path in the app, or a github.com link. */
+    url: string | null;
+    is_read: boolean;
     created_at: string | null;
 }

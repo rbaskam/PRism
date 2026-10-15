@@ -8,6 +8,7 @@ use App\Models\GithubAccount;
 use App\Models\GithubNotification;
 use App\Models\PullRequest;
 use App\Models\Repository;
+use App\Services\Alerts;
 use App\Services\AppSettings;
 use App\Services\DesktopNotifier;
 use App\Services\Github\GithubClient;
@@ -24,7 +25,7 @@ class PollGithubNotifications
     public function __construct(
         private readonly GithubClient $github,
         private readonly AppSettings $settings,
-        private readonly DesktopNotifier $notifier,
+        private readonly Alerts $alerts,
     ) {}
 
     public function handle(GithubAccount $account): void
@@ -61,9 +62,12 @@ class PollGithubNotifications
             $isNew = $notification->desktop_notified_at === null;
 
             if (! $isFirstPoll && $this->wantsAlert($alert, $isNew)) {
-                $this->notifier->send(
+                $this->alerts->raise(
+                    $alert,
                     $alert->title($notification->reason),
                     "{$notification->repository_full_name}: {$notification->subject_title}",
+                    $this->alertUrl($notification, $alert),
+                    $notification->pullRequest,
                     DesktopNotifier::GITHUB_NOTIFICATION_REFERENCE.$notification->id,
                 );
             }
@@ -119,11 +123,30 @@ class PollGithubNotifications
      */
     private function wantsAlert(AlertType $alert, bool $isNew): bool
     {
-        if (! $this->settings->sendsAlert($alert)) {
+        if (! $this->settings->wantsAlert($alert)) {
             return false;
         }
 
         return $isNew || $alert->alertsOnEveryUpdate() || $this->settings->alertsOnFollowUpActivity();
+    }
+
+    /**
+     * Pull requests open in the app, on the Conversation tab for comments and mentions; one that hasn't synced yet is
+     * fetched when the alert is opened. Anything else (issues, releases…) opens on github.com.
+     */
+    private function alertUrl(GithubNotification $notification, AlertType $alert): ?string
+    {
+        if ($notification->pullRequest !== null) {
+            $isAboutComments = in_array($alert, [AlertType::Mentions, AlertType::MyPullRequests, AlertType::Commented], true);
+
+            return Alerts::pullRequestUrl($notification->pullRequest, $isAboutComments ? 'conversation' : null);
+        }
+
+        if ($notification->subject_type === 'PullRequest') {
+            return route('inbox.open', $notification, absolute: false);
+        }
+
+        return $notification->html_url;
     }
 
     /**
