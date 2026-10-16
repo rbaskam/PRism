@@ -58,6 +58,37 @@ it('shows the pull requests from GitHub that involve you, with a count for each 
         ->assertNoJavaScriptErrors();
 });
 
+it('syncs with GitHub when you come back to the app, e.g. after approving a pull request there', function () {
+    $github = githubWithPullRequestsForOctocat();
+    syncFromGithub();
+    $page = visit('/')->assertSeeIn('[data-sidebar="menu-badge"]', '3');
+
+    $github->withPullRequests('acme/api', [FakeGithub::pullRequest(101, 'Add rate limiting', FakeGithub::reviewedBy('octocat', 'APPROVED'))]);
+    $page->script('function () { window.dispatchEvent(new Event("focus")); }');
+
+    $page->waitForText('Syncing…');
+    expect($page->script(<<<'JS'
+        function () {
+            return new Promise((resolve) => {
+                const started = performance.now();
+                const check = () => {
+                    const awaiting = document.querySelector('[data-sidebar="menu-badge"]')?.textContent.trim();
+
+                    if (awaiting === '2' || performance.now() - started > 8000) {
+                        resolve(awaiting);
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+
+                check();
+            });
+        }
+        JS))->toBe('2');
+    $page->assertSeeIn('button[title="Show only: approved by you"]', '2')
+        ->assertNoJavaScriptErrors();
+});
+
 it('narrows the list to one kind when you click its count, and back again', function () {
     githubWithPullRequestsForOctocat();
     syncFromGithub();

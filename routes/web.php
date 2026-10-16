@@ -33,6 +33,7 @@ use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\ReviewSettingsController;
 use App\Http\Controllers\Settings\SecuritySettingsController;
 use App\Http\Controllers\SyncController;
+use App\Http\Controllers\SyncOnReturnController;
 use App\Http\Controllers\TrackedRepositoryController;
 use App\Http\Middleware\EnsureAppIsUnlocked;
 use App\Http\Middleware\EnsureGithubIsConnected;
@@ -82,6 +83,7 @@ Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
         Route::middleware(EnsureOnboardingIsComplete::class)->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::post('sync', SyncController::class)->name('sync');
+            Route::post('sync/on-return', SyncOnReturnController::class)->name('sync.on-return');
 
             Route::get('repositories', [RepositoryController::class, 'index'])->name('repositories.index');
             Route::get('repositories/{repository}', [RepositoryController::class, 'show'])->name('repositories.show');

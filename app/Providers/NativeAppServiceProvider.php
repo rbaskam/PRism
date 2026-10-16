@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Jobs\SyncGithub;
+use App\Models\GithubAccount;
 use App\Services\AppLock;
 use App\Services\AppSettings;
 use Native\Desktop\Contracts\ProvidesPhpIni;
@@ -21,6 +23,11 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
         if ($settings->isAppLockEnabled() && $settings->locksOnLaunch()) {
             app(AppLock::class)->lockEverywhere();
+        }
+
+        // Catch up on what changed on GitHub while PRism was closed, rather than at the next scheduled sync.
+        if (GithubAccount::query()->exists()) {
+            SyncGithub::dispatch();
         }
 
         Window::open(self::MAIN_WINDOW)

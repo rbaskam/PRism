@@ -8,6 +8,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { postJson } from '@/lib/http';
 import type { SharedData } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { useEventListener } from '@vueuse/core';
@@ -20,6 +21,16 @@ const syncing = ref(false);
 const locking = ref(false);
 const lockShortcut = navigator.platform.toLowerCase().includes('mac') ? '⌘L' : 'Ctrl+L';
 
+/** Repositories sync in the background; reload the page shortly after to pick up the results. */
+function reloadOnceSynced(): void {
+    syncing.value = true;
+
+    setTimeout(() => {
+        syncing.value = false;
+        router.reload();
+    }, 4000);
+}
+
 function sync(): void {
     router.post(
         route('sync'),
@@ -27,16 +38,30 @@ function sync(): void {
         {
             preserveScroll: true,
             onStart: () => (syncing.value = true),
-            onFinish: () => {
-                // Repositories sync in the background; reload the page shortly after to pick up the results.
-                setTimeout(() => {
-                    syncing.value = false;
-                    router.reload();
-                }, 4000);
-            },
+            onFinish: reloadOnceSynced,
         },
     );
 }
+
+/**
+ * Coming back to the app, e.g. after approving a pull request on github.com, syncs with GitHub so the change shows
+ * straight away. The server decides whether it's been long enough since the last time.
+ */
+useEventListener(window, 'focus', async () => {
+    if (syncing.value) {
+        return;
+    }
+
+    try {
+        const result = await postJson<{ syncing: boolean }>(route('sync.on-return'));
+
+        if (result.syncing) {
+            reloadOnceSynced();
+        }
+    } catch {
+        // The next scheduled sync picks the changes up instead.
+    }
+});
 
 function lock(): void {
     router.post(
