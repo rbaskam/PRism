@@ -55,6 +55,9 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'isNative' => (bool) config('nativephp-internal.running'),
+            // The installed desktop app shows a friendly message, with a restart button, when its server stops
+            // answering properly; while developing, Laravel's error pages are more useful.
+            'recoversFromServerProblems' => config('nativephp-internal.running') && ! config('app.debug'),
             'isContainer' => (bool) config('prism.running_in_container'),
             'github' => fn (): ?array => GithubAccount::current()?->only(['login', 'name', 'avatar_url']),
             'claude' => fn (): array => ['configured' => app(AppSettings::class)->isClaudeConfigured()],

@@ -22,6 +22,8 @@ export interface GithubUser {
 export interface SharedData {
     name: string;
     isNative: boolean;
+    /** The installed desktop app explains server problems and offers a restart, instead of showing raw error pages. */
+    recoversFromServerProblems: boolean;
     /** The web version is running inside Laravel Sail (Docker), so host CLIs and folders aren't available. */
     isContainer: boolean;
     github: GithubUser | null;
