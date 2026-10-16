@@ -33,11 +33,13 @@ it('tracks a repository picked from your GitHub repositories and syncs its pull 
         ->withPullRequests('acme/web', [FakeGithub::pullRequest(201, 'Redesign settings')])
         ->fake();
 
-    $page = visit('/settings/github')
-        ->click('Add or remove repositories')
+    $page = visit('/settings/github');
+    trackRequests($page);
+    $page->click('Add or remove repositories')
         ->waitForText('Tracked')
         ->click('label:has-text("acme/web")')
         ->click('internal:role=button[name="Save (2)"s]');
+    waitForRequests($page);
 
     $page->navigate('/settings/github')
         ->assertSee('web')
@@ -54,10 +56,12 @@ it('says when Claude Code is not installed', function () {
 });
 
 it('saves the review prompt and what Claude may do', function () {
-    $page = visit('/settings/review')
-        ->fill('#review-prompt', 'Review {repository}#{number} for security problems only.')
+    $page = visit('/settings/review');
+    trackRequests($page);
+    $page->fill('#review-prompt', 'Review {repository}#{number} for security problems only.')
         ->click('#allow_posting_findings')
         ->click('Save');
+    waitForRequests($page);
 
     $page->navigate('/settings/review')
         ->assertValue('#review-prompt', 'Review {repository}#{number} for security problems only.')
@@ -69,12 +73,14 @@ it('saves the review prompt and what Claude may do', function () {
 });
 
 it('saves which desktop alerts you get and their sound', function () {
-    $page = visit('/settings/notifications')
-        ->click('#mentions')
+    $page = visit('/settings/notifications');
+    trackRequests($page);
+    $page->click('#mentions')
         ->click('label[for="sound"]')
         ->assertScript('document.activeElement?.id', 'sound')
         ->select('#sound', 'none')
         ->click('Save');
+    waitForRequests($page);
 
     $page->navigate('/settings/notifications')
         ->assertSelected('#sound', 'none')
@@ -86,11 +92,13 @@ it('saves which desktop alerts you get and their sound', function () {
 });
 
 it('turns on the app lock with a PIN', function () {
-    $page = visit('/settings/security')
-        ->click('#lock_enabled')
+    $page = visit('/settings/security');
+    trackRequests($page);
+    $page->click('#lock_enabled')
         ->fill('#pin', '2468')
         ->fill('#pin_confirmation', '2468')
         ->click('Save');
+    waitForRequests($page);
 
     $page->navigate('/settings/security')
         ->assertNoJavaScriptErrors();

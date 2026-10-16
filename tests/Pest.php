@@ -6,6 +6,8 @@ use App\Models\GithubAccount;
 use App\Models\Repository;
 use App\Services\AppSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Pest\Browser\Api\AwaitableWebpage;
+use Pest\Browser\Api\PendingAwaitablePage;
 use Tests\BrowserTestCase;
 use Tests\TestCase;
 
@@ -145,4 +147,38 @@ function trackedRepository(string $fullName, array $attributes = []): Repository
     [$owner, $name] = explode('/', $fullName);
 
     return Repository::factory()->create(['owner' => $owner, 'name' => $name, 'full_name' => $fullName, ...$attributes]);
+}
+
+/**
+ * Count the page's fetch and XHR requests that haven't been answered yet, for waitForRequests(). Call it once the
+ * page has loaded and before the action that sends the requests.
+ */
+function trackRequests(PendingAwaitablePage|AwaitableWebpage $page): void
+{
+    $page->script(<<<'JS'
+        function () {
+            window.__pendingRequests = 0;
+            const originalFetch = window.fetch;
+            window.fetch = (...args) => {
+                window.__pendingRequests++;
+                return originalFetch(...args).finally(() => window.__pendingRequests--);
+            };
+            const originalSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.send = function (...args) {
+                window.__pendingRequests++;
+                this.addEventListener('loadend', () => window.__pendingRequests--, { once: true });
+                return originalSend.apply(this, args);
+            };
+        }
+        JS);
+}
+
+/**
+ * Wait until every request counted by trackRequests() has been answered, e.g. after clicking a button that saves
+ * something and before navigating away or checking the database. Navigating straight away can cancel a request
+ * the browser hasn't sent yet.
+ */
+function waitForRequests(PendingAwaitablePage|AwaitableWebpage $page): void
+{
+    $page->script('function () { return new Promise((resolve) => { const check = () => (window.__pendingRequests === 0 ? resolve(true) : setTimeout(check, 25)); check(); }); }');
 }

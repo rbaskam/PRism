@@ -46,11 +46,12 @@ it('filters notifications by reason and by search', function () {
 });
 
 it('marks a notification as read on GitHub', function () {
-    $page = visit('/inbox')
-        ->hover('li:has-text("Redesign settings")')
+    $page = visit('/inbox');
+    trackRequests($page);
+    $page->hover('li:has-text("Redesign settings")')
         ->click('li:has-text("Redesign settings") button[title="Mark as read"]');
+    waitForRequests($page);
 
-    // The app serves one request at a time, so this page load waits for the mark-as-read request to finish.
     $page->navigate('/inbox')
         ->assertVisible('internal:role=button[name="Unread 2"s]')
         ->assertDontSee('Redesign settings')
@@ -61,7 +62,10 @@ it('marks a notification as read on GitHub', function () {
 });
 
 it('marks everything as read on GitHub', function () {
-    $page = visit('/inbox')->click('internal:role=button[name="Mark all as read"i]');
+    $page = visit('/inbox');
+    trackRequests($page);
+    $page->click('internal:role=button[name="Mark all as read"i]');
+    waitForRequests($page);
 
     $page->navigate('/inbox')
         ->assertSee('All')
