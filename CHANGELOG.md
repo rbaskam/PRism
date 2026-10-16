@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-16
+
 ### Fixed
 
 - Entering your PIN on a lock screen that had been open for more than two hours, for example overnight, showed "419 Page expired" and you couldn't get back into the app. The desktop app now keeps you signed in, and if a page ever does expire, PRism reloads it with a message so you can try again.
