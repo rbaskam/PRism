@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-10-16
+
 ### Fixed
 
 - PRism no longer writes an error to its log every minute while everything is working. Since v0.13.0, the once-a-minute check that PRism's server is still running was wrongly logged as a failure.
