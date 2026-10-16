@@ -14,6 +14,12 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 - PRism now syncs with GitHub as soon as it opens and whenever you switch back to its window, so a pull request you just approved, commented on or opened on github.com shows up within seconds instead of at the next sync, up to five minutes later. The sidebar shows Syncing… while it catches up.
 
+## [0.13.2] - 2026-10-16
+
+### Fixed
+
+- PRism no longer writes an error to its log every minute while everything is working. Since v0.13.0, the once-a-minute check that PRism's server is still running was wrongly logged as a failure.
+
 ## [0.13.1] - 2026-10-16
 
 ### Fixed

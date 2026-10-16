@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\RestartAppIfServerStopped;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -72,5 +74,15 @@ it('leaves the app alone when its server only stopped for a moment', function ()
     ]);
 
     expect(app(RestartAppIfServerStopped::class)->handle())->toBeFalse()
+        ->and(relaunchWasRequested())->toBeFalse();
+});
+
+it('isn\'t logged as a failed scheduled task while the server answers', function () {
+    Http::fake([...nativeApiWithMainWindow(), '127.0.0.1:8100/up' => Http::response('<p>Application up</p>')]);
+    $check = collect(app(Schedule::class)->events())->first(fn (Event $event): bool => $event->description === 'restart-app-if-server-stopped');
+
+    $check->run(app());
+
+    expect($check->exitCode)->toBe(0)
         ->and(relaunchWasRequested())->toBeFalse();
 });
