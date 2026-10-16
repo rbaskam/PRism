@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Fixed
+
+- Files you tick as Viewed on github.com now show as viewed in PRism too, the next time you open a pull request's Files changed tab. Before, PRism only picked them up after new commits were pushed.
+
 ## [0.13.0] - 2026-10-16
 
 ### Added

@@ -26,10 +26,20 @@ class LoadPullRequestFiles
         $snapshot = $pullRequest->files_head_sha !== null && $pullRequest->files_head_sha === $pullRequest->head_sha
             ? $pullRequest->files_snapshot
             : null;
+        $isNewDiff = $snapshot === null;
 
         // A pull request's diff only changes with new commits, so it is fetched once per head commit.
         if ($snapshot === null) {
-            $snapshot = $this->fetch($pullRequest);
+            $repository = $pullRequest->repository;
+            $snapshot = ['files' => $this->github->pullRequestFiles($repository->full_name, $pullRequest->number), 'github_viewed_states' => []];
+        }
+
+        // Which files are ticked Viewed on github.com can change at any time, so that is read every time; the last
+        // known states are only used when GitHub can't be reached.
+        $latestGithubStates = $this->githubViewedStates($pullRequest);
+
+        if ($isNewDiff || ($latestGithubStates !== null && $latestGithubStates !== $snapshot['github_viewed_states'])) {
+            $snapshot['github_viewed_states'] = $latestGithubStates ?? $snapshot['github_viewed_states'];
             $pullRequest->update(['files_snapshot' => $snapshot, 'files_head_sha' => $pullRequest->head_sha]);
         }
 
@@ -66,19 +76,18 @@ class LoadPullRequestFiles
     }
 
     /**
-     * @return array{files: list<array<string, mixed>>, github_viewed_states: array<string, string>}
+     * The user's viewed state on GitHub for each file, or null when GitHub can't be reached.
+     *
+     * @return array<string, string>|null
      */
-    private function fetch(PullRequest $pullRequest): array
+    private function githubViewedStates(PullRequest $pullRequest): ?array
     {
         $repository = $pullRequest->repository;
-        $files = $this->github->pullRequestFiles($repository->full_name, $pullRequest->number);
 
         try {
-            $githubStates = $this->github->fileViewedStates($repository->owner, $repository->name, $pullRequest->number);
+            return $this->github->fileViewedStates($repository->owner, $repository->name, $pullRequest->number);
         } catch (RequestException|ConnectionException|GithubException) {
-            $githubStates = [];
+            return null;
         }
-
-        return ['files' => $files, 'github_viewed_states' => $githubStates];
     }
 }
