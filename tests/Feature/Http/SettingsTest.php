@@ -112,7 +112,7 @@ it('rejects a notification sound that does not exist', function () {
     ]);
 
     $response->assertSessionHasErrors('sound');
-    expect(app(AppSettings::class)->notificationSound())->toBe(NotificationSound::Default);
+    expect(app(AppSettings::class)->get(AppSettings::NOTIFY_SOUND))->toBeNull();
 });
 
 it('plays the sound picked on the page in a test notification before it is saved', function () {

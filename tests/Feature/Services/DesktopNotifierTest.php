@@ -30,7 +30,9 @@ it('sends a silent notification when the user turned the sound off', function ()
     Http::assertSent(fn (Request $request): bool => $request['silent'] === true && $request['sound'] === '');
 });
 
-it('plays the system default sound until the user picks another', function () {
+it('plays the system\'s own sound when the user picks System default', function () {
+    app(AppSettings::class)->set(AppSettings::NOTIFY_SOUND, NotificationSound::Default->value);
+
     app(DesktopNotifier::class)->send('Review requested', 'acme/app: Add rate limiting');
 
     Http::assertSent(fn (Request $request): bool => $request['silent'] === false && $request['sound'] === '');

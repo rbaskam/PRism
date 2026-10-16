@@ -238,9 +238,13 @@ class AppSettings
         return (bool) $this->get(self::NOTIFY_FOLLOW_UP_ACTIVITY, false);
     }
 
+    /**
+     * The sound desktop notifications play: the one picked in Settings → Notifications, or the default for this
+     * computer (Glass on macOS).
+     */
     public function notificationSound(): NotificationSound
     {
-        return NotificationSound::tryFrom((string) $this->get(self::NOTIFY_SOUND)) ?? NotificationSound::Default;
+        return NotificationSound::tryFrom((string) $this->get(self::NOTIFY_SOUND)) ?? NotificationSound::defaultFor(PHP_OS_FAMILY);
     }
 
     public function isAppLockEnabled(): bool
