@@ -35,6 +35,15 @@ enum NotificationSound: string
         return $osFamily === 'Darwin' ? self::cases() : [self::Default, self::None];
     }
 
+    /**
+     * The sound used until the user picks one: Glass on macOS, where the named sounds exist, and the system's own
+     * sound elsewhere.
+     */
+    public static function defaultFor(string $osFamily): self
+    {
+        return $osFamily === 'Darwin' ? self::Glass : self::Default;
+    }
+
     public function label(): string
     {
         return match ($this) {
