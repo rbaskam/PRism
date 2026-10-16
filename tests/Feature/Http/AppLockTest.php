@@ -65,6 +65,27 @@ it('locks again after the auto-lock time without activity', function () {
     $this->get(route('dashboard'))->assertRedirect(route('lock.show'));
 });
 
+it('counts clicks and typing in the app as activity, so it stays unlocked while in use', function () {
+    onboardedAccount();
+    enableAppLock('2468', autoLockMinutes: 5);
+    $this->post(route('lock.pin'), ['pin' => '2468']);
+    $this->travel(4)->minutes();
+
+    $this->postJson(route('activity.store'))->assertNoContent();
+    $this->travel(4)->minutes();
+
+    $this->get(route('dashboard'))->assertOk();
+});
+
+it('does not unlock the app when it hears about activity while locked', function () {
+    onboardedAccount();
+    enableAppLock();
+
+    $this->postJson(route('activity.store'))->assertStatus(423);
+
+    $this->get(route('dashboard'))->assertRedirect(route('lock.show'));
+});
+
 it('locks every window when the app starts', function () {
     onboardedAccount();
     enableAppLock('2468');

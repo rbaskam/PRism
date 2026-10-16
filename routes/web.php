@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AlertController;
+use App\Http\Controllers\AppActivityController;
 use App\Http\Controllers\AvailableRepositoryController;
 use App\Http\Controllers\CodeChangeController;
 use App\Http\Controllers\CodeQuestionController;
@@ -47,6 +48,8 @@ Route::post('lock/biometrics', [LockController::class, 'unlockWithBiometrics'])-
 Route::post('lock', [LockController::class, 'lock'])->name('lock.store');
 
 Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
+    Route::post('activity', AppActivityController::class)->name('activity.store');
+
     /*
      * Step 1 of onboarding: connect GitHub.
      */

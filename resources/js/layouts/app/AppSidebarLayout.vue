@@ -6,6 +6,7 @@ import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import ContainerNotice from '@/components/ContainerNotice.vue';
 import FlashMessages from '@/components/FlashMessages.vue';
 import WhatsNewDialog from '@/components/WhatsNewDialog.vue';
+import { useActivityHeartbeat } from '@/composables/useActivityHeartbeat';
 import type { BreadcrumbItemType } from '@/types';
 import { usePoll } from '@inertiajs/vue3';
 
@@ -19,6 +20,9 @@ withDefaults(defineProps<Props>(), {
 
 // Keep the sidebar badges (awaiting reviews, unread inbox, running AI reviews) fresh.
 usePoll(30000, { only: ['counts'] });
+
+// Clicking, typing and scrolling count as using the app, so the app lock doesn't kick in while it's in use.
+useActivityHeartbeat();
 </script>
 
 <template>
