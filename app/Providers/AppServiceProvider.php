@@ -14,6 +14,11 @@ use Illuminate\Support\ServiceProvider;
 class AppServiceProvider extends ServiceProvider
 {
     /**
+     * How long a desktop app session lasts: a year.
+     */
+    public const DESKTOP_SESSION_MINUTES = 60 * 24 * 365;
+
+    /**
      * Register any application services.
      */
     public function register(): void
@@ -24,6 +29,13 @@ class AppServiceProvider extends ServiceProvider
 
         if ($this->runsAsInstalledDesktopApp()) {
             config(['app.key' => $this->app->make(InstallationKey::class)->key()]);
+        }
+
+        // The desktop app has one user, on their own machine, behind the app lock. Its session has to outlive the
+        // window being left open, e.g. on the lock screen overnight; with Laravel's two-hour default, entering the
+        // PIN afterwards failed with "419 Page expired".
+        if (config('nativephp-internal.running')) {
+            config(['session.lifetime' => self::DESKTOP_SESSION_MINUTES]);
         }
 
         $this->app->bind(GithubClient::class, fn (): GithubClient => new GithubClient(

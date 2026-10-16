@@ -47,11 +47,12 @@ it('lists alerts under the bell and opens one where it happened', function () {
 it('marks every alert as read', function () {
     Alert::factory()->count(2)->create();
 
-    $page = visit('/')
-        ->click('button[aria-label="Notifications, 2 unread"]')
+    $page = visit('/');
+    trackRequests($page);
+    $page->click('button[aria-label="Notifications, 2 unread"]')
         ->click('internal:role=button[name="Mark all as read"i]');
+    waitForRequests($page);
 
-    // The app serves one request at a time, so this page load waits for the mark-as-read request to finish.
     $page->navigate('/')
         ->assertPresent('button[aria-label="Notifications"]')
         ->assertNoJavaScriptErrors();

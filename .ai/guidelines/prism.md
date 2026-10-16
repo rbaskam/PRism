@@ -54,7 +54,7 @@ This applies to every file, test, fixture and doc, every commit message, pull re
 - Never call the real GitHub API. Describe what GitHub should return with `Tests\Browser\Support\FakeGithub`, then call `syncFromGithub()` so the data arrives the way it does in the app. `BrowserTestCase` blocks other HTTP requests, fakes processes and hides the `claude`, `gh` and `git` commands, so pages behave the same on every machine.
 - Use made-up data only (see "Never add secrets, tokens or personal data").
 - Click with a CSS selector or a role selector such as `internal:role=button[name="Save (2)"s]` whenever a button's text includes a count, an icon label or other text: a plain-text click only matches an element whose whole text is exactly that text.
-- The app serves one request at a time, so after an action that posts to the server, `navigate()` to a page before asserting on the database.
+- After an action that sends a request (saving, marking as read…), wait for it before navigating away or checking the database: call `trackRequests($page)` before the action and `waitForRequests($page)` after it, or wait for text only the response shows, such as a flash message. Navigating straight away can cancel a request the browser hasn't sent yet, which makes the test flaky.
 - Playwright is pinned to the version `pestphp/pest-plugin-browser` supports (`PLAYWRIGHT_VERSION` in its `PlaywrightNpmServer`). With a newer Playwright, waiting for a missing element hangs forever instead of failing after 10 seconds, so only upgrade Playwright together with the plugin.
 
 ## Product rules
