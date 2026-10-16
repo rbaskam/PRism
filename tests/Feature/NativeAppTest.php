@@ -2,11 +2,15 @@
 
 use App\Jobs\SyncGithub;
 use App\Providers\NativeAppServiceProvider;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Native\Desktop\Facades\Window;
 use Native\Desktop\Windows\Window as NativeWindow;
 
 beforeEach(function () {
+    config(['nativephp-internal.api_url' => 'http://native.test/api/']);
+    Http::preventStrayRequests();
+    Http::fake(['native.test/api/*' => Http::response()]);
     Queue::fake();
     Window::fake()->alwaysReturnWindows([new NativeWindow(NativeAppServiceProvider::MAIN_WINDOW)]);
 });
