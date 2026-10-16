@@ -14,6 +14,12 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 - The app lock no longer locks you out while you're using the app. Clicking, typing, scrolling and moving the mouse now count as activity, so reading a long diff or writing a question for Claude doesn't trigger the auto-lock; it only locks once you've been away for the time you chose in Settings → Security.
 
+## [0.12.0] - 2026-10-16
+
+### Changed
+
+- On macOS, desktop notifications now play the Glass sound unless you pick another in Settings → Notifications. Windows keeps its own notification sound.
+
 ## [0.11.1] - 2026-10-16
 
 ### Fixed
