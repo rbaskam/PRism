@@ -70,19 +70,70 @@ it('works out which files the user has viewed, including on github.com', functio
     ]);
 });
 
-it('reuses the saved diff until new commits are pushed', function () {
-    Http::preventStrayRequests();
-    onboardedAccount();
+/**
+ * GitHub's answer to "which files has the user ticked Viewed", for one file.
+ *
+ * @return array<string, mixed>
+ */
+function githubViewedStatesResponse(string $path, string $state): array
+{
+    return ['data' => ['repository' => ['pullRequest' => ['files' => [
+        'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+        'nodes' => [['path' => $path, 'viewerViewedState' => $state]],
+    ]]]]];
+}
+
+/**
+ * A pull request whose diff for head commit "abc" is already saved, with app/Foo.php not yet viewed on GitHub.
+ */
+function pullRequestWithSavedDiff(): PullRequest
+{
     $pullRequest = PullRequest::factory()->create(['head_sha' => 'abc']);
     $pullRequest->update([
         'files_head_sha' => 'abc',
-        'files_snapshot' => ['files' => [['path' => 'app/Foo.php', 'previous_path' => null, 'status' => 'modified', 'additions' => 1, 'deletions' => 0, 'sha' => 'blob', 'patch' => '@@ -1 +1 @@']], 'github_viewed_states' => []],
+        'files_snapshot' => [
+            'files' => [['path' => 'app/Foo.php', 'previous_path' => null, 'status' => 'modified', 'additions' => 1, 'deletions' => 0, 'sha' => 'blob', 'patch' => '@@ -1 +1 @@']],
+            'github_viewed_states' => ['app/Foo.php' => 'UNVIEWED'],
+        ],
     ]);
+
+    return $pullRequest;
+}
+
+it('reuses the saved diff until new commits are pushed', function () {
+    Http::preventStrayRequests();
+    onboardedAccount();
+    $pullRequest = pullRequestWithSavedDiff();
+    Http::fake(['api.github.com/graphql' => Http::response(githubViewedStatesResponse('app/Foo.php', 'UNVIEWED'))]);
 
     $files = app(LoadPullRequestFiles::class)->handle($pullRequest);
 
     expect($files[0]['path'])->toBe('app/Foo.php');
-    Http::assertNothingSent();
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/files'));
+});
+
+it('picks up files ticked Viewed on github.com since the diff was saved', function () {
+    Http::preventStrayRequests();
+    onboardedAccount();
+    $pullRequest = pullRequestWithSavedDiff();
+    Http::fake(['api.github.com/graphql' => Http::response(githubViewedStatesResponse('app/Foo.php', 'VIEWED'))]);
+
+    $files = app(LoadPullRequestFiles::class)->handle($pullRequest);
+
+    expect($files[0]['is_viewed'])->toBeTrue()
+        ->and($pullRequest->fresh()->files_snapshot['github_viewed_states'])->toBe(['app/Foo.php' => 'VIEWED']);
+});
+
+it('falls back to the last known viewed states when GitHub cannot be reached', function () {
+    Http::preventStrayRequests();
+    onboardedAccount();
+    $pullRequest = pullRequestWithSavedDiff();
+    $pullRequest->update(['files_snapshot' => [...$pullRequest->files_snapshot, 'github_viewed_states' => ['app/Foo.php' => 'VIEWED']]]);
+    Http::fake(['api.github.com/graphql' => Http::response(['message' => 'Server Error'], 500)]);
+
+    $files = app(LoadPullRequestFiles::class)->handle($pullRequest);
+
+    expect($files[0]['is_viewed'])->toBeTrue();
 });
 
 it('fetches the diff again after new commits', function () {
