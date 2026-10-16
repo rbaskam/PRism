@@ -62,6 +62,9 @@ const toggles = [
     { key: 'showClosed', label: 'Recently closed', icon: Archive },
 ] as const;
 
+/** A drop-down that is filtering the list gets the accent border, so it stands out from one left on "All". */
+const activeSelectClass = '[&_select]:border-primary [&_select]:ring-1 [&_select]:ring-primary';
+
 function chipClass(isActive: boolean): string {
     return cn(
         'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
@@ -137,7 +140,7 @@ function onSearchEscape(event: KeyboardEvent): void {
             <NativeSelect
                 v-if="repositories"
                 :model-value="filters.repository"
-                class="w-full sm:w-56"
+                :class="cn('w-full sm:w-56', filters.repository !== '' && activeSelectClass)"
                 aria-label="Filter by repository"
                 @update:model-value="(value) => update('repository', String(value ?? ''))"
             >
@@ -147,7 +150,7 @@ function onSearchEscape(event: KeyboardEvent): void {
 
             <NativeSelect
                 :model-value="filters.requested"
-                class="w-full sm:w-56"
+                :class="cn('w-full sm:w-56', filters.requested !== 'any' && activeSelectClass)"
                 aria-label="Filter by how your review was requested"
                 @update:model-value="(value) => update('requested', String(value ?? 'any') as RequestedFilter)"
             >
