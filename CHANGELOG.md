@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-16
+
 ### Changed
 
 - Pull request lists now show which filters are hiding pull requests: each active filter appears next to "Showing … pull requests" (for example "Repository: acme/api"), with a × to remove just that one, and the repository and review request drop-downs are highlighted while they filter the list.
