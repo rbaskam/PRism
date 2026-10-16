@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-16
+
 ### Changed
 
 - On macOS, desktop notifications now play the Glass sound unless you pick another in Settings → Notifications. Windows keeps its own notification sound.
