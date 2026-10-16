@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\AppActivityController;
+use App\Http\Controllers\AppRestartController;
 use App\Http\Controllers\AvailableRepositoryController;
 use App\Http\Controllers\CodeChangeController;
 use App\Http\Controllers\CodeQuestionController;
@@ -46,6 +47,11 @@ Route::get('lock', [LockController::class, 'show'])->name('lock.show');
 Route::post('lock/pin', [LockController::class, 'unlockWithPin'])->name('lock.pin');
 Route::post('lock/biometrics', [LockController::class, 'unlockWithBiometrics'])->name('lock.biometrics');
 Route::post('lock', [LockController::class, 'lock'])->name('lock.store');
+
+/*
+ * Restarts the desktop app when its server has stopped answering properly.
+ */
+Route::post('app/restart', AppRestartController::class)->name('app.restart');
 
 Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
     Route::post('activity', AppActivityController::class)->name('activity.store');

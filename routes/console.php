@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\RestartAppIfServerStopped;
 use App\Jobs\CheckForUpdates;
 use App\Jobs\PollNotifications;
 use App\Jobs\SyncGithub;
@@ -16,4 +17,10 @@ $githubIsConnected = fn (): bool => GithubAccount::query()->exists();
 Schedule::job(new PollNotifications)->everyMinute()->when($githubIsConnected);
 Schedule::job(new SyncGithub)->everyFiveMinutes()->when($githubIsConnected);
 Schedule::job(new CheckForUpdates)->everySixHours();
+
+// NativePHP doesn't restart the app's web server if it stops, so relaunch the app when it has.
+Schedule::call(fn () => app(RestartAppIfServerStopped::class)->handle())
+    ->everyMinute()
+    ->name('restart-app-if-server-stopped')
+    ->when(fn (): bool => (bool) config('nativephp-internal.running'));
 Schedule::command('model:prune', ['--model' => [Alert::class]])->daily();

@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- If PRism's background server stops responding, PRism now says so and offers a Restart PRism button, instead of showing a raw error such as "Method Not Allowed". If even the restart can't get through, PRism restarts by itself within a minute, and it notes the restart in its log.
+
 ## [0.12.1] - 2026-10-16
 
 ### Fixed
