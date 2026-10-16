@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-16
+
 ### Changed
 
 - PRism now syncs with GitHub as soon as it opens and whenever you switch back to its window, so a pull request you just approved, commented on or opened on github.com shows up within seconds instead of at the next sync, up to five minutes later. The sidebar shows Syncing… while it catches up.
