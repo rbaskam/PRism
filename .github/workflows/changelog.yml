@@ -1,0 +1,30 @@
+name: Changelog
+
+# Separate from CI so adding or removing the skip-changelog label re-runs only this check.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: changelog-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: CHANGELOG.md has an entry for this pull request
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+        run: |
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::Add your change under '## [Unreleased]' in CHANGELOG.md, or label the pull request 'skip-changelog' if it has no user-facing change."
+            exit 1
+          fi

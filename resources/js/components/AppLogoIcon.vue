@@ -1,0 +1,30 @@
+<script setup lang="ts">
+import type { HTMLAttributes } from 'vue';
+
+defineProps<{
+    class?: HTMLAttributes['class'];
+}>();
+</script>
+
+<template>
+    <!-- Keep in sync with resources/icons/prism.svg, the source for the app and favicon icons. -->
+    <svg :class="$props.class" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PRism">
+        <defs>
+            <linearGradient id="app-logo-bg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#312e81" />
+                <stop offset="1" stop-color="#0f0a2e" />
+            </linearGradient>
+            <linearGradient id="app-logo-glass" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.22" />
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0.04" />
+            </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="116" fill="url(#app-logo-bg)" />
+        <path d="M44 302 L171 266" stroke="#ffffff" stroke-width="24" stroke-linecap="round" />
+        <path d="M171 266 L334 252" stroke="#ffffff" stroke-opacity="0.5" stroke-width="16" />
+        <path d="M334 252 L468 188" stroke="#34d399" stroke-width="24" stroke-linecap="round" />
+        <path d="M334 252 L470 262" stroke="#fbbf24" stroke-width="24" stroke-linecap="round" />
+        <path d="M334 252 L462 336" stroke="#f87171" stroke-width="24" stroke-linecap="round" />
+        <path d="M256 104 L396 368 L116 368 Z" fill="url(#app-logo-glass)" stroke="#ffffff" stroke-width="24" stroke-linejoin="round" />
+    </svg>
+</template>
