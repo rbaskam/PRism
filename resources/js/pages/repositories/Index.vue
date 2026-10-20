@@ -170,12 +170,12 @@ function onSearchEscape(event: KeyboardEvent): void {
                     "
                 >
                     <div class="flex items-start justify-between gap-2">
-                        <div class="flex min-w-0 items-center gap-2">
-                            <FolderGit2 class="size-4 shrink-0 text-muted-foreground" />
-                            <span class="truncate text-sm" :title="repository.full_name">
-                                <span class="text-muted-foreground">{{ repository.owner }}/</span>
-                                <span class="font-semibold">{{ repository.name }}</span>
-                            </span>
+                        <div class="flex min-w-0 items-start gap-2" :title="repository.full_name">
+                            <FolderGit2 class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                            <div class="min-w-0">
+                                <p class="break-words text-sm font-semibold leading-5">{{ repository.name }}</p>
+                                <p class="truncate text-xs text-muted-foreground">{{ repository.owner }}</p>
+                            </div>
                         </div>
                         <Badge :variant="repository.is_private ? 'outline' : 'muted'" class="shrink-0">
                             <component :is="repository.is_private ? Lock : Globe" />
