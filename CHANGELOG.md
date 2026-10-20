@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Fixed
+
+- Repository names on the Repositories page were cut off when the owner's name was long. Each card now shows the repository name in full on its own line, with the owner underneath.
+
 ## [0.14.0] - 2026-10-16
 
 ### Changed

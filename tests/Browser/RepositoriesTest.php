@@ -38,6 +38,22 @@ it('lists tracked repositories with their open pull requests and what waits on y
         ->assertNoJavaScriptErrors();
 });
 
+it('shows long repository names in full', function () {
+    trackedRepository('acme-technology-holdings/payments-reconciliation-service');
+
+    visit('/repositories')
+        ->assertSee('payments-reconciliation-service')
+        ->assertSee('acme-technology-holdings')
+        ->assertScript(<<<'JS'
+            () => {
+                const name = [...document.querySelectorAll('p')].find((element) => element.textContent.trim() === 'payments-reconciliation-service');
+
+                return name !== undefined && name.scrollWidth <= name.clientWidth;
+            }
+            JS)
+        ->assertNoJavaScriptErrors();
+});
+
 it('filters the repositories as you type', function () {
     visit('/repositories')
         ->fill('[placeholder="Filter repositories…"]', 'web')
