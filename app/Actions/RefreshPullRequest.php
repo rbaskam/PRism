@@ -32,6 +32,7 @@ class RefreshPullRequest
                 'is_resolved' => $thread['isResolved'],
                 'is_outdated' => $thread['isOutdated'],
                 'path' => $thread['path'],
+                'side' => $thread['diffSide'] ?? 'RIGHT',
                 'line' => $thread['line'] ?? $thread['originalLine'],
                 'diff_hunk' => $thread['comments']['nodes'][0]['diffHunk'] ?? null,
                 'comments' => array_map($this->comment(...), $thread['comments']['nodes'] ?? []),

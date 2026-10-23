@@ -3,24 +3,26 @@ import ExternalLink from '@/components/ExternalLink.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { PullRequest, PullRequestFile } from '@/types';
+import type { PullRequest, PullRequestFile, PullRequestPermissions, ReplyDraft, ReviewThread } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { useIntersectionObserver } from '@vueuse/core';
-import { ChevronRight, ExternalLink as ExternalLinkIcon, FileWarning, Sparkles } from 'lucide-vue-next';
+import { ChevronRight, ExternalLink as ExternalLinkIcon, FileWarning, MessageSquare, MessageSquarePlus, Sparkles } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AskClaudeComposer from './AskClaudeComposer.vue';
 import type { QuestionThread } from './code-questions';
 import CodeQuestionThread from './CodeQuestionThread.vue';
-import { countPatchLines, formatLineRange, lineKey, parsePatch, selectionFromRange } from './diff';
+import { countPatchLines, formatLineRange, lineKey, parsePatch, selectionFromRange, spansHunks } from './diff';
 import DiffTable from './DiffTable.vue';
+import LineCommentComposer from './LineCommentComposer.vue';
+import ReviewThreadCard from './ReviewThreadCard.vue';
 
 /** Diffs longer than this start collapsed behind a "Load diff" button. */
 const LARGE_DIFF_LINES = 400;
 const ROW_HEIGHT = 20;
 
 /**
- * One changed file: a sticky header with its Viewed checkbox, and its diff with questions shown under the lines
- * they are about. The diff is only parsed and rendered once the file is expanded and scrolled near.
+ * One changed file: a sticky header with its Viewed checkbox, and its diff with GitHub review threads and questions
+ * shown under the lines they are about. The diff is only parsed and rendered once the file is expanded and scrolled near.
  */
 const props = defineProps<{
     file: PullRequestFile;
@@ -33,10 +35,14 @@ const props = defineProps<{
     /** Render now instead of waiting for the file to scroll into view (e.g. to jump to a line). */
     forceRender: boolean;
     threads: QuestionThread[];
+    /** GitHub review threads on this file. */
+    reviewThreads: ReviewThread[];
+    replyDrafts: ReplyDraft[];
     /** Selected rows in this file, if the selection is here. */
     selection: { anchor: number; focus: number } | null;
-    composerOpen: boolean;
-    canAsk: boolean;
+    /** The box open under the selection: a question for Claude or a comment for GitHub. */
+    composer: 'ask' | 'comment' | null;
+    permissions: PullRequestPermissions;
 }>();
 
 const emit = defineEmits<{
@@ -45,13 +51,17 @@ const emit = defineEmits<{
     'load-diff': [];
     'line-click': [index: number, extend: boolean];
     'select-rows': [fromIndex: number, toIndex: number];
-    'open-composer': [];
+    'open-composer': [composer: 'ask' | 'comment'];
     'close-composer': [];
     'clear-selection': [];
     'question-asked': [];
+    'comment-added': [];
 }>();
 
 const prompt = defineModel<string>('prompt', { default: '' });
+const comment = defineModel<string>('comment', { default: '' });
+
+const canAsk = computed(() => props.permissions.can_run_review);
 
 const root = ref<HTMLElement | null>(null);
 const hasBeenNearViewport = ref(false);
@@ -92,27 +102,32 @@ const isRendered = computed(() => showsDiff.value && (hasBeenNearViewport.value 
 /** Parsed lazily: only when the diff is on screen or questions need placing. */
 const lines = computed(() => (props.file.patch ? parsePatch(props.file.patch) : []));
 
-/** Threads under the row their last line is on; the rest refer to lines no longer in the diff. */
-const placement = computed(() => {
-    const byIndex = new Map<number, QuestionThread[]>();
-    const orphans: QuestionThread[] = [];
+/** Row index by "RIGHT:42" key, for placing threads under the line they are on. */
+const indexByKey = computed(() => {
+    const indexes = new Map<string, number>();
 
-    if (props.threads.length === 0) {
-        return { byIndex, orphans };
+    if (props.threads.length === 0 && props.reviewThreads.length === 0) {
+        return indexes;
     }
-
-    const indexByKey = new Map<string, number>();
 
     for (const line of lines.value) {
         const key = lineKey(line);
 
         if (key) {
-            indexByKey.set(key, line.index);
+            indexes.set(key, line.index);
         }
     }
 
+    return indexes;
+});
+
+/** Threads under the row their last line is on; the rest refer to lines no longer in the diff. */
+const placement = computed(() => {
+    const byIndex = new Map<number, QuestionThread[]>();
+    const orphans: QuestionThread[] = [];
+
     for (const thread of props.threads) {
-        const index = indexByKey.get(`${thread.root.side}:${thread.root.end_line}`);
+        const index = indexByKey.value.get(`${thread.root.side}:${thread.root.end_line}`);
 
         if (index === undefined) {
             orphans.push(thread);
@@ -122,6 +137,21 @@ const placement = computed(() => {
     }
 
     return { byIndex, orphans };
+});
+
+/** GitHub review threads under the row they are on. Outdated threads are on an earlier version of the diff, so they stay in the Conversation tab. */
+const reviewThreadPlacement = computed(() => {
+    const byIndex = new Map<number, ReviewThread[]>();
+
+    for (const thread of props.reviewThreads) {
+        const index = thread.is_outdated || thread.line === null ? undefined : indexByKey.value.get(`${thread.side ?? 'RIGHT'}:${thread.line}`);
+
+        if (index !== undefined) {
+            byIndex.set(index, [...(byIndex.get(index) ?? []), thread]);
+        }
+    }
+
+    return byIndex;
 });
 
 const selectionDetails = computed(() => (props.selection ? selectionFromRange(lines.value, props.selection.anchor, props.selection.focus) : null));
@@ -142,8 +172,12 @@ const questionTarget = computed(() =>
         : null,
 );
 
+const selectionSpansHunks = computed(() =>
+    selectionDetails.value ? spansHunks(lines.value, selectionDetails.value.startIndex, selectionDetails.value.endIndex) : false,
+);
+
 const afterIndexes = computed(() => {
-    const indexes = new Set(placement.value.byIndex.keys());
+    const indexes = new Set([...placement.value.byIndex.keys(), ...reviewThreadPlacement.value.keys()]);
 
     if (selectionDetails.value) {
         indexes.add(selectionDetails.value.endIndex);
@@ -190,6 +224,15 @@ function toggleViewed(value: boolean): void {
 
             <div class="flex shrink-0 items-center gap-2">
                 <Badge v-if="changedSinceViewed" variant="warning" class="px-1.5 text-[10px]">Changed since viewed</Badge>
+                <Badge
+                    v-if="reviewThreads.length"
+                    variant="outline"
+                    class="px-1.5 text-[10px]"
+                    :title="`${reviewThreads.length} review thread${reviewThreads.length === 1 ? '' : 's'} on GitHub`"
+                >
+                    <MessageSquare />
+                    {{ reviewThreads.length }}
+                </Badge>
                 <Badge v-if="threads.length" variant="outline" class="px-1.5 text-[10px]" :title="`${threads.length} question thread(s)`">
                     <Sparkles class="text-violet-500" />
                     {{ threads.length }}
@@ -266,7 +309,7 @@ function toggleViewed(value: boolean): void {
             >
                 <template #after="{ index }">
                     <div v-if="selectionDetails && questionTarget && selectionDetails.endIndex === index" class="border-y bg-background">
-                        <div v-if="composerOpen && canAsk" class="px-3 py-3">
+                        <div v-if="composer === 'ask' && canAsk" class="px-3 py-3">
                             <AskClaudeComposer
                                 v-model:prompt="prompt"
                                 :pull-request-id="pullRequest.id"
@@ -276,12 +319,33 @@ function toggleViewed(value: boolean): void {
                                 @submitted="emit('question-asked')"
                             />
                         </div>
+                        <div v-else-if="composer === 'comment'" class="px-3 py-3">
+                            <LineCommentComposer
+                                v-model:body="comment"
+                                :pull-request-id="pullRequest.id"
+                                :target="questionTarget"
+                                :can-comment="permissions.can_reply_to_comments"
+                                :spans-hunks="selectionSpansHunks"
+                                @cancel="emit('close-composer')"
+                                @submitted="emit('comment-added')"
+                            />
+                        </div>
                         <div v-else class="flex flex-wrap items-center gap-2 py-1.5 pl-[7.25rem] pr-3">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="h-7 px-2.5 text-xs shadow-md [&_svg]:size-3.5"
+                                @click="emit('open-composer', 'comment')"
+                            >
+                                <MessageSquarePlus />
+                                Comment
+                                <kbd class="rounded border px-1 font-mono text-[10px]">c</kbd>
+                            </Button>
                             <Button
                                 size="sm"
                                 class="h-7 px-2.5 text-xs shadow-md [&_svg]:size-3.5"
                                 :disabled="!canAsk"
-                                @click="emit('open-composer')"
+                                @click="emit('open-composer', 'ask')"
                             >
                                 <Sparkles />
                                 Ask Claude
@@ -301,6 +365,17 @@ function toggleViewed(value: boolean): void {
                                 Clear <kbd class="font-mono">Esc</kbd>
                             </button>
                         </div>
+                    </div>
+                    <div v-if="reviewThreadPlacement.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
+                        <ReviewThreadCard
+                            v-for="thread in reviewThreadPlacement.get(index)"
+                            :key="thread.id"
+                            :thread="thread"
+                            :pull-request-id="pullRequest.id"
+                            :permissions="permissions"
+                            :reply-drafts="replyDrafts"
+                            :show-diff-hunk="false"
+                        />
                     </div>
                     <div v-if="placement.byIndex.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
                         <CodeQuestionThread

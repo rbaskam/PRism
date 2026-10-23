@@ -38,6 +38,7 @@ it('loads the review threads and comments from GitHub when the conversation is r
             'isResolved' => false,
             'isOutdated' => false,
             'path' => 'app/Foo.php',
+            'diffSide' => 'LEFT',
             'line' => 12,
             'originalLine' => 12,
             'comments' => ['nodes' => [[
@@ -55,6 +56,7 @@ it('loads the review threads and comments from GitHub when the conversation is r
     $response->assertInertia(fn (Assert $page) => $page
         ->loadDeferredProps(fn (Assert $reload) => $reload
             ->where('conversation.threads.0.id', 'PRRT_1')
+            ->where('conversation.threads.0.side', 'LEFT')
             ->where('conversation.threads.0.diff_hunk', '@@ -1 +1 @@')
             ->where('conversation.threads.0.comments.0.database_id', 321)));
     expect($pullRequest->fresh())

@@ -17,12 +17,19 @@ import { failedWithFlash, pageVisit, refreshConversation, type DraftTarget } fro
  * A review thread on a line of the diff: its context, comments, reply box and resolve action.
  * Resolved threads start collapsed.
  */
-const props = defineProps<{
-    thread: ReviewThread;
-    pullRequestId: number;
-    permissions: PullRequestPermissions;
-    replyDrafts: ReplyDraft[];
-}>();
+const props = withDefaults(
+    defineProps<{
+        thread: ReviewThread;
+        pullRequestId: number;
+        permissions: PullRequestPermissions;
+        replyDrafts: ReplyDraft[];
+        /** False when the card is already shown under its line in the diff. */
+        showDiffHunk?: boolean;
+    }>(),
+    {
+        showDiffHunk: true,
+    },
+);
 
 const open = ref(!props.thread.is_resolved);
 const resolving = ref(false);
@@ -127,7 +134,7 @@ function resolve(): void {
 
         <CollapsibleContent>
             <div class="space-y-4 p-3">
-                <DiffHunk v-if="thread.diff_hunk" :hunk="thread.diff_hunk" />
+                <DiffHunk v-if="showDiffHunk && thread.diff_hunk" :hunk="thread.diff_hunk" />
 
                 <div class="space-y-4">
                     <CommentItem v-for="comment in thread.comments" :key="comment.node_id" :comment="comment" />

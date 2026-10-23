@@ -64,8 +64,9 @@ const permissionToggles: Toggle[] = [
     },
     {
         key: 'allow_replying_to_comments',
-        label: 'Allow replying to comments',
-        description: 'Lets you reply to and resolve review threads from the app, and ask Claude to draft replies that you edit before sending.',
+        label: 'Allow commenting and replying',
+        description:
+            'Lets you comment on lines in the diff, reply to and resolve review threads from the app, and ask Claude to draft replies that you edit before sending.',
     },
     {
         key: 'auto_review_on_request',

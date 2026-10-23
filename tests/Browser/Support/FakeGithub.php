@@ -253,6 +253,7 @@ final class FakeGithub
             $path === '/user/orgs' => Http::response([]),
             (bool) preg_match('#^/repos/(.+)/pulls/(\d+)/files$#', $path, $matches) => Http::response($this->files["{$matches[1]}#{$matches[2]}"] ?? []),
             (bool) preg_match('#^/repos/(.+)/pulls/(\d+)/reviews$#', $path, $matches) => $this->submitReview($matches[1], (int) $matches[2], $request),
+            $request->method() === 'POST' && preg_match('#^/repos/(.+)/pulls/(\d+)/comments$#', $path, $matches) => $this->createReviewComment($matches[1], (int) $matches[2], $request),
             default => $this->unhandled($request, $path),
         };
     }
@@ -324,6 +325,30 @@ final class FakeGithub
         $this->pullRequests[$repository][$number]['latestReviews']['nodes'] = [$review];
 
         return Http::response(['id' => 1, 'html_url' => "https://github.com/{$repository}/pull/{$number}#pullrequestreview-1"]);
+    }
+
+    /**
+     * Start a review thread on the lines the comment is on, so it shows when the conversation is read again.
+     */
+    private function createReviewComment(string $repository, int $number, Request $request): PromiseInterface
+    {
+        $threads = $this->pullRequests[$repository][$number]['reviewThreads']['nodes'] ?? [];
+        $id = count($threads) + 1;
+
+        $threads[] = [
+            'id' => "PRRT_{$id}",
+            'isResolved' => false,
+            'isOutdated' => false,
+            'path' => $request['path'],
+            'diffSide' => $request['side'],
+            'line' => $request['line'],
+            'originalLine' => $request['line'],
+            'comments' => ['nodes' => [[...self::comment($this->login, $request['body']), 'diffHunk' => '']]],
+        ];
+
+        $this->pullRequests[$repository][$number]['reviewThreads']['nodes'] = $threads;
+
+        return Http::response(['id' => $id, 'html_url' => "https://github.com/{$repository}/pull/{$number}#discussion_r{$id}"], 201);
     }
 
     /**

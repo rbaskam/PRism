@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- Comment on lines of code in Files changed, not just ask Claude about them. Select a line or a range and press `c` (or click **Comment**) to post a review comment to GitHub on those lines. Review threads from GitHub now also show under the lines they're on, where you can reply to and resolve them. Commenting needs "Allow commenting and replying" turned on in Settings → PR review (it was called "Allow replying to comments").
+
 ## [0.14.1] - 2026-10-20
 
 ### Fixed

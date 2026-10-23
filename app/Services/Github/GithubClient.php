@@ -404,19 +404,27 @@ class GithubClient
     }
 
     /**
-     * Comment on a line in the pull request diff.
+     * Comment on a line in the pull request diff, or on the lines from $startLine to $line. $side is RIGHT for the
+     * new version of the file and LEFT for removed lines.
      *
      * @return array<string, mixed>
      */
-    public function createReviewComment(string $repository, int $number, string $commitSha, string $path, int $line, string $body): array
+    public function createReviewComment(string $repository, int $number, string $commitSha, string $path, int $line, string $body, string $side = 'RIGHT', ?int $startLine = null): array
     {
-        return $this->request()->post("/repos/{$repository}/pulls/{$number}/comments", [
+        $payload = [
             'body' => $body,
             'commit_id' => $commitSha,
             'path' => $path,
             'line' => $line,
-            'side' => 'RIGHT',
-        ])->throw()->json();
+            'side' => $side,
+        ];
+
+        if ($startLine !== null && $startLine < $line) {
+            $payload['start_line'] = $startLine;
+            $payload['start_side'] = $side;
+        }
+
+        return $this->request()->post("/repos/{$repository}/pulls/{$number}/comments", $payload)->throw()->json();
     }
 
     /**

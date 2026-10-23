@@ -112,6 +112,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 
 - **Approve**, **Request changes** or **Comment** with a message, and attach AI findings: findings with a file and line become inline comments on the diff, and the rest are added to the review message.
 - **Post a single finding** to the pull request, after editing it if you like. It's placed on the line in the diff when that line is part of the change, or added as a comment that mentions the file and line.
+- **Comment on lines** in **Files changed**: click a line number (shift-click for a range) or select some code, then press `c`. The comment is posted to GitHub on those lines, and review threads show under the lines they're on, where you can reply to and resolve them.
 - **Conversation** shows reviews, review threads grouped by file (with how many are unresolved) and comments. Reply, add a comment, resolve threads, or let Claude **draft a reply** for you to edit, optionally telling it what to say ("agree, I'll fix it in a follow-up").
 - **Description** shows the pull request description as GitHub renders it, and **Open on GitHub** is always one click away.
 - Conversations and diffs are saved, so they open instantly until something changes on GitHub. **Refresh from GitHub** fetches the latest straight away.
@@ -166,7 +167,7 @@ PRism is designed so that you stay in control of your code and your GitHub accou
 
 - **It runs on your computer.** PRism talks only to GitHub and to the Claude Code CLI you installed. There's no PRism server, account or analytics.
 - **Claude is read-only for reviews and questions.** Claude Code runs with read-only tools: it can read the code and fetch the pull request, but it can't edit files or write to GitHub.
-- **Nothing is written to GitHub without you.** Posting findings, replying to comments and pushing code changes each need the matching setting in Settings → PR review (all off by default), and then a click on the button. AI reviews never post anything by themselves.
+- **Nothing is written to GitHub without you.** Posting findings, commenting, replying to comments and pushing code changes each need the matching setting in Settings → PR review (all off by default), and then a click on the button. AI reviews never post anything by themselves.
 - **Code changes stay isolated.** Fix with Claude works only in separate git worktrees in PRism's own storage, never in your own checkout, and its changes are pushed only after you've reviewed and approved the diff.
 - **Secrets are encrypted.** Your GitHub token and Claude credentials are stored encrypted in the app's local database, with an encryption key unique to your installation. The app lock PIN is stored as a one-way hash. When PRism pushes, git gets your token from the environment, never from the command line.
 - **You control the cost.** AI reviews only run when you start them, unless you turn on automatic reviews, and you can set a maximum spend per review in Settings → Claude.
@@ -242,7 +243,7 @@ For pull requests you're working on, **Fix with Claude** asks Claude to change t
 
 - **Inbox** shows your GitHub notifications. PRism checks every minute and sends a desktop notification for review requests and mentions (including team mentions); clicking one opens the pull request in PRism.
 - **Settings → Notifications** chooses which desktop notifications you get and the sound they play.
-- **Settings → PR review** controls what PRism may write to GitHub. Posting findings, replying to comments and pushing code changes are all off until you turn them on, and nothing happens without you clicking a button. It's also where you can have an AI review start automatically when your review is requested.
+- **Settings → PR review** controls what PRism may write to GitHub. Posting findings, commenting and replying, and pushing code changes are all off until you turn them on, and nothing happens without you clicking a button. It's also where you can have an AI review start automatically when your review is requested.
 - **Settings → Security** adds an app lock with a PIN, Touch ID on Macs, auto-lock after inactivity, and locking when the app starts. Press `⌘L` (`Ctrl+L` on Windows) to lock it straight away.
 - **Settings → Appearance** switches between light, dark and system mode and sets the accent colour.
 - **Settings → About** shows your version, checks for updates and has the full changelog.
@@ -270,7 +271,7 @@ No. The PR dashboard, team review requests, Files changed, Conversation, Inbox a
 Your existing Claude Code login, a long-lived Claude Pro or Max subscription token from `claude setup-token`, or a pay-as-you-go Anthropic API key.
 
 **Will PRism post comments or push code on its own?**
-No. Posting findings, replying to comments, changing code and pushing are each off until you turn them on in Settings → PR review, and even then nothing happens until you click a button.
+No. Posting findings, commenting and replying, changing code and pushing are each off until you turn them on in Settings → PR review, and even then nothing happens until you click a button.
 
 **Does Claude change my local checkout?**
 No. Reviews and questions use read-only tools. Fix with Claude works in a separate git worktree in PRism's own storage, and its changes are pushed only after you've reviewed the diff.

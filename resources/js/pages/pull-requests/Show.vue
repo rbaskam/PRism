@@ -299,6 +299,8 @@ function openPostDialog(finding: ReviewFinding): void {
                         :files="files"
                         :pull-request="pullRequest"
                         :code-questions="codeQuestions"
+                        :review-threads="conversation?.threads ?? []"
+                        :reply-drafts="replyDrafts"
                         :permissions="permissions"
                         :is-active="activeTab === 'files'"
                         :reveal-target="revealTarget"

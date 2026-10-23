@@ -4,21 +4,38 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { sendJson } from '@/lib/http';
 import { cn } from '@/lib/utils';
-import type { CodeQuestion, PullRequest, PullRequestFile, PullRequestFiles, PullRequestPermissions } from '@/types';
+import type { CodeQuestion, PullRequest, PullRequestFile, PullRequestFiles, PullRequestPermissions, ReplyDraft, ReviewThread } from '@/types';
 import { router } from '@inertiajs/vue3';
 import { useElementBounding, useEventListener } from '@vueuse/core';
-import { AlertTriangle, Check, ChevronsDownUp, ChevronsUpDown, Info, ListTree, Loader2, RotateCcw, Search, Sparkles, X } from 'lucide-vue-next';
+import {
+    AlertTriangle,
+    Check,
+    ChevronsDownUp,
+    ChevronsUpDown,
+    Info,
+    ListTree,
+    Loader2,
+    MessageSquarePlus,
+    RotateCcw,
+    Search,
+    Sparkles,
+    X,
+} from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue';
 import { groupQuestionThreads, threadsByPath, type QuestionThread, type RevealTarget } from './code-questions';
 import DiffFile from './DiffFile.vue';
 
 /**
- * The pull request's changed files, GitHub style: mark files as viewed, filter them, and select lines to ask Claude about.
+ * The pull request's changed files, GitHub style: mark files as viewed, filter them, and select lines to comment on
+ * or ask Claude about.
  */
 const props = defineProps<{
     files: PullRequestFiles;
     pullRequest: PullRequest;
     codeQuestions: CodeQuestion[];
+    /** GitHub review threads, from the conversation once it has loaded. */
+    reviewThreads: ReviewThread[];
+    replyDrafts: ReplyDraft[];
     permissions: PullRequestPermissions;
     /** Whether the Files changed tab is showing, so keyboard shortcuts only apply there. */
     isActive: boolean;
@@ -26,6 +43,7 @@ const props = defineProps<{
 }>();
 
 const NO_THREADS: QuestionThread[] = [];
+const NO_REVIEW_THREADS: ReviewThread[] = [];
 
 const viewed = reactive<Record<string, boolean>>({});
 const changedSinceViewed = reactive<Record<string, boolean>>({});
@@ -41,8 +59,9 @@ const syncWarning = ref<string | null>(null);
 const retrying = ref(false);
 
 const selection = ref<{ path: string; anchor: number; focus: number } | null>(null);
-const composerOpen = ref(false);
+const composer = ref<'ask' | 'comment' | null>(null);
 const composerPrompt = ref('');
+const commentBody = ref('');
 
 /** Seed local state from the server whenever the file list is (re)loaded. */
 watch(
@@ -89,6 +108,15 @@ const visibleFiles = computed(() => {
 
 const threads = computed(() => groupQuestionThreads(props.codeQuestions));
 const threadsForPath = computed(() => threadsByPath(threads.value));
+const reviewThreadsForPath = computed(() => {
+    const byPath = new Map<string, ReviewThread[]>();
+
+    for (const thread of props.reviewThreads) {
+        byPath.set(thread.path, [...(byPath.get(thread.path) ?? []), thread]);
+    }
+
+    return byPath;
+});
 const threadsOnRemovedFiles = computed(() => {
     const paths = new Set(allFiles.value.map((file) => file.path));
 
@@ -192,7 +220,7 @@ function selectLine(path: string, index: number, extend: boolean): void {
 
     if (extend && current?.path === path) {
         selection.value = { ...current, focus: index };
-    } else if (current?.path === path && current.anchor === index && current.focus === index && !composerOpen.value) {
+    } else if (current?.path === path && current.anchor === index && current.focus === index && composer.value === null) {
         selection.value = null;
     } else {
         selection.value = { path, anchor: index, focus: index };
@@ -205,17 +233,23 @@ function selectRows(path: string, fromIndex: number, toIndex: number): void {
 
 function clearSelection(): void {
     selection.value = null;
-    composerOpen.value = false;
+    composer.value = null;
 }
 
-function openComposer(): void {
-    if (selection.value && props.permissions.can_run_review) {
-        composerOpen.value = true;
+/** Asking Claude needs Claude connected. The comment box opens either way, and says when commenting is turned off. */
+function openComposer(type: 'ask' | 'comment'): void {
+    if (selection.value && (type === 'comment' || props.permissions.can_run_review)) {
+        composer.value = type;
     }
 }
 
 function questionAsked(): void {
     composerPrompt.value = '';
+    clearSelection();
+}
+
+function commentAdded(): void {
+    commentBody.value = '';
     clearSelection();
 }
 
@@ -231,14 +265,17 @@ useEventListener(document, 'keydown', (event: KeyboardEvent) => {
         return;
     }
 
-    if (event.key === 'a' && !composerOpen.value && props.permissions.can_run_review) {
+    if (event.key === 'a' && composer.value === null && props.permissions.can_run_review) {
         event.preventDefault();
-        openComposer();
+        openComposer('ask');
+    } else if (event.key === 'c' && composer.value === null) {
+        event.preventDefault();
+        openComposer('comment');
     } else if (event.key === 'Escape') {
         event.preventDefault();
 
-        if (composerOpen.value) {
-            composerOpen.value = false;
+        if (composer.value !== null) {
+            composer.value = null;
         } else {
             clearSelection();
         }
@@ -406,10 +443,16 @@ watch(
                 </button>
             </p>
 
-            <p v-if="permissions.can_run_review" class="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-                <Sparkles class="size-3.5 shrink-0 text-violet-500" />
-                Click a line number (shift-click for a range) or select code, then press
-                <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">a</kbd> to ask Claude about it.
+            <p class="flex items-start gap-1.5 px-1 text-xs text-muted-foreground">
+                <MessageSquarePlus class="mt-px size-3.5 shrink-0" />
+                <span>
+                    Click a line number (shift-click for a range) or select code, then press
+                    <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">c</kbd> to comment on it<span
+                        v-if="permissions.can_run_review"
+                    >
+                        or <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">a</kbd> to ask Claude about it</span
+                    >.
+                </span>
             </p>
 
             <nav v-if="showFileList" class="max-h-72 overflow-y-auto rounded-lg border bg-card py-1" aria-label="Changed files">
@@ -457,6 +500,7 @@ watch(
                     v-for="file in visibleFiles"
                     :key="file.path"
                     v-model:prompt="composerPrompt"
+                    v-model:comment="commentBody"
                     :file="file"
                     :pull-request="pullRequest"
                     :viewed="viewed[file.path] ?? false"
@@ -465,18 +509,21 @@ watch(
                     :diff-requested="diffRequested[file.path] ?? false"
                     :force-render="forceRendered[file.path] ?? false"
                     :threads="threadsForPath.get(file.path) ?? NO_THREADS"
+                    :review-threads="reviewThreadsForPath.get(file.path) ?? NO_REVIEW_THREADS"
+                    :reply-drafts="replyDrafts"
                     :selection="selection?.path === file.path ? selection : null"
-                    :composer-open="composerOpen && selection?.path === file.path"
-                    :can-ask="permissions.can_run_review"
+                    :composer="selection?.path === file.path ? composer : null"
+                    :permissions="permissions"
                     @toggle-viewed="(value: boolean) => setViewed(file, value)"
                     @toggle-expanded="expanded[file.path] = !(expanded[file.path] ?? true)"
                     @load-diff="diffRequested[file.path] = true"
                     @line-click="(index: number, extend: boolean) => selectLine(file.path, index, extend)"
                     @select-rows="(fromIndex: number, toIndex: number) => selectRows(file.path, fromIndex, toIndex)"
                     @open-composer="openComposer"
-                    @close-composer="composerOpen = false"
+                    @close-composer="composer = null"
                     @clear-selection="clearSelection"
                     @question-asked="questionAsked"
+                    @comment-added="commentAdded"
                 />
             </div>
 

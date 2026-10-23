@@ -219,6 +219,8 @@ export interface ReviewThread {
     is_resolved: boolean;
     is_outdated: boolean;
     path: string;
+    /** RIGHT for the new version of the file, LEFT for removed lines. Missing from conversations saved by older versions. */
+    side?: 'LEFT' | 'RIGHT';
     line: number | null;
     diff_hunk: string | null;
     comments: GithubComment[];
