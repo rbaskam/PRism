@@ -126,6 +126,11 @@ export function selectionFromRange(lines: DiffLine[], fromIndex: number, toIndex
     };
 }
 
+/** Whether rows from more than one hunk are selected. GitHub only accepts a comment on lines from one hunk. */
+export function spansHunks(lines: DiffLine[], startIndex: number, endIndex: number): boolean {
+    return lines.slice(startIndex, endIndex + 1).some((line) => line.type === 'hunk');
+}
+
 /** "line 12" or "lines 12–18" */
 export function formatLineRange(startLine: number, endLine: number): string {
     return startLine === endLine ? `line ${startLine}` : `lines ${startLine}–${endLine}`;

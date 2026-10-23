@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\PullRequest;
+use App\Services\AppSettings;
 use Native\Desktop\Facades\Shell;
 use Tests\Browser\Support\FakeGithub;
 
@@ -76,6 +77,32 @@ it('loads the changed files from GitHub when you open the tab', function () {
         ->waitForText('app/Http/Middleware/RateLimit.php')
         ->assertSee('// limit requests')
         ->assertNoJavaScriptErrors();
+});
+
+it('comments on a line in the diff and shows the thread under it', function () {
+    app(AppSettings::class)->set(AppSettings::ALLOW_REPLYING_TO_COMMENTS, true);
+    $pullRequest = PullRequest::firstWhere('number', 101);
+    $file = 'section[data-file-path="app/Http/Middleware/RateLimit.php"]';
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=tab[name="Files changed"i]')
+        ->waitForText('// limit requests')
+        ->click('[data-path="app/Http/Middleware/RateLimit.php"][data-line="2"] [data-gutter]')
+        ->click('internal:role=button[name="Comment c"s]')
+        ->fill('textarea[aria-label="Comment"]', 'Make the limit configurable per client.')
+        ->click("{$file} button[type=\"submit\"]")
+        ->waitForText('Comment added.')
+        ->waitForText('Make the limit configurable per client.')
+        ->assertSeeIn($file, 'Make the limit configurable per client.')
+        ->assertNoJavaScriptErrors();
+
+    expect($this->github->sent('POST', '/repos/acme/api/pulls/101/comments'))->toBe([[
+        'body' => 'Make the limit configurable per client.',
+        'commit_id' => 'headsha',
+        'path' => 'app/Http/Middleware/RateLimit.php',
+        'line' => 2,
+        'side' => 'RIGHT',
+    ]]);
 });
 
 it('approves the pull request on GitHub and takes it out of your queue', function () {

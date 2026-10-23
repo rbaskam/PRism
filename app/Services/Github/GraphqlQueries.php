@@ -80,6 +80,7 @@ final class GraphqlQueries
                   isResolved
                   isOutdated
                   path
+                  diffSide
                   line
                   originalLine
                   comments(first: 50) {
