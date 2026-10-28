@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuickSwitcher } from '@/composables/useQuickSwitcher';
 import { getJson } from '@/lib/http';
-import { attentionStyles } from '@/lib/pull-requests';
+import { attentionStyles, closedStateLabel } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { ReviewAttention } from '@/types';
 import { router } from '@inertiajs/vue3';
@@ -18,6 +18,7 @@ import {
     FileCode2,
     FolderGit2,
     Github,
+    GitMerge,
     GitPullRequest,
     GitPullRequestClosed,
     GitPullRequestDraft,
@@ -49,7 +50,8 @@ interface SwitcherPullRequest {
     repository: string;
     number: number;
     title: string;
-    state: string;
+    state: 'open' | 'closed';
+    merged_at: string | null;
     is_draft: boolean;
     author_login: string | null;
     head_ref: string | null;
@@ -246,7 +248,7 @@ function onKeydown(event: KeyboardEvent): void {
 
 function pullRequestIcon(pullRequest: SwitcherPullRequest): LucideIcon {
     if (pullRequest.state !== 'open') {
-        return GitPullRequestClosed;
+        return pullRequest.merged_at ? GitMerge : GitPullRequestClosed;
     }
 
     return pullRequest.is_draft ? GitPullRequestDraft : GitPullRequest;
@@ -364,7 +366,9 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
                                     </span>
                                 </span>
                                 <span class="flex shrink-0 items-center gap-1.5">
-                                    <Badge v-if="item.pullRequest.state !== 'open'" variant="muted">Closed</Badge>
+                                    <Badge v-if="closedStateLabel(item.pullRequest)" :variant="closedStateLabel(item.pullRequest)!.badge">{{
+                                        closedStateLabel(item.pullRequest)!.label
+                                    }}</Badge>
                                     <Badge v-else-if="item.pullRequest.is_draft" variant="outline" class="text-muted-foreground">Draft</Badge>
                                     <AttentionBadge v-if="item.pullRequest.attention !== 'none'" :attention="item.pullRequest.attention" />
                                 </span>

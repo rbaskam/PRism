@@ -71,7 +71,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 - **Colour coded by where it stands for you:** red when it's awaiting your review, green when you approved it, amber when you requested changes, blue when you commented, and purple for your own pull requests.
 - **Summary cards with counts** for awaiting your review, approved by you (including how many have new commits since), changes requested, your pull requests and via teams. Click a card to filter by it.
 - **Filters** for status, repository, how your review was requested (directly, through any team or through one team), hiding drafts, only pull requests with AI findings, only failing checks, and recently closed (closed or merged in the last two weeks, so you can get back to their AI reviews; merged ones are marked **Merged**). Filters are remembered for each page.
-- **Search** by title, number, author, repository, branch or label. Press `/` to jump to the search box.
+- **Search** by title, number, author, repository, branch or label. Press `/` to jump to the search box, or `⌘K` (`Ctrl+K`) anywhere to jump straight to any pull request, repository or page.
 - **Sort** by recently updated, oldest first, newest first, largest change, most AI findings or awaiting review first, and **group by repository** with groups you can collapse.
 - **Everything at a glance on each row:** labels, draft state, CI checks, merge conflicts, lines added and removed, files changed, comments, "New commits since your review", the number of open and new AI findings, and whether an AI review is running.
 - **Repositories** shows a card for each repository with its open pull requests, how many await your review and how many you've approved. Each repository has its own page listing all its open pull requests, including ones that don't involve you.
@@ -258,7 +258,8 @@ For pull requests you're working on, **Fix with Claude** asks Claude to change t
 
 | Where | Keys |
 | --- | --- |
-| Pull request and repository lists | `/` search |
+| Anywhere | `⌘K` / `Ctrl+K` quick switcher: jump to a page, repository or pull request |
+| Pull request and repository lists | `/` search · `j`/`k` next/previous pull request (↓/↑ once a row has focus) · `Enter` open it |
 | AI findings (with a finding focused) | `j`/`k` or ↓/↑ move · `Enter` expand · `r` read · `u` not useful · `b` not a blocker · `n` back to new · `x` select · `p` post to the pull request · `f` fix with Claude |
 | Files changed | `j`/`k` next/previous file · `v` mark the file viewed · `↑`/`↓` select lines in a focused diff (`Shift` to extend) · `c` comment on the selected lines · `a` ask Claude about them · `Esc` clear the selection |
 | Comment box | `⌘Enter` / `Ctrl+Enter` comment now · `⌘⇧Enter` / `Ctrl+Shift+Enter` add to your review |

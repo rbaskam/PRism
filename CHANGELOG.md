@@ -21,11 +21,16 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 - Merged pull requests show a purple **Merged** badge instead of "Closed", in pull request lists and on the pull request page.
 - Give a repository its own AI review prompt: open the repository and choose **Review prompt**. Reviews of its pull requests use it instead of the app-wide prompt, the review dialog shows which prompt will be used, and Settings → PR review lists the repositories that have their own.
 - **Forgot your PIN?** on the lock screen: paste a GitHub personal access token for the connected account to remove the PIN and turn the app lock off, then set a new PIN in Settings → Security. The token is only used to check who you are and is never saved.
+- Press ⌘K (Ctrl+K on Windows), or click **Search** in the sidebar, to jump to any page, repository or pull request by typing a few words.
+- Move through pull request lists with `j` and `k` (or the arrow keys once a row has focus) and press Enter to open one.
+- When the sidebar is collapsed to icons, a dot shows when pull requests are awaiting your review or the inbox has unread notifications.
+- Settings asks before you leave a page with changes you haven't saved.
 - AI findings now show in Files changed under the lines they're about, so you can read them next to the code and mark them read, not useful or not a blocker there. The file list and each file's header show how many findings it has.
 - Files changed highlights the words that changed within an edited line, as GitHub does.
 
 ### Changed
 
+- The Save button in Settings → Claude stays disabled until you change something, like on the other settings pages.
 - Reconnecting GitHub from Settings takes you back to Settings when you're done, instead of through setup again.
 - Connecting a different GitHub account clears the previous account's notifications, review requests and comments waiting in a review, so the two accounts' data don't mix.
 - Accent colours are easier to read. In light mode, Green, Rose and Orange buttons now have enough contrast for their text; in dark mode, Violet, Rose and Orange do, and their focus rings stand out from the page. The loading bar, links in descriptions and comments, selected lines in a diff, active filters and the selected option in dialogs now take your accent colour too.
@@ -35,6 +40,7 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ### Fixed
 
+- The Repositories page keeps its counts and "Synced … ago" times up to date while it's open.
 - In a narrow window, pages no longer run off the right-hand edge. The pull request header, file headers and comment threads wrap instead, and the pull request tabs fade at the edge when there are more to scroll to.
 - Settings stays highlighted in the sidebar on every settings page, not just GitHub, and the selected settings section is visible in dark mode.
 - When all your pull requests had been closed recently, My pull requests and repository pages said "No pull requests match your filters", with a Clear filters button that did nothing. They now say nothing needs you, and offer to show the recently closed ones.

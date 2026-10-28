@@ -37,13 +37,15 @@ it('lists tracked repositories with their counts, and their open pull requests b
             'number' => 42,
             'title' => 'Add rate limiting',
             'state' => 'open',
+            'merged_at' => null,
             'is_draft' => false,
             'author_login' => 'hubot',
             'head_ref' => 'feature/rate-limits',
             'attention' => 'awaiting',
         ])
         ->assertJsonPath('pull_requests.0.attention', 'authored')
-        ->assertJsonPath('pull_requests.2.state', 'closed');
+        ->assertJsonPath('pull_requests.2.state', 'closed')
+        ->assertJsonPath('pull_requests.2.merged_at', $closed->merged_at?->toIso8601String());
 });
 
 it('leaves out untracked repositories and pull requests closed too long ago', function () {
