@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-28
+
 ### Added
 
 - Syntax highlighting in Files changed and in Claude's changes, for over 40 languages in light and dark mode, together with the words that changed within a line.
