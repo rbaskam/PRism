@@ -11,6 +11,8 @@ export interface NavItem {
     icon?: LucideIcon;
     isActive?: boolean;
     badge?: number;
+    /** What the badge counts, read out with the number, e.g. "awaiting your review". */
+    badgeLabel?: string;
 }
 
 export interface GithubUser {

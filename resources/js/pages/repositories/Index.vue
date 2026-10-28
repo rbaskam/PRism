@@ -7,8 +7,8 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { attentionStyles, timeAgo } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { BreadcrumbItem, Repository } from '@/types';
-import { Head, Link } from '@inertiajs/vue3';
-import { onKeyStroke } from '@vueuse/core';
+import { Head, Link, usePoll } from '@inertiajs/vue3';
+import { onKeyStroke, useNow } from '@vueuse/core';
 import { Clock, FolderGit2, GitBranch, Globe, Lock, Search, SearchX, Settings2, X } from 'lucide-vue-next';
 import { computed, ref, useTemplateRef } from 'vue';
 
@@ -17,6 +17,16 @@ const props = defineProps<{
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Repositories', href: route('repositories.index') }];
+
+// Keep the counts and "Synced … ago" in step with the sidebar badge, which is refreshed every 30 seconds too.
+usePoll(30000, { only: ['repositories'] });
+
+/** Re-renders the "Synced … ago" labels as time passes. */
+const now = useNow({ interval: 30000 });
+
+function syncedLabel(repository: Repository): string {
+    return repository.synced_at && now.value ? `Synced ${timeAgo(repository.synced_at)}` : 'Not synced yet';
+}
 
 const search = ref('');
 const searchInput = useTemplateRef<InstanceType<typeof Input>>('searchInput');
@@ -213,7 +223,7 @@ function onSearchEscape(event: KeyboardEvent): void {
                             :title="repository.synced_at ? new Date(repository.synced_at).toLocaleString() : undefined"
                         >
                             <Clock class="size-3.5" />
-                            {{ repository.synced_at ? `Synced ${timeAgo(repository.synced_at)}` : 'Not synced yet' }}
+                            {{ syncedLabel(repository) }}
                         </span>
                         <span v-if="repository.default_branch" class="flex min-w-0 items-center gap-1 font-mono text-[11px]">
                             <GitBranch class="size-3.5 shrink-0" />

@@ -41,6 +41,10 @@ const props = withDefaults(
 
 const MAX_VISIBLE_LABELS = 3;
 
+/** j/k and the arrow keys move focus between the rows' title links (see PullRequestList), so the whole row shows it. */
+const keyboardFocusClass =
+    'has-[[data-pull-request-link]:focus-visible]:ring-2 has-[[data-pull-request-link]:focus-visible]:ring-inset has-[[data-pull-request-link]:focus-visible]:ring-ring';
+
 const numberFormat = new Intl.NumberFormat();
 
 const style = computed(() => attentionStyles[props.pullRequest.attention]);
@@ -113,9 +117,11 @@ const hasStatusBadges = computed(
 
 <template>
     <div
+        data-pull-request-row
         :class="
             cn(
                 'group flex cursor-pointer flex-col gap-x-4 gap-y-2 border-l-[3px] py-3 pl-3 pr-4 transition-colors focus-within:bg-accent/50 hover:bg-accent/50 sm:flex-row sm:pl-4',
+                keyboardFocusClass,
                 style.border,
                 pullRequest.attention === 'awaiting' && !pullRequest.snoozed_until && 'bg-red-500/[0.03] dark:bg-red-500/[0.06]',
             )
@@ -149,8 +155,9 @@ const hasStatusBadges = computed(
 
                 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <Link
+                        data-pull-request-link
                         :href="route('pull-requests.show', { pullRequest: pullRequest.id })"
-                        class="max-w-full truncate rounded-sm text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                        class="max-w-full truncate rounded-sm text-sm font-medium text-foreground outline-none hover:underline focus-visible:underline"
                         :title="pullRequest.title"
                     >
                         {{ pullRequest.title }}

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,8 @@ const form = useForm({
     auto_lock_minutes: props.settings.auto_lock_minutes,
     lock_on_launch: props.settings.lock_on_launch,
 });
+
+useUnsavedChangesGuard(() => form.isDirty);
 
 const changingPin = ref(false);
 const locking = ref(false);

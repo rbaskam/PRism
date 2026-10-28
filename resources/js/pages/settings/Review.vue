@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,8 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'PR review settings', href: rout
 const MAX_PROMPT_LENGTH = 20000;
 
 const form = useForm({ ...props.settings });
+
+useUnsavedChangesGuard(() => form.isDirty);
 
 const promptTextarea = ref<InstanceType<typeof Textarea> | null>(null);
 

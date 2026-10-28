@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,8 @@ const props = defineProps<{
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Notification settings', href: route('settings.notifications') }];
 
 const form = useForm({ ...props.settings });
+
+useUnsavedChangesGuard(() => form.isDirty);
 
 interface Toggle {
     key: AlertKey;

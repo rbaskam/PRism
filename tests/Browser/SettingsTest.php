@@ -161,3 +161,41 @@ it('marks Settings as the current page in the sidebar on every settings page', f
         ->assertScript('document.querySelector(\'[data-sidebar="menu-button"][data-active="true"]\')?.textContent.trim()', 'Settings')
         ->assertNoJavaScriptErrors();
 });
+
+it('asks before leaving a settings page with unsaved changes', function () {
+    $page = visit('/settings/notifications');
+    $page->script('function () { window.__confirmations = []; window.confirm = (message) => { window.__confirmations.push(message); return false; }; }');
+
+    $page->click('#mentions')
+        ->click('[data-sidebar="menu-button"][href$="/repositories"]')
+        ->assertPathIs('/settings/notifications')
+        ->assertScript('document.querySelector("#mentions").getAttribute("aria-checked")', 'false');
+
+    expect($page->script('window.__confirmations'))->toBe(['You have unsaved changes. Leave without saving?']);
+
+    $page->script('function () { window.confirm = () => true; }');
+    $page->click('[data-sidebar="menu-button"][href$="/repositories"]')
+        ->waitForText('Manage repositories')
+        ->assertPathIs('/repositories')
+        ->assertNoJavaScriptErrors();
+
+    expect(app(AppSettings::class)->get('notifications.mentions'))->toBeNull();
+});
+
+it('leaves a settings page without asking once the changes are saved', function () {
+    $page = visit('/settings/review');
+    $page->script('function () { window.__confirmations = []; window.confirm = (message) => { window.__confirmations.push(message); return false; }; }');
+
+    trackRequests($page);
+    $page->click('#allow_posting_findings')
+        ->click('Save');
+    waitForRequests($page);
+
+    $page->click('[data-sidebar="menu-button"][href$="/repositories"]')
+        ->waitForText('Manage repositories')
+        ->assertPathIs('/repositories')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('window.__confirmations'))->toBe([])
+        ->and(app(AppSettings::class)->allowsPostingFindings())->toBeTrue();
+});
