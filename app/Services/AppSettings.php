@@ -33,6 +33,12 @@ class AppSettings
 
     public const GITHUB_CLI_PATH = 'github.cli_path';
 
+    /**
+     * The GitHub user id of the account connected last, kept after disconnecting so connecting a different account
+     * can be told apart from reconnecting the same one.
+     */
+    public const GITHUB_ACCOUNT_ID = 'github.account_id';
+
     public const LOCAL_CODE_FOLDER = 'local.code_folder';
 
     public const ALLOW_CODE_CHANGES = 'review.allow_code_changes';
@@ -58,6 +64,11 @@ class AppSettings
     public const APP_LOCK_ON_LAUNCH = 'security.lock_on_launch';
 
     public const APP_LOCK_GENERATION = 'security.lock_generation';
+
+    /**
+     * The longest review prompt, app-wide or for one repository, in characters.
+     */
+    public const REVIEW_PROMPT_MAX_LENGTH = 20000;
 
     public const DEFAULT_REVIEW_PROMPT = <<<'PROMPT'
         You are a senior engineer reviewing pull request #{number} "{title}" in {repository} ({head} into {base}), opened by @{author}.

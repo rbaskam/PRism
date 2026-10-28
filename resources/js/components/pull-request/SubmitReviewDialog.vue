@@ -6,10 +6,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { PullRequest, PullRequestPermissions, ReviewFinding, SubmitReviewEvent } from '@/types';
+import type { PendingReviewComment, PullRequest, PullRequestPermissions, ReviewFinding, SubmitReviewEvent } from '@/types';
 import { useForm } from '@inertiajs/vue3';
-import { Check, Loader2, MessageSquare, XCircle } from 'lucide-vue-next';
+import { Check, Clock, Loader2, MessageSquare, XCircle } from 'lucide-vue-next';
 import { computed, watch, type Component } from 'vue';
+import { formatLineRange } from './diff';
 import SettingsHint from './SettingsHint.vue';
 import SeverityBadge from './SeverityBadge.vue';
 import { failedWithFlash, findingLocation, pageVisit, refreshConversation } from './utils';
@@ -20,6 +21,8 @@ import { failedWithFlash, findingLocation, pageVisit, refreshConversation } from
 const props = defineProps<{
     pullRequest: PullRequest;
     findings: ReviewFinding[];
+    /** Comments on lines added to the review, posted with it. */
+    pendingComments: PendingReviewComment[];
     permissions: PullRequestPermissions;
     initialEvent: SubmitReviewEvent;
 }>();
@@ -77,7 +80,9 @@ const attachableFindings = computed(() => props.findings.filter((finding) => !fi
 
 const selectedOption = computed(() => eventOptions.find((option) => option.value === form.event) ?? eventOptions[2]);
 
-const isBodyRequired = computed(() => form.event === 'REQUEST_CHANGES' || (form.event === 'COMMENT' && form.finding_ids.length === 0));
+const isBodyRequired = computed(
+    () => form.event === 'REQUEST_CHANGES' || (form.event === 'COMMENT' && form.finding_ids.length === 0 && props.pendingComments.length === 0),
+);
 
 const canSubmit = computed(() => !form.processing && (!isBodyRequired.value || form.body.trim() !== ''));
 
@@ -88,7 +93,7 @@ const bodyPlaceholder = computed(() => {
         case 'REQUEST_CHANGES':
             return 'What needs to change before this can merge?';
         default:
-            return form.finding_ids.length > 0 ? 'Optional summary for the attached findings' : 'Leave a comment';
+            return form.finding_ids.length > 0 || props.pendingComments.length > 0 ? 'Optional summary for your comments' : 'Leave a comment';
     }
 });
 
@@ -196,6 +201,24 @@ function handleKeydown(event: KeyboardEvent): void {
                     </Label>
                     <Textarea id="review-body" v-model="form.body" :placeholder="bodyPlaceholder" class="min-h-28" @keydown="handleKeydown" />
                     <InputError :message="form.errors.body" />
+                </div>
+
+                <div v-if="pendingComments.length > 0" class="grid gap-2">
+                    <p class="text-sm font-medium">
+                        Your comments
+                        <span class="font-normal text-muted-foreground">({{ pendingComments.length }}, posted with this review)</span>
+                    </p>
+                    <ul class="max-h-40 divide-y overflow-y-auto rounded-md border">
+                        <li v-for="comment in pendingComments" :key="comment.id" class="flex items-start gap-2 px-3 py-2">
+                            <Clock class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            <span class="min-w-0 flex-1 space-y-0.5">
+                                <span class="block truncate font-mono text-xs text-muted-foreground"
+                                    >{{ comment.path }} · {{ formatLineRange(comment.start_line ?? comment.line, comment.line) }}</span
+                                >
+                                <span class="line-clamp-2 block text-sm">{{ comment.body }}</span>
+                            </span>
+                        </li>
+                    </ul>
                 </div>
 
                 <div v-if="attachableFindings.length > 0" class="grid gap-2">

@@ -11,6 +11,8 @@ export interface NavItem {
     icon?: LucideIcon;
     isActive?: boolean;
     badge?: number;
+    /** What the badge counts, read out with the number, e.g. "awaiting your review". */
+    badgeLabel?: string;
 }
 
 export interface GithubUser {
@@ -79,6 +81,18 @@ export interface RepositorySummary {
     full_name: string;
     name: string;
     owner: string;
+    /** Reviews of this repository's pull requests use its own prompt instead of the app-wide one. */
+    has_custom_review_prompt: boolean;
+}
+
+/** The review prompt shown on a repository's page. */
+export interface RepositoryReviewPrompt {
+    /** The repository's own prompt, or null when it uses the app-wide prompt. */
+    custom: string | null;
+    app_wide: string;
+    max_length: number;
+    /** Placeholder (e.g. "{number}") => what it is replaced with. */
+    placeholders: Record<string, string>;
 }
 
 export interface Repository {
@@ -138,6 +152,7 @@ export interface PullRequest {
     number: number;
     title: string;
     html_url: string;
+    /** A merged pull request is closed too, with merged_at set. */
     state: 'open' | 'closed';
     is_draft: boolean;
     author_login: string | null;
@@ -175,6 +190,7 @@ export interface PullRequest {
     created_at: string | null;
     updated_at: string | null;
     closed_at: string | null;
+    merged_at: string | null;
     synced_at: string | null;
 }
 
@@ -245,6 +261,17 @@ export interface ReplyDraft {
     instructions: string | null;
     body: string | null;
     error: string | null;
+    created_at: string | null;
+}
+
+/** A comment on lines kept in the app until the review is submitted, when it's posted with the review. */
+export interface PendingReviewComment {
+    id: number;
+    path: string;
+    side: 'LEFT' | 'RIGHT';
+    start_line: number | null;
+    line: number;
+    body: string;
     created_at: string | null;
 }
 

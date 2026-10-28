@@ -32,6 +32,7 @@ dataset('pages', [
     'security settings' => fn (): string => '/settings/security',
     'appearance settings' => fn (): string => '/settings/appearance',
     'about' => fn (): string => '/settings/about',
+    'reconnect GitHub' => fn (): string => '/onboarding/github',
 ]);
 
 it('renders the page in each mode with an accent colour', function (string $path, string $mode) {

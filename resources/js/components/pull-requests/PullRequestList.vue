@@ -20,9 +20,9 @@ import {
 } from '@/composables/usePullRequestFilters';
 import type { PullRequest } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { useStorage } from '@vueuse/core';
+import { useEventListener, useStorage } from '@vueuse/core';
 import { AlarmClock, ChevronRight, ChevronsDownUp, ChevronsUpDown, FilterX, GitPullRequest, SearchX, X } from 'lucide-vue-next';
-import { computed, watch } from 'vue';
+import { computed, useTemplateRef, watch } from 'vue';
 
 const props = withDefaults(
     defineProps<{
@@ -213,6 +213,47 @@ const areAllGroupsCollapsed = computed(
 function toggleAllGroups(): void {
     collapsedRepositories.value = areAllGroupsCollapsed.value ? [] : groups.value.map((group) => group.id);
 }
+
+const rowsElement = useTemplateRef<HTMLElement>('rows');
+
+function isTypingInField(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+}
+
+/**
+ * j/k move focus to the next and previous pull request, starting at the first one, and ↓/↑ do the same while a row
+ * has focus. Focus lands on the row's title link, so Enter opens it. Keys typed in a field, or in an open menu or
+ * dialog, are left alone.
+ */
+useEventListener(document, 'keydown', (event: KeyboardEvent) => {
+    const isNext = event.key === 'j' || event.key === 'ArrowDown';
+    const isPrevious = event.key === 'k' || event.key === 'ArrowUp';
+
+    if (!(isNext || isPrevious) || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+        return;
+    }
+
+    const target = event.target instanceof Element ? event.target : null;
+
+    if (isTypingInField(target) || target?.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) {
+        return;
+    }
+
+    // Rows in collapsed repository groups aren't rendered, so these are exactly the rows on screen, in order.
+    const links = [...(rowsElement.value?.querySelectorAll<HTMLElement>('[data-pull-request-link]') ?? [])];
+    const currentRow = target?.closest('[data-pull-request-row]');
+    const current = currentRow ? links.findIndex((link) => currentRow.contains(link)) : -1;
+
+    if (links.length === 0 || (current === -1 && event.key.startsWith('Arrow'))) {
+        return;
+    }
+
+    const next = current === -1 ? 0 : Math.min(Math.max(current + (isNext ? 1 : -1), 0), links.length - 1);
+
+    event.preventDefault();
+    links[next].focus({ preventScroll: true });
+    (links[next].closest('[data-pull-request-row]') ?? links[next]).scrollIntoView({ block: 'nearest' });
+});
 </script>
 
 <template>
@@ -296,7 +337,7 @@ function toggleAllGroups(): void {
                     </div>
                 </div>
 
-                <div class="overflow-hidden rounded-lg border bg-card shadow-sm">
+                <div ref="rows" class="overflow-hidden rounded-lg border bg-card shadow-sm">
                     <EmptyState
                         v-if="visiblePullRequests.length === 0 && activeFilterCount === 0 && snoozedCount > 0"
                         :icon="AlarmClock"

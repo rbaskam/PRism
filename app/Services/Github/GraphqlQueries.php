@@ -18,6 +18,7 @@ final class GraphqlQueries
           createdAt
           updatedAt
           closedAt
+          mergedAt
           additions
           deletions
           changedFiles
@@ -107,6 +108,17 @@ final class GraphqlQueries
           }
         }
         GRAPHQL."\n".self::PULL_REQUEST_FIELDS;
+
+    /**
+     * Whether pull requests, looked up by node id, are still open, merged or closed. GitHub accepts up to 100 ids.
+     */
+    public const PULL_REQUEST_STATES = <<<'GRAPHQL'
+        query ($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on PullRequest { id state closedAt mergedAt }
+          }
+        }
+        GRAPHQL;
 
     public const FILE_VIEWED_STATES = <<<'GRAPHQL'
         query ($owner: String!, $name: String!, $number: Int!, $cursor: String) {

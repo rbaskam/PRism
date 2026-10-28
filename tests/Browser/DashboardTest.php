@@ -277,3 +277,118 @@ it('says nothing needs you when your only pull requests were closed recently, an
         ->assertSee('Add rate limiting')
         ->assertNoJavaScriptErrors();
 });
+
+it('shows which recently closed pull requests were merged, there and on the pull request', function () {
+    $github = (new FakeGithub)
+        ->withPullRequests('acme/api', [
+            FakeGithub::pullRequest(101, 'Add rate limiting', FakeGithub::reviewedBy('octocat', 'APPROVED')),
+            FakeGithub::pullRequest(102, 'Fix login redirect', ['author' => ['login' => 'octocat', 'avatarUrl' => null]]),
+        ])
+        ->fake();
+    syncFromGithub();
+    $github->merge('acme/api', 101)->close('acme/api', 102);
+    syncFromGithub();
+
+    visit('/')
+        ->assertSee('2 pull requests were closed or merged recently.')
+        ->click('Show recently closed')
+        ->assertSeeIn('div.group:has(a[title="Add rate limiting"])', 'Merged')
+        ->assertDontSeeIn('div.group:has(a[title="Add rate limiting"])', 'Closed')
+        ->assertSeeIn('div.group:has(a[title="Fix login redirect"])', 'Closed')
+        ->assertDontSeeIn('div.group:has(a[title="Fix login redirect"])', 'Merged')
+        ->click('a[title="Add rate limiting"]')
+        ->waitForText('Review history')
+        ->assertSeeIn('header:has(h1)', 'Merged')
+        ->assertNoJavaScriptErrors();
+
+    expect(PullRequest::firstWhere('number', 101)->merged_at)->not->toBeNull()
+        ->and(PullRequest::firstWhere('number', 102)->merged_at)->toBeNull();
+});
+
+it('moves between pull requests with j, k and the arrow keys, and opens the focused one with Enter', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+
+    $page = visit('/')->assertSee('Add rate limiting');
+
+    $page->keys('[aria-label="Search pull requests"]', 'j')
+        ->assertScript('document.activeElement?.getAttribute("aria-label")', 'Search pull requests')
+        ->clear('[aria-label="Search pull requests"]')
+        ->keys('[aria-label="Search pull requests"]', 'Escape')
+        ->keys('#app', 'j')
+        ->keys(':focus', ['j', 'ArrowDown', 'k'])
+        ->assertScript('[...document.querySelectorAll("[data-pull-request-link]")].indexOf(document.activeElement)', 1)
+        ->assertScript('document.activeElement.closest("[data-pull-request-row]").matches(":has([data-pull-request-link]:focus-visible)")', true)
+        ->assertScript('getComputedStyle(document.activeElement.closest("[data-pull-request-row]")).boxShadow !== "none"', true);
+
+    $path = parse_url($page->script('document.activeElement.href'), PHP_URL_PATH);
+
+    $page->keys(':focus', 'Enter')
+        ->waitForText('Files changed')
+        ->assertPathIs($path)
+        ->assertNoJavaScriptErrors();
+});
+
+it('jumps to a pull request from the quick switcher, using only the keyboard', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+    $pullRequest = PullRequest::firstWhere('number', 202);
+
+    $page = visit('/')->assertSee('Add rate limiting');
+
+    $page->keys('#app', 'Control+k')
+        ->fill('[role="combobox"]', 'acme/web');
+    $page->text('internal:role=option[name="New onboarding flow"i]');
+
+    $page->assertSeeIn('[role="listbox"]', 'Redesign settings')
+        ->assertDontSeeIn('[role="listbox"]', 'Add rate limiting')
+        ->keys('[role="combobox"]', ['ArrowDown', 'ArrowDown', 'ArrowUp'])
+        ->assertAttribute('[role="combobox"]', 'aria-activedescendant', 'quick-switcher-option-1')
+        ->assertAttribute('#quick-switcher-option-1', 'aria-selected', 'true')
+        ->fill('[role="combobox"]', 'web onboarding someone')
+        ->assertAttribute('[role="combobox"]', 'aria-activedescendant', 'quick-switcher-option-0')
+        ->assertSeeIn('#quick-switcher-option-0', 'New onboarding flow')
+        ->assertSeeIn('#quick-switcher-option-0', 'acme/web')
+        ->assertSeeIn('#quick-switcher-option-0', 'Awaiting your review')
+        ->assertMissing('#quick-switcher-option-1')
+        ->keys('[role="combobox"]', 'Enter')
+        ->waitForText('Files changed')
+        ->assertPathIs("/pull-requests/{$pullRequest->id}")
+        ->assertNoJavaScriptErrors();
+});
+
+it('says when nothing matches in the quick switcher', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+
+    $page = visit('/')->assertSee('Add rate limiting');
+
+    $page->keys('#app', 'Control+k')
+        ->fill('[role="combobox"]', 'acme/web');
+    $page->text('internal:role=option[name="New onboarding flow"i]');
+
+    $page->fill('[role="combobox"]', 'no such thing')
+        ->assertSee('Nothing matches “no such thing”')
+        ->assertAttributeMissing('[role="combobox"]', 'aria-activedescendant')
+        ->assertNoJavaScriptErrors();
+});
+
+it('shows counts as dots and keeps search in reach when the sidebar is collapsed to icons', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+
+    $page = visit('/')->assertSee('Add rate limiting')
+        ->assertMissing('[data-collapsed-badge]')
+        ->keys('#app', 'Control+b')
+        ->assertScript('document.querySelector("[data-collapsible]")?.dataset.collapsible', 'icon')
+        ->assertVisible('[data-collapsed-badge]')
+        ->assertMissing('[data-sidebar="menu-badge"]')
+        ->assertScript('document.querySelector("[data-collapsed-badge]").textContent.trim()', '3 awaiting your review');
+
+    $page->click('internal:role=button[name="Search…"s]')
+        ->fill('[role="combobox"]', 'lock')
+        ->keys('[role="combobox"]', 'Enter')
+        ->waitForText('Require a PIN to open')
+        ->assertPathIs('/settings/security')
+        ->assertNoJavaScriptErrors();
+});

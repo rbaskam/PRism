@@ -5,15 +5,18 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { postJson } from '@/lib/http';
 import type { SharedData } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { Delete, Fingerprint, Loader2, Lock, Timer } from 'lucide-vue-next';
+import { ArrowLeft, Delete, ExternalLink as ExternalLinkIcon, Fingerprint, KeyRound, Loader2, Lock, Timer } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     biometrics: { enabled: boolean; label: string | null };
     /** Greater than 0 after too many wrong PINs: entry is blocked for this many seconds. */
     lockedOutSeconds: number;
+    /** "Forgot your PIN?": a token for the connected GitHub account (login is null when none is connected) removes the PIN. */
+    recovery: { login: string | null; token_url: string };
 }>();
 
 const page = usePage<SharedData>();
@@ -39,8 +42,19 @@ const countdown = computed(() => {
 
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
 
+const recovering = ref(false);
+const recoveryForm = useForm({ token: '' });
+
 function focusPin(): void {
-    nextTick(() => document.getElementById('pin')?.focus());
+    nextTick(() => {
+        if (!recovering.value) {
+            document.getElementById('pin')?.focus();
+        }
+    });
+}
+
+function focusRecovery(): void {
+    nextTick(() => document.getElementById(props.recovery.login ? 'recovery-token' : 'recovery-title')?.focus());
 }
 
 function shakePin(): void {
@@ -141,6 +155,45 @@ function unlockWithBiometrics(): void {
     );
 }
 
+function showRecovery(): void {
+    recovering.value = true;
+    recoveryForm.clearErrors();
+    focusRecovery();
+}
+
+function hideRecovery(): void {
+    recovering.value = false;
+    recoveryForm.reset();
+    recoveryForm.clearErrors();
+    focusPin();
+}
+
+/** The lock screen can't use the usual external link route, which only works while the app is unlocked. */
+function openTokenPage(): void {
+    if (page.props.isNative) {
+        postJson(route('lock.recovery.token-page'), {}, 'Could not open GitHub').catch((error) => console.error(error));
+
+        return;
+    }
+
+    window.open(props.recovery.token_url, '_blank', 'noopener');
+}
+
+/** The token is cleared after every attempt, so it doesn't stay on screen or in memory. */
+function recover(): void {
+    if (recoveryForm.token.trim() === '' || recoveryForm.processing) {
+        return;
+    }
+
+    recoveryForm.post(route('lock.recovery'), {
+        preserveState: true,
+        onError: () => {
+            recoveryForm.reset('token');
+            focusRecovery();
+        },
+    });
+}
+
 onMounted(() => {
     focusPin();
 
@@ -162,7 +215,76 @@ onBeforeUnmount(() => clearInterval(countdownTimer));
                 <span class="font-semibold">{{ page.props.name }}</span>
             </div>
 
-            <div class="rounded-xl border bg-background p-6 shadow-sm sm:p-8">
+            <div v-if="recovering" class="space-y-6 rounded-xl border bg-background p-6 shadow-sm sm:p-8">
+                <div class="flex flex-col items-center gap-3 text-center">
+                    <div class="flex size-12 items-center justify-center rounded-full bg-muted">
+                        <KeyRound class="size-5" />
+                    </div>
+                    <div class="space-y-1">
+                        <h1 id="recovery-title" tabindex="-1" class="text-xl font-semibold tracking-tight focus:outline-none">Forgot your PIN?</h1>
+                        <p class="text-sm text-muted-foreground">
+                            Prove the GitHub account connected to {{ page.props.name }} is yours. The PIN is removed and the lock turned off, so you
+                            can set a new PIN.
+                        </p>
+                    </div>
+                </div>
+
+                <form v-if="recovery.login" class="space-y-4" @submit.prevent="recover">
+                    <ol class="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+                        <li>
+                            <a
+                                :href="recovery.token_url"
+                                target="_blank"
+                                rel="noopener"
+                                class="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+                                @click.prevent="openTokenPage"
+                            >
+                                Create a personal access token<ExternalLinkIcon class="ml-0.5 inline size-3.5 align-[-2px]"
+                            /></a>
+                            on GitHub while signed in as <span class="font-medium text-foreground">@{{ recovery.login }}</span
+                            >. It needs no scopes.
+                        </li>
+                        <li>Paste it here. It's only used to ask GitHub who you are, and is never saved.</li>
+                    </ol>
+
+                    <div class="space-y-2">
+                        <Label for="recovery-token">Personal access token for @{{ recovery.login }}</Label>
+                        <Input
+                            id="recovery-token"
+                            v-model="recoveryForm.token"
+                            type="password"
+                            autocomplete="off"
+                            spellcheck="false"
+                            placeholder="ghp_… or github_pat_…"
+                            :aria-invalid="Boolean(recoveryForm.errors.token)"
+                            aria-describedby="recovery-token-error"
+                            class="font-mono"
+                        />
+                        <InputError id="recovery-token-error" :message="recoveryForm.errors.token" />
+                    </div>
+
+                    <Button type="submit" class="h-11 w-full" :disabled="recoveryForm.token.trim() === '' || recoveryForm.processing">
+                        <Loader2 v-if="recoveryForm.processing" class="animate-spin" />
+                        Remove PIN and unlock
+                    </Button>
+                    <p class="text-center text-xs text-muted-foreground">You can delete the token on GitHub once you're back in.</p>
+                </form>
+
+                <p
+                    v-else
+                    class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                >
+                    No GitHub account is connected to {{ page.props.name }}, so there's no way to prove the app is yours and the PIN can't be
+                    recovered.
+                </p>
+
+                <Button type="button" variant="ghost" class="w-full" @click="hideRecovery">
+                    <ArrowLeft />
+                    Back to PIN entry
+                </Button>
+            </div>
+
+            <div v-else class="rounded-xl border bg-background p-6 shadow-sm sm:p-8">
                 <div class="flex flex-col items-center gap-3 text-center">
                     <div class="flex size-12 items-center justify-center rounded-full bg-muted">
                         <Lock class="size-5" />
@@ -260,6 +382,10 @@ onBeforeUnmount(() => clearInterval(countdownTimer));
                         Unlock
                     </Button>
                 </form>
+
+                <div class="mt-4 text-center">
+                    <Button type="button" variant="link" size="sm" @click="showRecovery">Forgot your PIN?</Button>
+                </div>
             </div>
         </div>
 

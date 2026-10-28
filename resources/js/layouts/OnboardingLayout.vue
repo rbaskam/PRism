@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import FlashMessages from '@/components/FlashMessages.vue';
+import { Button } from '@/components/ui/button';
 import type { SharedData } from '@/types';
-import { usePage } from '@inertiajs/vue3';
-import { Check } from 'lucide-vue-next';
+import { Link, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, Check } from 'lucide-vue-next';
 
 const props = defineProps<{
-    /** 1 = GitHub, 2 = Repositories, 3 = Claude */
-    step: 1 | 2 | 3;
+    /** 1 = GitHub, 2 = Repositories, 3 = Claude. Leave it out for a page shown outside the first-run flow, e.g. reconnecting GitHub. */
+    step?: 1 | 2 | 3;
     title: string;
     description?: string;
+    /** A link back to where the user came from, shown instead of the setup steps. */
+    back?: { href: string; label: string };
 }>();
 
 const page = usePage<SharedData>();
@@ -25,7 +28,7 @@ const steps = ['Connect GitHub', 'Choose repositories', 'Connect Claude'];
                 <span class="text-lg font-semibold">{{ page.props.name }}</span>
             </div>
 
-            <ol class="mb-8 grid grid-cols-3 gap-2" aria-label="Setup steps">
+            <ol v-if="props.step" class="mb-8 grid grid-cols-3 gap-2" aria-label="Setup steps">
                 <li
                     v-for="(label, index) in steps"
                     :key="label"
@@ -42,6 +45,13 @@ const steps = ['Connect GitHub', 'Choose repositories', 'Connect Claude'];
                     </div>
                 </li>
             </ol>
+
+            <Button v-else-if="props.back" variant="ghost" size="sm" class="-ml-2 mb-4" as-child>
+                <Link :href="props.back.href">
+                    <ArrowLeft />
+                    {{ props.back.label }}
+                </Link>
+            </Button>
 
             <div class="rounded-xl border bg-background p-6 shadow-sm sm:p-8">
                 <h1 class="text-2xl font-semibold tracking-tight">{{ props.title }}</h1>

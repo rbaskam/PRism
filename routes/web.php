@@ -15,12 +15,16 @@ use App\Http\Controllers\LocalCheckoutScanController;
 use App\Http\Controllers\LocalFolderController;
 use App\Http\Controllers\LockController;
 use App\Http\Controllers\Onboarding\OnboardingController;
+use App\Http\Controllers\PendingReviewCommentController;
+use App\Http\Controllers\PinRecoveryController;
 use App\Http\Controllers\PostedFindingController;
 use App\Http\Controllers\PullRequestCommentController;
 use App\Http\Controllers\PullRequestController;
+use App\Http\Controllers\PullRequestFileContentController;
 use App\Http\Controllers\PullRequestFileViewController;
 use App\Http\Controllers\PullRequestReviewController;
 use App\Http\Controllers\PullRequestSnoozeController;
+use App\Http\Controllers\QuickSwitcherController;
 use App\Http\Controllers\ReplyDraftController;
 use App\Http\Controllers\RepositoryController;
 use App\Http\Controllers\ReviewFindingController;
@@ -48,6 +52,8 @@ Route::get('lock', [LockController::class, 'show'])->name('lock.show');
 Route::post('lock/pin', [LockController::class, 'unlockWithPin'])->name('lock.pin');
 Route::post('lock/biometrics', [LockController::class, 'unlockWithBiometrics'])->name('lock.biometrics');
 Route::post('lock', [LockController::class, 'lock'])->name('lock.store');
+Route::post('lock/recovery', [PinRecoveryController::class, 'store'])->name('lock.recovery');
+Route::post('lock/recovery/token-page', [PinRecoveryController::class, 'openTokenPage'])->name('lock.recovery.token-page');
 
 /*
  * Restarts the desktop app when its server has stopped answering properly.
@@ -84,6 +90,7 @@ Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::post('sync', SyncController::class)->name('sync');
             Route::post('sync/on-return', SyncOnReturnController::class)->name('sync.on-return');
+            Route::get('quick-switcher', QuickSwitcherController::class)->name('quick-switcher');
 
             Route::get('repositories', [RepositoryController::class, 'index'])->name('repositories.index');
             Route::get('repositories/{repository}', [RepositoryController::class, 'show'])->name('repositories.show');
@@ -98,9 +105,13 @@ Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
             Route::post('pull-requests/{pullRequest}/snooze', [PullRequestSnoozeController::class, 'store'])->name('pull-requests.snooze.store');
             Route::delete('pull-requests/{pullRequest}/snooze', [PullRequestSnoozeController::class, 'destroy'])->name('pull-requests.snooze.destroy');
             Route::post('pull-requests/{pullRequest}/comments', [PullRequestCommentController::class, 'store'])->name('pull-requests.comments.store');
+            Route::post('pull-requests/{pullRequest}/pending-comments', [PendingReviewCommentController::class, 'store'])->name('pull-requests.pending-comments.store');
+            Route::patch('pending-comments/{pendingComment}', [PendingReviewCommentController::class, 'update'])->name('pending-comments.update');
+            Route::delete('pending-comments/{pendingComment}', [PendingReviewCommentController::class, 'destroy'])->name('pending-comments.destroy');
             Route::post('pull-requests/{pullRequest}/threads/resolve', [ReviewThreadController::class, 'resolve'])->name('pull-requests.threads.resolve');
             Route::post('pull-requests/{pullRequest}/reply-drafts', [ReplyDraftController::class, 'store'])->name('pull-requests.reply-drafts.store');
             Route::put('pull-requests/{pullRequest}/file-views', [PullRequestFileViewController::class, 'update'])->name('pull-requests.file-views.update');
+            Route::get('pull-requests/{pullRequest}/file-contents', PullRequestFileContentController::class)->name('pull-requests.file-contents.show');
             Route::post('pull-requests/{pullRequest}/code-questions', [CodeQuestionController::class, 'store'])->name('pull-requests.code-questions.store');
             Route::delete('code-questions/{codeQuestion}', [CodeQuestionController::class, 'destroy'])->name('code-questions.destroy');
             Route::post('pull-requests/{pullRequest}/code-changes', [CodeChangeController::class, 'store'])->name('pull-requests.code-changes.store');

@@ -24,6 +24,11 @@ class GithubClient
      */
     private const MAX_PULL_REQUEST_FILE_PAGES = 30;
 
+    /**
+     * GitHub looks up at most 100 node ids in one query.
+     */
+    private const MAX_NODES_PER_QUERY = 100;
+
     public function __construct(private readonly string $token) {}
 
     /**
@@ -239,6 +244,34 @@ class GithubClient
     }
 
     /**
+     * Find out whether pull requests are open, merged or closed, by their node ids. Pull requests GitHub can no
+     * longer find, e.g. because the token lost access to their repository, are left out.
+     *
+     * @param  list<string>  $nodeIds
+     * @return array<string, array{state: string, closed_at: ?string, merged_at: ?string}>
+     */
+    public function pullRequestStates(array $nodeIds): array
+    {
+        $states = [];
+
+        foreach (array_chunk(array_values(array_unique($nodeIds)), self::MAX_NODES_PER_QUERY) as $batch) {
+            $data = $this->graphql(GraphqlQueries::PULL_REQUEST_STATES, ['ids' => $batch], ignoreMissingNodes: true);
+
+            foreach ((array) ($data['nodes'] ?? []) as $node) {
+                if (is_array($node) && isset($node['id'], $node['state'])) {
+                    $states[(string) $node['id']] = [
+                        'state' => (string) $node['state'],
+                        'closed_at' => isset($node['closedAt']) ? (string) $node['closedAt'] : null,
+                        'merged_at' => isset($node['mergedAt']) ? (string) $node['mergedAt'] : null,
+                    ];
+                }
+            }
+        }
+
+        return $states;
+    }
+
+    /**
      * Get a single pull request including its description, review threads and conversation.
      *
      * @return array<string, mixed>
@@ -285,6 +318,23 @@ class GithubClient
         }
 
         return $files;
+    }
+
+    /**
+     * Get a file's contents by its blob SHA (as listed in a pull request's files), as text. Null when the file is
+     * binary or larger than $maxBytes.
+     */
+    public function blob(string $repository, string $sha, int $maxBytes): ?string
+    {
+        $blob = $this->readRequest()->get("/repos/{$repository}/git/blobs/{$sha}")->throw()->json();
+
+        if (($blob['size'] ?? PHP_INT_MAX) > $maxBytes || ($blob['encoding'] ?? null) !== 'base64') {
+            return null;
+        }
+
+        $content = base64_decode((string) $blob['content'], true);
+
+        return $content === false || ! mb_check_encoding($content, 'UTF-8') ? null : $content;
     }
 
     /**
@@ -368,9 +418,10 @@ class GithubClient
     }
 
     /**
-     * Submit a review, optionally with inline comments on lines in the diff.
+     * Submit a review, optionally with inline comments on lines in the diff. Comments are on the new version (RIGHT)
+     * unless they say otherwise.
      *
-     * @param  list<array{path: string, line: int, body: string}>  $comments
+     * @param  list<array{path: string, line: int, body: string, side?: string, start_line?: int, start_side?: string}>  $comments
      * @return array<string, mixed>
      */
     public function submitReview(string $repository, int $number, SubmitReviewEvent $event, ?string $body, array $comments = []): array
@@ -382,7 +433,7 @@ class GithubClient
         }
 
         if ($comments !== []) {
-            $payload['comments'] = array_map(fn (array $comment): array => [...$comment, 'side' => 'RIGHT'], $comments);
+            $payload['comments'] = array_map(fn (array $comment): array => ['side' => 'RIGHT', ...$comment], $comments);
         }
 
         return $this->request()->post("/repos/{$repository}/pulls/{$number}/reviews", $payload)->throw()->json();
@@ -457,22 +508,26 @@ class GithubClient
     }
 
     /**
-     * Run a GraphQL query and return its data.
+     * Run a GraphQL query and return its data. With $ignoreMissingNodes, ids GitHub can't find come back as null
+     * instead of failing the query.
      *
      * @param  array<string, mixed>  $variables
      * @return array<string, mixed>
      *
      * @throws GithubException
      */
-    public function graphql(string $query, array $variables = []): array
+    public function graphql(string $query, array $variables = [], bool $ignoreMissingNodes = false): array
     {
         $response = $this->readRequest()->post('/graphql', [
             'query' => $query,
             'variables' => $variables,
         ])->throw();
 
-        if ($errors = $response->json('errors')) {
-            throw new GithubException(collect((array) $errors)->pluck('message')->implode(' '));
+        $errors = collect((array) $response->json('errors'))
+            ->reject(fn (mixed $error): bool => $ignoreMissingNodes && is_array($error) && ($error['type'] ?? null) === 'NOT_FOUND');
+
+        if ($errors->isNotEmpty()) {
+            throw new GithubException($errors->pluck('message')->implode(' '));
         }
 
         return $response->json('data');

@@ -10,6 +10,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/composables/useInitials';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { postJson } from '@/lib/http';
@@ -290,6 +291,8 @@ function untrack(repository: Repository): void {
  * GitHub CLI.
  */
 const cliForm = useForm({ github_cli_path: props.githubCli.path_override ?? '' });
+
+useUnsavedChangesGuard(() => cliForm.isDirty);
 
 function saveCliPath(): void {
     cliForm.put(route('settings.github.update'), {

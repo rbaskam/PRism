@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { RepositorySummary } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { Bot, Info, Loader2, Sparkles } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -18,9 +19,12 @@ const props = withDefaults(
         hasRuns: boolean;
         isRunning: boolean;
         size?: 'default' | 'sm';
+        /** The pull request's repository, to link to its own review prompt when it has one. */
+        repository?: RepositorySummary;
     }>(),
     {
         size: 'sm',
+        repository: undefined,
     },
 );
 
@@ -28,6 +32,13 @@ const open = ref(false);
 const processing = ref(false);
 
 const label = computed(() => (props.hasRuns ? 'Re-run AI review' : 'Review with AI'));
+
+/** Where the prompt shown in the dialog is edited: the repository's own prompt, or the app-wide one. */
+const promptLink = computed(() =>
+    props.repository?.has_custom_review_prompt
+        ? { href: route('repositories.show', { repository: props.repository.id }), label: `Edit ${props.repository.full_name}'s prompt` }
+        : { href: route('settings.review'), label: 'Edit in Settings → PR review' },
+);
 
 function confirm(): void {
     startReviewRun(props.pullRequestId, {
@@ -85,11 +96,8 @@ function confirm(): void {
                 <div class="grid gap-2">
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Prompt sent to Claude</p>
-                        <Link
-                            :href="route('settings.review')"
-                            class="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                        >
-                            Edit in Settings → PR review
+                        <Link :href="promptLink.href" class="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                            {{ promptLink.label }}
                         </Link>
                     </div>
                     <pre class="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/50 p-3 font-mono text-xs leading-relaxed">{{

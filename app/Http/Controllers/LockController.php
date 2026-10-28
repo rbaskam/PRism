@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GithubAccount;
 use App\Services\AppLock;
 use App\Services\AppSettings;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,8 @@ use Inertia\Response;
  */
 class LockController extends Controller
 {
+    public const PIN_THROTTLE_KEY = 'app-lock-pin';
+
     private const MAX_PIN_ATTEMPTS = 5;
 
     public function __construct(private readonly AppLock $appLock) {}
@@ -32,6 +35,10 @@ class LockController extends Controller
                 'label' => $this->appLock->biometricsLabel(),
             ],
             'lockedOutSeconds' => RateLimiter::availableIn($this->throttleKey()) * (int) RateLimiter::tooManyAttempts($this->throttleKey(), self::MAX_PIN_ATTEMPTS),
+            'recovery' => [
+                'login' => GithubAccount::current()?->login,
+                'token_url' => PinRecoveryController::tokenPageUrl(),
+            ],
         ]);
     }
 
@@ -78,6 +85,6 @@ class LockController extends Controller
 
     private function throttleKey(): string
     {
-        return 'app-lock-pin';
+        return self::PIN_THROTTLE_KEY;
     }
 }

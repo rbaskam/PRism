@@ -27,7 +27,9 @@ class PullRequestReviewController extends Controller
                 'string',
                 'max:65000',
                 Rule::requiredIf(fn (): bool => $request->input('event') === SubmitReviewEvent::RequestChanges->value
-                    || ($request->input('event') === SubmitReviewEvent::Comment->value && blank($request->input('finding_ids')))),
+                    || ($request->input('event') === SubmitReviewEvent::Comment->value
+                        && blank($request->input('finding_ids'))
+                        && ! $pullRequest->pendingReviewComments()->exists())),
             ],
             'finding_ids' => ['nullable', 'array'],
             'finding_ids.*' => ['integer', Rule::exists('review_findings', 'id')->where('pull_request_id', $pullRequest->id)],
@@ -40,12 +42,18 @@ class PullRequestReviewController extends Controller
             return back()->with('error', 'Posting findings is turned off in Settings → PR review.');
         }
 
+        $pendingComments = $pullRequest->pendingReviewComments()->orderBy('id')->get();
+
+        if ($pendingComments->isNotEmpty() && ! $settings->allowsReplyingToComments()) {
+            return back()->with('error', 'Commenting is turned off in Settings → PR review, so your pending comments can’t be posted.');
+        }
+
         if ($pullRequest->is_authored_by_me && $event !== SubmitReviewEvent::Comment) {
             return back()->with('error', 'GitHub does not let you approve or request changes on your own pull request.');
         }
 
         try {
-            $submit->handle($pullRequest, $event, $validated['body'] ?? null, $pullRequest->findings()->whereKey($findingIds)->get());
+            $submit->handle($pullRequest, $event, $validated['body'] ?? null, $pullRequest->findings()->whereKey($findingIds)->get(), $pendingComments);
         } catch (RequestException|ConnectionException $exception) {
             return back()->with('error', GithubClient::describeFailure($exception));
         }

@@ -2,6 +2,7 @@
 
 use App\Services\AppLock;
 use App\Services\AppSettings;
+use Tests\Browser\Support\FakeGithub;
 
 beforeEach(function () {
     onboardedAccount(['login' => 'octocat']);
@@ -57,4 +58,37 @@ it('still locks once you stop using the app', function () {
     $page->navigate('/repositories')
         ->assertPathIs('/lock')
         ->assertNoJavaScriptErrors();
+});
+
+it('removes a forgotten PIN with a token for the connected GitHub account', function () {
+    (new FakeGithub('octocat'))->fake();
+
+    visit('/')
+        ->click('Forgot your PIN?')
+        ->assertSee('Personal access token for @octocat')
+        ->fill('#recovery-token', 'ghp_test')
+        ->click('internal:role=button[name="Remove PIN and unlock"s]')
+        ->waitForText('Your PIN was removed and the app lock is off.')
+        ->assertPathIs('/settings/security')
+        ->assertNoJavaScriptErrors();
+
+    expect(app(AppSettings::class)->isAppLockEnabled())->toBeFalse();
+});
+
+it('stays locked when the token belongs to another GitHub account', function () {
+    (new FakeGithub('hubot'))->fake();
+
+    visit('/')
+        ->click('Forgot your PIN?')
+        ->fill('#recovery-token', 'ghp_test')
+        ->click('internal:role=button[name="Remove PIN and unlock"s]')
+        ->waitForText("That isn't a working token for @octocat.")
+        ->assertPathIs('/lock')
+        ->assertValue('#recovery-token', '')
+        ->assertScript('document.activeElement.id', 'recovery-token')
+        ->click('internal:role=button[name="Back to PIN entry"s]')
+        ->assertScript('document.activeElement.id', 'pin')
+        ->assertNoJavaScriptErrors();
+
+    expect(app(AppLock::class)->pinMatches('2468'))->toBeTrue();
 });

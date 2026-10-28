@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\FindingStatus;
 use App\Enums\ReviewState;
 use App\Enums\SubmitReviewEvent;
+use App\Models\PendingReviewComment;
 use App\Models\PullRequest;
 use App\Models\ReviewFinding;
 use App\Services\Github\GithubClient;
@@ -13,6 +14,7 @@ use Illuminate\Http\Client\RequestException;
 
 /**
  * Approves, requests changes on, or comments on a pull request, optionally attaching findings as inline comments.
+ * The user's pending comments on lines are posted with it, and removed from the app once GitHub has them.
  */
 class SubmitPullRequestReview
 {
@@ -20,9 +22,11 @@ class SubmitPullRequestReview
 
     /**
      * @param  Collection<int, ReviewFinding>  $findings
+     * @param  Collection<int, PendingReviewComment>|null  $pendingComments
      */
-    public function handle(PullRequest $pullRequest, SubmitReviewEvent $event, ?string $body, Collection $findings): void
+    public function handle(PullRequest $pullRequest, SubmitReviewEvent $event, ?string $body, Collection $findings, ?Collection $pendingComments = null): void
     {
+        $pendingComments ??= new Collection;
         $repository = $pullRequest->repository->full_name;
         $inline = $findings->filter(fn (ReviewFinding $finding): bool => $finding->path !== null && $finding->line !== null);
         $general = $findings->diff($inline);
@@ -32,22 +36,31 @@ class SubmitPullRequestReview
             ->implode("\n\n---\n\n");
 
         try {
-            $review = $this->github->submitReview($repository, $pullRequest->number, $event, $reviewBody, $inline->map(fn (ReviewFinding $finding): array => [
-                'path' => $finding->path,
-                'line' => $finding->line,
-                'body' => $finding->toCommentBody(),
-            ])->values()->all());
+            $review = $this->github->submitReview($repository, $pullRequest->number, $event, $reviewBody, [
+                ...$pendingComments->map(fn (PendingReviewComment $comment): array => $comment->toReviewComment())->values()->all(),
+                ...$inline->map(fn (ReviewFinding $finding): array => [
+                    'path' => (string) $finding->path,
+                    'line' => (int) $finding->line,
+                    'body' => $finding->toCommentBody(),
+                ])->values()->all(),
+            ]);
         } catch (RequestException $exception) {
-            if ($inline->isEmpty() || ! GithubClient::isUnprocessable($exception)) {
+            if (($inline->isEmpty() && $pendingComments->isEmpty()) || ! GithubClient::isUnprocessable($exception)) {
                 throw $exception;
             }
 
-            // A line is outside the diff, so put every finding in the review body instead.
-            $reviewBody = collect([$body, ...$findings->map(fn (ReviewFinding $finding): string => ($finding->path ? "`{$finding->path}:{$finding->line}`\n\n" : '').$finding->toCommentBody())])
+            // A line is outside the diff (for example after new commits), so put every comment in the review body instead.
+            $reviewBody = collect([
+                $body,
+                ...$pendingComments->map(fn (PendingReviewComment $comment): string => "`{$comment->path}:{$comment->line}`\n\n{$comment->body}"),
+                ...$findings->map(fn (ReviewFinding $finding): string => ($finding->path ? "`{$finding->path}:{$finding->line}`\n\n" : '').$finding->toCommentBody()),
+            ])
                 ->filter()
                 ->implode("\n\n---\n\n");
             $review = $this->github->submitReview($repository, $pullRequest->number, $event, $reviewBody);
         }
+
+        PendingReviewComment::query()->whereKey($pendingComments->modelKeys())->delete();
 
         $findings->each(fn (ReviewFinding $finding) => $finding->update([
             'posted_at' => now(),

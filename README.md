@@ -70,8 +70,8 @@ If you review code in several repositories, or you're a tech lead whose team is 
 - **My pull requests** lists every open pull request you opened, were asked to review (directly or through one of your teams), are assigned to or have reviewed, across all the repositories you follow.
 - **Colour coded by where it stands for you:** red when it's awaiting your review, green when you approved it, amber when you requested changes, blue when you commented, and purple for your own pull requests.
 - **Summary cards with counts** for awaiting your review, approved by you (including how many have new commits since), changes requested, your pull requests and via teams. Click a card to filter by it.
-- **Filters** for status, repository, how your review was requested (directly, through any team or through one team), hiding drafts, only pull requests with AI findings, only failing checks, and recently closed (closed or merged in the last two weeks, so you can get back to their AI reviews). Filters are remembered for each page.
-- **Search** by title, number, author, repository, branch or label. Press `/` to jump to the search box.
+- **Filters** for status, repository, how your review was requested (directly, through any team or through one team), hiding drafts, only pull requests with AI findings, only failing checks, and recently closed (closed or merged in the last two weeks, so you can get back to their AI reviews; merged ones are marked **Merged**). Filters are remembered for each page.
+- **Search** by title, number, author, repository, branch or label. Press `/` to jump to the search box, or `⌘K` (`Ctrl+K`) anywhere to jump straight to any pull request, repository or page.
 - **Sort** by recently updated, oldest first, newest first, largest change, most AI findings or awaiting review first, and **group by repository** with groups you can collapse.
 - **Everything at a glance on each row:** labels, draft state, CI checks, merge conflicts, lines added and removed, files changed, comments, "New commits since your review", the number of open and new AI findings, and whether an AI review is running.
 - **Repositories** shows a card for each repository with its open pull requests, how many await your review and how many you've approved. Each repository has its own page listing all its open pull requests, including ones that don't involve you.
@@ -92,7 +92,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 - **Review with AI** runs [Claude Code](https://claude.com/claude-code) on your computer in the background, so you can keep working. The sidebar shows which reviews are running.
 - **Claude reads the real code.** When the repository's local clone is linked, Claude reads the code at the pull request's exact commit (in a temporary worktree), not only the diff. Without a clone, it reviews from the diff.
 - **A thorough default review prompt** reads the changed files in full and checks correctness, security, performance, tests and maintainability, with clear severity levels.
-- **A customisable prompt.** Change it in Settings → PR review, with placeholders such as `{repository}`, `{number}`, `{title}`, `{author}`, `{head}`, `{base}` and `{url}`, or reset it to the default.
+- **A customisable prompt.** Change it in Settings → PR review, with placeholders such as `{repository}`, `{number}`, `{title}`, `{author}`, `{head}`, `{base}` and `{url}`, or reset it to the default. Give a repository its own prompt from its page (**Review prompt**).
 - **Structured findings**, each with a severity (critical, high, medium or low), a category (bug, security, duplication, complexity, missing tests, performance or other), the file and line, an explanation and a suggested fix.
 - **Triage** each finding as read, not useful or not a blocker, one at a time with keyboard shortcuts or several at once. Filter findings by status (new, read, not useful, not a blocker, resolved or posted) and by severity.
 - **Re-runs re-check instead of repeating.** Earlier findings and your decisions on them are sent back to Claude, fixed findings are marked as resolved, and PRism tells you when new commits arrive after a review.
@@ -112,7 +112,8 @@ If you review code in several repositories, or you're a tech lead whose team is 
 
 - **Approve**, **Request changes** or **Comment** with a message, and attach AI findings: findings with a file and line become inline comments on the diff, and the rest are added to the review message.
 - **Post a single finding** to the pull request, after editing it if you like. It's placed on the line in the diff when that line is part of the change, or added as a comment that mentions the file and line.
-- **Comment on lines** in **Files changed**: click a line number (shift-click for a range) or select some code, then press `c`. The comment is posted to GitHub on those lines, and review threads show under the lines they're on, where you can reply to and resolve them.
+- **Comment on lines** in **Files changed**: click a line number (shift-click for a range), select some code or use the arrow keys, then press `c`. **Comment now** posts it to GitHub straight away; **Add to review** keeps it with your review, like a pending review on GitHub, and posts it when you approve, request changes or comment. Pending comments show under their lines, where you can edit or remove them. Review threads show under the lines they're on, where you can reply to and resolve them.
+- **Suggest a change**: for lines on the new version, insert the selected code as a GitHub suggestion, edit it, and the author can apply it with one click on GitHub.
 - **Conversation** shows reviews, review threads grouped by file (with how many are unresolved) and comments. Reply, add a comment, resolve threads, or let Claude **draft a reply** for you to edit, optionally telling it what to say ("agree, I'll fix it in a follow-up").
 - **Description** shows the pull request description as GitHub renders it, and **Open on GitHub** is always one click away.
 - Conversations and diffs are saved, so they open instantly until something changes on GitHub. **Refresh from GitHub** fetches the latest straight away.
@@ -120,7 +121,11 @@ If you review code in several repositories, or you're a tech lead whose team is 
 ### Files changed with Viewed checkboxes
 
 - The full diff, with a **Viewed** checkbox for each file that stays in sync with github.com and a progress bar showing how much you've viewed.
-- Hide viewed files, filter files by name, jump to a file from the file list, and expand or collapse every file at once.
+- **Syntax highlighting** for over 40 languages, in light and dark mode, with the words that changed within a line highlighted too. Code is coloured with [Shiki](https://shiki.style) and shown as text, never inserted as HTML.
+- **Unified or side by side**: switch the layout in the toolbar; PRism remembers your choice.
+- **Show the hidden lines** between and after the changes, to read the code around them.
+- **AI findings under their lines**, so you can triage them next to the code.
+- Hide viewed files, filter files by name, jump to a file from the file list, and expand or collapse every file at once. Press `j`/`k` to move between files and `v` to mark one viewed.
 - See whether each file was added, modified, renamed or deleted, and how many lines were added and removed.
 
 ### Fix with Claude in an isolated git worktree
@@ -149,6 +154,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 
 - Lock PRism with a PIN of 4 to 8 digits, and unlock it with Touch ID on Macs with a fingerprint reader.
 - Lock it automatically after a period of inactivity, every time the app starts, or straight away with `⌘L` (`Ctrl+L` on Windows).
+- **Forgot your PIN?** Prove the app is yours with a GitHub personal access token for the connected account, and PRism removes the PIN so you can set a new one. The token is only used to check who you are and is never saved.
 
 ### Light and dark mode with accent colours
 
@@ -252,9 +258,11 @@ For pull requests you're working on, **Fix with Claude** asks Claude to change t
 
 | Where | Keys |
 | --- | --- |
-| Pull request and repository lists | `/` search |
+| Anywhere | `⌘K` / `Ctrl+K` quick switcher: jump to a page, repository or pull request |
+| Pull request and repository lists | `/` search · `j`/`k` next/previous pull request (↓/↑ once a row has focus) · `Enter` open it |
 | AI findings (with a finding focused) | `j`/`k` or ↓/↑ move · `Enter` expand · `r` read · `u` not useful · `b` not a blocker · `n` back to new · `x` select · `p` post to the pull request · `f` fix with Claude |
-| Files changed | `a` ask Claude about the selected lines · `Esc` clear the selection |
+| Files changed | `j`/`k` next/previous file · `v` mark the file viewed · `↑`/`↓` select lines in a focused diff (`Shift` to extend) · `c` comment on the selected lines · `a` ask Claude about them · `Esc` clear the selection |
+| Comment box | `⌘Enter` / `Ctrl+Enter` comment now · `⌘⇧Enter` / `Ctrl+Shift+Enter` add to your review |
 | Dialogs and comment boxes | `⌘Enter` / `Ctrl+Enter` send |
 | Anywhere | `⌘B` / `Ctrl+B` show or hide the sidebar |
 | Anywhere (with the app lock on) | `⌘L` / `Ctrl+L` lock |
