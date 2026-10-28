@@ -60,12 +60,12 @@ watch(
                 :key="toast.id"
                 class="pointer-events-auto flex items-start gap-3 rounded-lg border bg-background p-3 text-sm shadow-lg"
                 :class="toast.type === 'error' ? 'border-red-300 dark:border-red-500/40' : 'border-emerald-300 dark:border-emerald-500/40'"
-                role="status"
+                :role="toast.type === 'error' ? 'alert' : 'status'"
             >
-                <CheckCircle2 v-if="toast.type === 'success'" class="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                <XCircle v-else class="mt-0.5 size-4 shrink-0 text-red-600" />
+                <CheckCircle2 v-if="toast.type === 'success'" class="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-500" />
+                <XCircle v-else class="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-500" />
                 <p class="flex-1">{{ toast.message }}</p>
-                <button type="button" class="text-muted-foreground hover:text-foreground" @click="dismiss(toast.id)">
+                <button type="button" class="rounded text-muted-foreground hover:text-foreground" @click="dismiss(toast.id)">
                     <X class="size-4" />
                     <span class="sr-only">Dismiss</span>
                 </button>

@@ -5,6 +5,7 @@ import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import ContainerNotice from '@/components/ContainerNotice.vue';
 import FlashMessages from '@/components/FlashMessages.vue';
+import QuickSwitcher from '@/components/QuickSwitcher.vue';
 import WhatsNewDialog from '@/components/WhatsNewDialog.vue';
 import { useActivityHeartbeat } from '@/composables/useActivityHeartbeat';
 import type { BreadcrumbItemType } from '@/types';
@@ -39,5 +40,6 @@ useActivityHeartbeat();
         </AppContent>
         <FlashMessages />
         <WhatsNewDialog />
+        <QuickSwitcher />
     </AppShell>
 </template>

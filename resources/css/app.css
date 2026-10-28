@@ -42,7 +42,7 @@ html {
         --sidebar-accent: 0 0% 94%;
         --sidebar-accent-foreground: 0 0% 30%;
         --sidebar-border: 0 0% 91%;
-        --sidebar-ring: 217.2 91.2% 59.8%;
+        --sidebar-ring: 0 0% 3.9%;
     }
 
     .dark {
@@ -56,7 +56,7 @@ html {
         --primary-foreground: 0 0% 9%;
         --secondary: 0 0% 14.9%;
         --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 6.9%;
+        --muted: 0 0% 14.9%;
         --muted-foreground: 0 0% 63.9%;
         --accent: 0 0% 14.9%;
         --accent-foreground: 0 0% 98%;
@@ -72,17 +72,18 @@ html {
         --chart-5: 340 75% 55%;
         --sidebar-background: 0 0% 7%;
         --sidebar-foreground: 0 0% 95.9%;
-        --sidebar-primary: 360, 100%, 100%;
-        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-primary: 0 0% 98%;
+        --sidebar-primary-foreground: 0 0% 9%;
         --sidebar-accent: 0 0% 15.9%;
         --sidebar-accent-foreground: 240 4.8% 95.9%;
         --sidebar-border: 0 0% 15.9%;
-        --sidebar-ring: 217.2 91.2% 59.8%;
+        --sidebar-ring: 0 0% 83.1%;
     }
 
     /*
      * Accent colours, picked in Settings → Appearance. They tint buttons, switches, focus rings and the
-     * sidebar's active item; the neutral default needs no overrides.
+     * sidebar's active item; the neutral default needs no overrides. Each --primary keeps at least 4.5:1 contrast with
+     * its --primary-foreground (button text) and 3:1 with the page (focus rings, switches), in both modes.
      */
 
     [data-accent='blue'] {
@@ -108,14 +109,14 @@ html {
     }
 
     [data-accent='green'] {
-        --primary: 142.1 76.2% 36.3%;
+        --primary: 142.4 71.8% 29.2%;
         --primary-foreground: 355.7 100% 97.3%;
-        --ring: 142.1 76.2% 36.3%;
-        --sidebar-primary: 142.1 76.2% 36.3%;
+        --ring: 142.4 71.8% 29.2%;
+        --sidebar-primary: 142.4 71.8% 29.2%;
         --sidebar-primary-foreground: 355.7 100% 97.3%;
         --sidebar-accent: 141 84% 93%;
         --sidebar-accent-foreground: 142 72% 29%;
-        --sidebar-ring: 142.1 76.2% 36.3%;
+        --sidebar-ring: 142.4 71.8% 29.2%;
     }
 
     .dark[data-accent='green'] {
@@ -141,64 +142,70 @@ html {
     }
 
     .dark[data-accent='violet'] {
-        --primary: 263.4 70% 50.4%;
-        --primary-foreground: 210 20% 98%;
-        --ring: 263.4 70% 50.4%;
-        --sidebar-primary: 263.4 70% 50.4%;
-        --sidebar-primary-foreground: 210 20% 98%;
+        --primary: 258.3 89.5% 66.3%;
+        --primary-foreground: 0 0% 3.9%;
+        --ring: 258.3 89.5% 66.3%;
+        --sidebar-primary: 258.3 89.5% 66.3%;
+        --sidebar-primary-foreground: 0 0% 3.9%;
         --sidebar-accent: 261 73% 23%;
         --sidebar-accent-foreground: 253 95% 85%;
-        --sidebar-ring: 263.4 70% 50.4%;
+        --sidebar-ring: 258.3 89.5% 66.3%;
     }
 
     [data-accent='rose'] {
-        --primary: 346.8 77.2% 49.8%;
+        --primary: 345.3 82.7% 40.8%;
         --primary-foreground: 355.7 100% 97.3%;
-        --ring: 346.8 77.2% 49.8%;
-        --sidebar-primary: 346.8 77.2% 49.8%;
+        --ring: 345.3 82.7% 40.8%;
+        --sidebar-primary: 345.3 82.7% 40.8%;
         --sidebar-primary-foreground: 355.7 100% 97.3%;
         --sidebar-accent: 356 100% 95%;
         --sidebar-accent-foreground: 345 83% 41%;
-        --sidebar-ring: 346.8 77.2% 49.8%;
+        --sidebar-ring: 345.3 82.7% 40.8%;
     }
 
     .dark[data-accent='rose'] {
-        --primary: 346.8 77.2% 49.8%;
-        --primary-foreground: 355.7 100% 97.3%;
-        --ring: 346.8 77.2% 49.8%;
-        --sidebar-primary: 346.8 77.2% 49.8%;
-        --sidebar-primary-foreground: 355.7 100% 97.3%;
+        --primary: 349.7 89.2% 60.2%;
+        --primary-foreground: 0 0% 3.9%;
+        --ring: 349.7 89.2% 60.2%;
+        --sidebar-primary: 349.7 89.2% 60.2%;
+        --sidebar-primary-foreground: 0 0% 3.9%;
         --sidebar-accent: 343 88% 16%;
         --sidebar-accent-foreground: 353 96% 82%;
-        --sidebar-ring: 346.8 77.2% 49.8%;
+        --sidebar-ring: 349.7 89.2% 60.2%;
     }
 
     [data-accent='orange'] {
-        --primary: 24.6 95% 53.1%;
+        --primary: 17.5 88.3% 40.4%;
         --primary-foreground: 60 9.1% 97.8%;
-        --ring: 24.6 95% 53.1%;
-        --sidebar-primary: 24.6 95% 53.1%;
+        --ring: 17.5 88.3% 40.4%;
+        --sidebar-primary: 17.5 88.3% 40.4%;
         --sidebar-primary-foreground: 60 9.1% 97.8%;
         --sidebar-accent: 34 100% 92%;
         --sidebar-accent-foreground: 17 88% 40%;
-        --sidebar-ring: 24.6 95% 53.1%;
+        --sidebar-ring: 17.5 88.3% 40.4%;
     }
 
     .dark[data-accent='orange'] {
-        --primary: 20.5 90.2% 48.2%;
-        --primary-foreground: 60 9.1% 97.8%;
-        --ring: 20.5 90.2% 48.2%;
-        --sidebar-primary: 20.5 90.2% 48.2%;
-        --sidebar-primary-foreground: 60 9.1% 97.8%;
+        --primary: 24.6 95% 53.1%;
+        --primary-foreground: 20 14.3% 4.1%;
+        --ring: 24.6 95% 53.1%;
+        --sidebar-primary: 24.6 95% 53.1%;
+        --sidebar-primary-foreground: 20 14.3% 4.1%;
         --sidebar-accent: 13 81% 15%;
         --sidebar-accent-foreground: 31 97% 72%;
-        --sidebar-ring: 20.5 90.2% 48.2%;
+        --sidebar-ring: 24.6 95% 53.1%;
     }
 }
 
 @layer base {
     * {
         @apply border-border;
+    }
+
+    /* Keyboard focus takes the accent colour. Components with their own focus-visible ring override this. */
+    :focus-visible {
+        outline: 2px solid hsl(var(--ring));
+        outline-offset: 2px;
     }
 
     body {

@@ -21,10 +21,14 @@ use Inertia\Response;
  */
 class OnboardingController extends Controller
 {
-    public function github(GithubCli $githubCli, GithubDeviceFlow $deviceFlow): Response|RedirectResponse
+    /**
+     * Step 1, which is also where Settings → GitHub sends the user to reconnect once onboarding is done.
+     */
+    public function github(GithubCli $githubCli, GithubDeviceFlow $deviceFlow, AppSettings $settings): Response|RedirectResponse
     {
         return Inertia::render('onboarding/Github', [
             'account' => GithubAccount::current()?->only(['login', 'name', 'avatar_url']),
+            'onboardingCompleted' => $settings->hasCompletedOnboarding(),
             'githubCliInstalled' => $githubCli->isInstalled(),
             'deviceFlowAvailable' => $deviceFlow->isAvailable(),
             'requiredScopes' => explode(' ', GithubDeviceFlow::SCOPES),

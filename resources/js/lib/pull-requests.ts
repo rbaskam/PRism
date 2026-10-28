@@ -23,8 +23,8 @@ export const attentionStyles: Record<ReviewAttention, AttentionStyle> = {
     none: { label: 'Not involved', badge: 'muted', border: 'border-l-transparent', dot: 'bg-muted-foreground/40' },
 };
 
-export const severityStyles: Record<FindingSeverity, { label: string; badge: 'danger' | 'warning' | 'info' | 'muted' }> = {
-    critical: { label: 'Critical', badge: 'danger' },
+export const severityStyles: Record<FindingSeverity, { label: string; badge: 'destructive' | 'danger' | 'warning' | 'info' | 'muted' }> = {
+    critical: { label: 'Critical', badge: 'destructive' },
     high: { label: 'High', badge: 'danger' },
     medium: { label: 'Medium', badge: 'warning' },
     low: { label: 'Low', badge: 'info' },
@@ -50,6 +50,15 @@ export function checksLabel(state: string | null): { label: string; badge: 'succ
         default:
             return null;
     }
+}
+
+/** "Merged" or "Closed" for a pull request that is no longer open, with its Badge variant; null while it's open. */
+export function closedStateLabel(pullRequest: Pick<PullRequest, 'state' | 'merged_at'>): { label: string; badge: 'merged' | 'muted' } | null {
+    if (pullRequest.state === 'open') {
+        return null;
+    }
+
+    return pullRequest.merged_at ? { label: 'Merged', badge: 'merged' } : { label: 'Closed', badge: 'muted' };
 }
 
 /** "owner/repo#123" */

@@ -20,6 +20,7 @@ import type {
     BreadcrumbItem,
     CodeChange,
     CodeQuestion,
+    PendingReviewComment,
     PullRequest,
     PullRequestConversation,
     PullRequestFiles,
@@ -30,7 +31,8 @@ import type {
     SubmitReviewEvent,
 } from '@/types';
 import { Deferred, Head, router, usePage, usePoll } from '@inertiajs/vue3';
-import { FileDiff, FileText, History, Loader2, MessageSquareCode, MessagesSquare, Sparkles, Wand2 } from 'lucide-vue-next';
+import { useResizeObserver, useScroll } from '@vueuse/core';
+import { Clock, FileDiff, FileText, History, Loader2, MessageSquareCode, MessagesSquare, Sparkles, Wand2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -43,6 +45,8 @@ const props = defineProps<{
     codeQuestions: CodeQuestion[];
     /** "Fix with Claude" attempts, latest first (discarded ones left out). */
     codeChanges: CodeChange[];
+    /** Comments on lines added to the review, posted when it's submitted. */
+    pendingComments: PendingReviewComment[];
     reviewPrompt: string;
     permissions: PullRequestPermissions;
     /** Deferred: read live from GitHub after the page renders, which also refreshes the pull request. */
@@ -69,6 +73,19 @@ const tabs = ['findings', 'files', 'questions', 'changes', 'conversation', 'desc
 /** Alerts link straight to a tab, e.g. ?tab=conversation for a new comment. */
 const requestedTab = new URL(usePage().url, window.location.origin).searchParams.get('tab');
 const activeTab = ref(requestedTab !== null && tabs.includes(requestedTab) ? requestedTab : 'findings');
+
+/** In a narrow window the tabs scroll sideways; the edges fade where more tabs are hidden, so they can be found. */
+const tabScroller = ref<HTMLElement | null>(null);
+const { arrivedState: tabScrollEdges, measure: measureTabScroll } = useScroll(tabScroller);
+
+useResizeObserver(tabScroller, () => measureTabScroll());
+
+const tabScrollerMask = computed(() => {
+    const start = tabScrollEdges.left ? 'black' : 'transparent';
+    const end = tabScrollEdges.right ? 'black' : 'transparent';
+
+    return { maskImage: `linear-gradient(to right, ${start}, black 2rem, black calc(100% - 2rem), ${end})` };
+});
 
 /*
  * Diffs can be large, so they are only fetched from GitHub once the Files changed tab is opened. A full page reload
@@ -227,8 +244,23 @@ function openPostDialog(finding: ReviewFinding): void {
                 </Button>
             </div>
 
+            <div
+                v-if="pendingComments.length > 0"
+                class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 px-4 py-2.5 text-sm"
+                role="status"
+            >
+                <Clock class="size-4 shrink-0 text-primary" />
+                <span class="font-medium">
+                    {{ pendingComments.length }} comment{{ pendingComments.length === 1 ? '' : 's' }} waiting in your review
+                </span>
+                <span class="text-xs text-muted-foreground">They're posted to GitHub when you submit the review.</span>
+                <Button size="sm" class="ml-auto h-7 text-xs" @click="openReviewDialog(permissions.can_approve ? 'APPROVE' : 'COMMENT')">
+                    Finish your review
+                </Button>
+            </div>
+
             <Tabs v-model="activeTab" class="min-w-0">
-                <div class="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+                <div ref="tabScroller" class="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0" :style="tabScrollerMask">
                     <TabsList>
                         <TabsTrigger value="findings">
                             <Loader2 v-if="isReviewRunning" class="size-3.5 animate-spin text-violet-500" />
@@ -300,6 +332,8 @@ function openPostDialog(finding: ReviewFinding): void {
                         :pull-request="pullRequest"
                         :code-questions="codeQuestions"
                         :review-threads="conversation?.threads ?? []"
+                        :findings="findings"
+                        :pending-comments="pendingComments"
                         :reply-drafts="replyDrafts"
                         :permissions="permissions"
                         :is-active="activeTab === 'files'"
@@ -393,6 +427,7 @@ function openPostDialog(finding: ReviewFinding): void {
             v-model:open="reviewDialogOpen"
             :pull-request="pullRequest"
             :findings="findings"
+            :pending-comments="pendingComments"
             :permissions="permissions"
             :initial-event="reviewEvent"
         />

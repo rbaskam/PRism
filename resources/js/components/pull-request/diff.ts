@@ -12,6 +12,8 @@ export interface DiffLine {
     content: string;
     oldLine: number | null;
     newLine: number | null;
+    /** An unchanged line from the full file, shown around the diff. It isn't part of the diff, so it can't be selected. */
+    expanded?: boolean;
 }
 
 export interface DiffSelection {
@@ -233,4 +235,258 @@ export function splitUnifiedDiff(diff: string): { files: UnifiedDiffFile[]; trun
     }
 
     return { files, truncated };
+}
+
+/** A piece of a changed line, marked when it differs from the line it replaced (or was replaced by). */
+export interface WordSegment {
+    text: string;
+    changed: boolean;
+}
+
+/** Lines longer than this, or pairs with more tokens than this, aren't compared word by word. */
+const WORD_DIFF_MAX_LENGTH = 500;
+const WORD_DIFF_MAX_TOKENS = 200;
+
+/** A changed line counts as rewritten, rather than edited, when more than this share of it differs. */
+const WORD_DIFF_MAX_CHANGED_RATIO = 0.6;
+
+function tokenize(text: string): string[] {
+    return text.match(/\w+|\s+|[^\w\s]/g) ?? [];
+}
+
+/** Which tokens of `a` and `b` are outside their longest common subsequence. */
+function changedTokens(a: string[], b: string[]): [boolean[], boolean[]] {
+    const table: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+
+    for (let i = a.length - 1; i >= 0; i--) {
+        for (let j = b.length - 1; j >= 0; j--) {
+            table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+        }
+    }
+
+    const aChanged = new Array<boolean>(a.length).fill(true);
+    const bChanged = new Array<boolean>(b.length).fill(true);
+    let i = 0;
+    let j = 0;
+
+    while (i < a.length && j < b.length) {
+        if (a[i] === b[j]) {
+            aChanged[i++] = false;
+            bChanged[j++] = false;
+        } else if (table[i + 1][j] >= table[i][j + 1]) {
+            i++;
+        } else {
+            j++;
+        }
+    }
+
+    return [aChanged, bChanged];
+}
+
+/** Joins tokens into segments. Whitespace between two changed tokens is marked too, so a change reads as one run. */
+function toSegments(tokens: string[], changed: boolean[]): WordSegment[] {
+    const segments: WordSegment[] = [];
+
+    tokens.forEach((token, index) => {
+        const isChanged = changed[index] || (/^\s+$/.test(token) && changed[index - 1] === true && changed[index + 1] === true);
+        const last = segments[segments.length - 1];
+
+        if (last && last.changed === isChanged) {
+            last.text += token;
+        } else {
+            segments.push({ text: token, changed: isChanged });
+        }
+    });
+
+    return segments;
+}
+
+function changedShare(segments: WordSegment[]): number {
+    const total = segments.reduce((length, segment) => length + segment.text.trim().length, 0);
+    const changed = segments.reduce((length, segment) => length + (segment.changed ? segment.text.trim().length : 0), 0);
+
+    return total === 0 ? 0 : changed / total;
+}
+
+/**
+ * Word-level changes for edited lines, keyed by row index. Within each run of deletions followed by additions,
+ * the nth deleted line is paired with the nth added line and the words that differ are marked, like GitHub does.
+ * Lines that were rewritten rather than edited are left out, since marking all of a line adds nothing.
+ */
+export function wordDiffs(lines: DiffLine[]): Map<number, WordSegment[]> {
+    const result = new Map<number, WordSegment[]>();
+    let index = 0;
+
+    while (index < lines.length) {
+        if (lines[index].type !== 'del') {
+            index++;
+            continue;
+        }
+
+        const deletions: DiffLine[] = [];
+        const additions: DiffLine[] = [];
+
+        while (index < lines.length && lines[index].type === 'del') {
+            deletions.push(lines[index++]);
+        }
+
+        while (index < lines.length && lines[index].type === 'add') {
+            additions.push(lines[index++]);
+        }
+
+        for (let pair = 0; pair < Math.min(deletions.length, additions.length); pair++) {
+            const before = deletions[pair];
+            const after = additions[pair];
+
+            if (before.content === after.content || before.content.length > WORD_DIFF_MAX_LENGTH || after.content.length > WORD_DIFF_MAX_LENGTH) {
+                continue;
+            }
+
+            const beforeTokens = tokenize(before.content);
+            const afterTokens = tokenize(after.content);
+
+            if (beforeTokens.length > WORD_DIFF_MAX_TOKENS || afterTokens.length > WORD_DIFF_MAX_TOKENS) {
+                continue;
+            }
+
+            const [beforeChanged, afterChanged] = changedTokens(beforeTokens, afterTokens);
+            const beforeSegments = toSegments(beforeTokens, beforeChanged);
+            const afterSegments = toSegments(afterTokens, afterChanged);
+
+            if (Math.max(changedShare(beforeSegments), changedShare(afterSegments)) > WORD_DIFF_MAX_CHANGED_RATIO) {
+                continue;
+            }
+
+            result.set(before.index, beforeSegments);
+            result.set(after.index, afterSegments);
+        }
+    }
+
+    return result;
+}
+
+/** Where hidden, unchanged lines can be shown: above a hunk (by its header's row index) or after the last one. */
+export type DiffGap = number | 'end';
+
+/** Expanded lines get row indexes above every patch row, so the patch's own rows keep theirs. */
+const EXPANDED_INDEX_BASE = 1_000_000;
+
+/**
+ * How many unchanged lines are hidden above each hunk, keyed by the hunk header's row index. Hunks that start right
+ * after the previous one have none. Lines after the last hunk depend on the file's length, so they aren't counted.
+ */
+export function hiddenLinesAbove(lines: DiffLine[]): Map<number, number> {
+    const hidden = new Map<number, number>();
+    let lastNewLine = 0;
+
+    for (const line of lines) {
+        const header = line.type === 'hunk' ? HUNK_HEADER.exec(line.raw) : null;
+
+        if (header) {
+            const count = Number(header[2]) - lastNewLine - 1;
+
+            if (count > 0) {
+                hidden.set(line.index, count);
+            }
+        } else if (line.newLine !== null) {
+            lastNewLine = line.newLine;
+        }
+    }
+
+    return hidden;
+}
+
+function expandedLine(content: string, oldLine: number, newLine: number): DiffLine {
+    return { index: EXPANDED_INDEX_BASE + newLine, type: 'context', raw: ` ${content}`, content, oldLine, newLine, expanded: true };
+}
+
+/**
+ * The diff with the unchanged lines of the revealed gaps filled in from the file's new version. Lines in a gap have
+ * the same text on both sides, so their old line numbers follow from the next hunk's header (or the last line).
+ */
+export function withContext(lines: DiffLine[], fileLines: string[], revealed: ReadonlySet<DiffGap>): DiffLine[] {
+    const result: DiffLine[] = [];
+    let lastOldLine = 0;
+    let lastNewLine = 0;
+
+    for (const line of lines) {
+        const header = line.type === 'hunk' ? HUNK_HEADER.exec(line.raw) : null;
+
+        if (header && revealed.has(line.index)) {
+            const offset = Number(header[1]) - Number(header[2]);
+
+            for (let newLine = lastNewLine + 1; newLine < Number(header[2]) && newLine <= fileLines.length; newLine++) {
+                result.push(expandedLine(fileLines[newLine - 1], newLine + offset, newLine));
+            }
+        }
+
+        result.push(line);
+        lastOldLine = line.oldLine ?? lastOldLine;
+        lastNewLine = line.newLine ?? lastNewLine;
+    }
+
+    if (revealed.has('end')) {
+        for (let newLine = lastNewLine + 1; newLine <= fileLines.length; newLine++) {
+            result.push(expandedLine(fileLines[newLine - 1], newLine + lastOldLine - lastNewLine, newLine));
+        }
+    }
+
+    return result;
+}
+
+/** A file's text as lines, without the empty "line" after a final newline. */
+export function splitFileLines(content: string): string[] {
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
+
+    return lines.length > 0 && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
+}
+
+/** One row of the side-by-side view: the old version on the left, the new one on the right. */
+export interface SplitRow {
+    key: string;
+    /** Hunk headers and "no newline" markers span both sides. */
+    full: DiffLine | null;
+    left: DiffLine | null;
+    right: DiffLine | null;
+}
+
+/**
+ * Pairs a diff's rows for the side-by-side view: unchanged lines sit on both sides, and each run of deletions is
+ * lined up with the additions that follow it.
+ */
+export function splitRows(lines: DiffLine[]): SplitRow[] {
+    const rows: SplitRow[] = [];
+    let index = 0;
+
+    while (index < lines.length) {
+        const line = lines[index];
+
+        if (line.type === 'hunk' || line.type === 'meta') {
+            rows.push({ key: `full-${line.index}`, full: line, left: null, right: null });
+            index++;
+        } else if (line.type === 'context') {
+            rows.push({ key: `context-${line.index}`, full: null, left: line, right: line });
+            index++;
+        } else {
+            const deletions: DiffLine[] = [];
+            const additions: DiffLine[] = [];
+
+            while (index < lines.length && lines[index].type === 'del') {
+                deletions.push(lines[index++]);
+            }
+
+            while (index < lines.length && lines[index].type === 'add') {
+                additions.push(lines[index++]);
+            }
+
+            for (let pair = 0; pair < Math.max(deletions.length, additions.length); pair++) {
+                const left = deletions[pair] ?? null;
+                const right = additions[pair] ?? null;
+
+                rows.push({ key: `change-${left?.index ?? 'none'}-${right?.index ?? 'none'}`, full: null, left, right });
+            }
+        }
+    }
+
+    return rows;
 }

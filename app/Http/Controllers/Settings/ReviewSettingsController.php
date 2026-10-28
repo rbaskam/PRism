@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\Repository;
 use App\Services\AppSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,13 +25,20 @@ class ReviewSettingsController extends Controller
             ],
             'defaultPrompt' => AppSettings::DEFAULT_REVIEW_PROMPT,
             'placeholders' => AppSettings::REVIEW_PROMPT_PLACEHOLDERS,
+            'repositoriesWithOwnPrompt' => Repository::query()
+                ->tracked()
+                ->whereNotNull('review_prompt')
+                ->orderBy('full_name')
+                ->get(['id', 'full_name'])
+                ->map(fn (Repository $repository): array => ['id' => $repository->id, 'full_name' => $repository->full_name])
+                ->all(),
         ]);
     }
 
     public function update(Request $request, AppSettings $settings): RedirectResponse
     {
         $validated = $request->validate([
-            'prompt' => ['required', 'string', 'max:20000'],
+            'prompt' => ['required', 'string', 'max:'.AppSettings::REVIEW_PROMPT_MAX_LENGTH],
             'allow_posting_findings' => ['required', 'boolean'],
             'allow_replying_to_comments' => ['required', 'boolean'],
             'auto_review_on_request' => ['required', 'boolean'],

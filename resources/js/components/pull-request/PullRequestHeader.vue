@@ -4,7 +4,7 @@ import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { attentionStyles, checksLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
+import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
 import type { PullRequest, PullRequestPermissions, SharedData, SubmitReviewEvent } from '@/types';
 import { usePage } from '@inertiajs/vue3';
 import {
@@ -14,6 +14,8 @@ import {
     Check,
     ExternalLink as ExternalLinkIcon,
     FileDiff,
+    GitMerge,
+    GitPullRequestClosed,
     GitPullRequestDraft,
     MessageSquare,
     XCircle,
@@ -43,6 +45,7 @@ const page = usePage<SharedData>();
 
 const attention = computed(() => attentionStyles[props.pullRequest.attention]);
 const checks = computed(() => checksLabel(props.pullRequest.checks_state));
+const closedState = computed(() => closedStateLabel(props.pullRequest));
 const hasConflicts = computed(() => props.pullRequest.mergeable === 'CONFLICTING');
 
 const myReviewLabel: Record<NonNullable<PullRequest['my_review_state']>, string> = {
@@ -87,7 +90,7 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
 <template>
     <header class="flex flex-col gap-3">
         <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-            <div class="min-w-0 flex-1 space-y-2">
+            <div class="min-w-0 grow basis-96 space-y-2">
                 <div class="flex flex-wrap items-center gap-1.5">
                     <Badge :variant="attention.badge">
                         <span class="size-1.5 rounded-full" :class="attention.dot" />
@@ -97,7 +100,11 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
                         <AlarmClock />
                         Snoozed until {{ formatSnoozedUntil(pullRequest.snoozed_until) }}
                     </Badge>
-                    <Badge v-if="pullRequest.state === 'closed'" variant="secondary">Closed</Badge>
+                    <Badge v-if="closedState" :variant="closedState.badge">
+                        <GitMerge v-if="closedState.badge === 'merged'" />
+                        <GitPullRequestClosed v-else />
+                        {{ closedState.label }}
+                    </Badge>
                     <Badge v-if="pullRequest.is_draft" variant="muted">
                         <GitPullRequestDraft />
                         Draft
@@ -159,6 +166,7 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
                     :can-run-review="permissions.can_run_review"
                     :has-runs="hasRuns"
                     :is-running="isReviewRunning"
+                    :repository="pullRequest.repository"
                 />
                 <FixWithClaudeButton :permissions="permissions" :is-working="isChangingCode" @click="emit('fix')" />
             </div>

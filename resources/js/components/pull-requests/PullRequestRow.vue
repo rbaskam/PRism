@@ -4,7 +4,7 @@ import AttentionBadge from '@/components/pull-requests/AttentionBadge.vue';
 import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { attentionStyles, checksLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
+import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { PullRequest } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
@@ -41,10 +41,15 @@ const props = withDefaults(
 
 const MAX_VISIBLE_LABELS = 3;
 
+/** j/k and the arrow keys move focus between the rows' title links (see PullRequestList), so the whole row shows it. */
+const keyboardFocusClass =
+    'has-[[data-pull-request-link]:focus-visible]:ring-2 has-[[data-pull-request-link]:focus-visible]:ring-inset has-[[data-pull-request-link]:focus-visible]:ring-ring';
+
 const numberFormat = new Intl.NumberFormat();
 
 const style = computed(() => attentionStyles[props.pullRequest.attention]);
 const checks = computed(() => checksLabel(props.pullRequest.checks_state));
+const closedState = computed(() => closedStateLabel(props.pullRequest));
 const checksIcon = computed(() => {
     switch (checks.value?.badge) {
         case 'success':
@@ -59,7 +64,14 @@ const isConflicting = computed(() => props.pullRequest.mergeable === 'CONFLICTIN
 const reviewRun = computed(() => props.pullRequest.latest_review_run ?? null);
 const openFindings = computed(() => props.pullRequest.open_findings_count ?? 0);
 const unreadFindings = computed(() => props.pullRequest.unread_findings_count ?? 0);
-const authorInitials = computed(() => (props.pullRequest.author_login ?? '?').slice(0, 2).toUpperCase());
+/** "OC" for octocat; punctuation in a login such as "a-dev" is skipped, so it shows "AD" rather than "A-". */
+const authorInitials = computed(
+    () =>
+        (props.pullRequest.author_login ?? '?')
+            .replace(/[^a-z0-9]/gi, '')
+            .slice(0, 2)
+            .toUpperCase() || '?',
+);
 const updatedAtTitle = computed(() =>
     props.pullRequest.updated_at ? `Updated ${new Date(props.pullRequest.updated_at).toLocaleString()}` : undefined,
 );
@@ -105,9 +117,11 @@ const hasStatusBadges = computed(
 
 <template>
     <div
+        data-pull-request-row
         :class="
             cn(
                 'group flex cursor-pointer flex-col gap-x-4 gap-y-2 border-l-[3px] py-3 pl-3 pr-4 transition-colors focus-within:bg-accent/50 hover:bg-accent/50 sm:flex-row sm:pl-4',
+                keyboardFocusClass,
                 style.border,
                 pullRequest.attention === 'awaiting' && !pullRequest.snoozed_until && 'bg-red-500/[0.03] dark:bg-red-500/[0.06]',
             )
@@ -141,13 +155,14 @@ const hasStatusBadges = computed(
 
                 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <Link
+                        data-pull-request-link
                         :href="route('pull-requests.show', { pullRequest: pullRequest.id })"
-                        class="max-w-full truncate rounded-sm text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                        class="max-w-full truncate rounded-sm text-sm font-medium text-foreground outline-none hover:underline focus-visible:underline"
                         :title="pullRequest.title"
                     >
                         {{ pullRequest.title }}
                     </Link>
-                    <Badge v-if="pullRequest.state !== 'open'" variant="muted" class="px-1.5 py-0 text-[11px]">Closed</Badge>
+                    <Badge v-if="closedState" :variant="closedState.badge" class="px-1.5 py-0 text-[11px]">{{ closedState.label }}</Badge>
                     <Badge v-if="pullRequest.is_draft" variant="outline" class="px-1.5 py-0 text-[11px] text-muted-foreground">Draft</Badge>
                     <span
                         v-for="label in visibleLabels"

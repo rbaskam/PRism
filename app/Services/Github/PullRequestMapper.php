@@ -73,6 +73,7 @@ class PullRequestMapper
             'github_created_at' => Carbon::parse($node['createdAt']),
             'github_updated_at' => Carbon::parse($node['updatedAt']),
             'closed_at' => isset($node['closedAt']) ? Carbon::parse($node['closedAt']) : null,
+            'merged_at' => isset($node['mergedAt']) ? Carbon::parse($node['mergedAt']) : null,
             'synced_at' => now(),
         ];
 

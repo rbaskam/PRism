@@ -25,6 +25,7 @@ class PullRequestResource extends JsonResource
                 'full_name' => $this->repository->full_name,
                 'name' => $this->repository->name,
                 'owner' => $this->repository->owner,
+                'has_custom_review_prompt' => $this->repository->hasCustomReviewPrompt(),
             ]),
             'number' => $this->number,
             'title' => $this->title,
@@ -61,6 +62,7 @@ class PullRequestResource extends JsonResource
             'created_at' => $this->github_created_at?->toIso8601String(),
             'updated_at' => $this->github_updated_at?->toIso8601String(),
             'closed_at' => $this->closed_at?->toIso8601String(),
+            'merged_at' => $this->merged_at?->toIso8601String(),
             'synced_at' => $this->synced_at?->toIso8601String(),
         ];
     }

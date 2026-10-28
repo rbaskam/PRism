@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property bool $is_private
  * @property bool $is_tracked
  * @property string|null $local_path
+ * @property string|null $review_prompt
  * @property Carbon|null $synced_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -49,6 +50,7 @@ class Repository extends Model
         'is_private',
         'is_tracked',
         'local_path',
+        'review_prompt',
         'synced_at',
     ];
 
@@ -98,6 +100,14 @@ class Repository extends Model
     public function localCheckoutPath(): ?string
     {
         return filled($this->local_path) && is_dir($this->local_path) ? $this->local_path : null;
+    }
+
+    /**
+     * Whether reviews of this repository's pull requests use its own prompt instead of the app-wide one.
+     */
+    public function hasCustomReviewPrompt(): bool
+    {
+        return filled($this->review_prompt);
     }
 
     /**

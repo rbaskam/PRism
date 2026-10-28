@@ -18,6 +18,11 @@ use Illuminate\Support\Str;
 final class FakeGithub
 {
     /**
+     * The GitHub user id of the account the fake signs in as.
+     */
+    public const USER_ID = 583231;
+
+    /**
      * Pull request nodes per "owner/name", shaped like GitHub's GraphQL API.
      *
      * @var array<string, array<int, array<string, mixed>>>
@@ -47,6 +52,13 @@ final class FakeGithub
      * @var array<string, list<array<string, mixed>>>
      */
     private array $files = [];
+
+    /**
+     * File contents by blob SHA, for showing the lines around a diff.
+     *
+     * @var array<string, string>
+     */
+    private array $blobs = [];
 
     /**
      * Repositories the user can see, shaped like GitHub's REST API.
@@ -150,6 +162,36 @@ final class FakeGithub
         return $this;
     }
 
+    /**
+     * Merge a pull request, so it leaves the open list and shows as merged after the next sync.
+     */
+    public function merge(string $repository, int $number): self
+    {
+        return $this->finish($repository, $number, merged: true);
+    }
+
+    /**
+     * Close a pull request without merging it, so it leaves the open list after the next sync.
+     */
+    public function close(string $repository, int $number): self
+    {
+        return $this->finish($repository, $number, merged: false);
+    }
+
+    private function finish(string $repository, int $number, bool $merged): self
+    {
+        $now = now()->toIso8601ZuluString();
+
+        $this->pullRequests[$repository][$number] = [
+            ...$this->pullRequests[$repository][$number],
+            'state' => $merged ? 'MERGED' : 'CLOSED',
+            'closedAt' => $now,
+            'mergedAt' => $merged ? $now : null,
+        ];
+
+        return $this;
+    }
+
     public function withTeam(string $organization, string $slug): self
     {
         $this->teams[] = ['organization' => $organization, 'slug' => $slug, 'name' => Str::headline($slug)];
@@ -197,6 +239,16 @@ final class FakeGithub
         return $this;
     }
 
+    /**
+     * The full text of a changed file, served by the blob SHA withFiles() gives it (unless the file set its own).
+     */
+    public function withFileContent(string $filename, string $content, ?string $sha = null): self
+    {
+        $this->blobs[$sha ?? sha1($filename)] = $content;
+
+        return $this;
+    }
+
     public function withRepository(string $fullName, bool $isPrivate = true): self
     {
         [$owner, $name] = explode('/', $fullName);
@@ -235,7 +287,7 @@ final class FakeGithub
         return match (true) {
             $path === '/graphql' => $this->graphql($request),
             $path === '/user' => Http::response(
-                ['id' => 583231, 'login' => $this->login, 'name' => 'The Octocat', 'avatar_url' => null],
+                ['id' => self::USER_ID, 'login' => $this->login, 'name' => 'The Octocat', 'avatar_url' => null],
                 200,
                 ['X-OAuth-Scopes' => 'repo, read:org, notifications'],
             ),
@@ -252,6 +304,12 @@ final class FakeGithub
             $path === '/user/repos' => Http::response($this->repositories),
             $path === '/user/orgs' => Http::response([]),
             (bool) preg_match('#^/repos/(.+)/pulls/(\d+)/files$#', $path, $matches) => Http::response($this->files["{$matches[1]}#{$matches[2]}"] ?? []),
+            (bool) preg_match('#^/repos/.+/git/blobs/([0-9a-f]{40})$#', $path, $matches) && isset($this->blobs[$matches[1]]) => Http::response([
+                'sha' => $matches[1],
+                'size' => strlen($this->blobs[$matches[1]]),
+                'encoding' => 'base64',
+                'content' => chunk_split(base64_encode($this->blobs[$matches[1]]), 60, "\n"),
+            ]),
             (bool) preg_match('#^/repos/(.+)/pulls/(\d+)/reviews$#', $path, $matches) => $this->submitReview($matches[1], (int) $matches[2], $request),
             $request->method() === 'POST' && preg_match('#^/repos/(.+)/pulls/(\d+)/comments$#', $path, $matches) => $this->createReviewComment($matches[1], (int) $matches[2], $request),
             default => $this->unhandled($request, $path),
@@ -272,7 +330,14 @@ final class FakeGithub
         $repository = ($variables['owner'] ?? '').'/'.($variables['name'] ?? '');
 
         if (str_contains($query, 'pullRequests(states: OPEN')) {
-            return Http::response(githubOpenPullRequestsResponse(array_values($this->pullRequests[$repository] ?? [])));
+            return Http::response(githubOpenPullRequestsResponse(array_values(array_filter(
+                $this->pullRequests[$repository] ?? [],
+                fn (array $node): bool => ($node['state'] ?? 'OPEN') === 'OPEN',
+            ))));
+        }
+
+        if (str_contains($query, 'nodes(ids:')) {
+            return $this->nodes((array) $variables['ids']);
         }
 
         if (str_contains($query, 'viewerViewedState')) {
@@ -299,6 +364,29 @@ final class FakeGithub
         }
 
         return $this->unhandled($request, '/graphql '.Str::of($query)->squish()->limit(60));
+    }
+
+    /**
+     * Look pull requests up by node id. Like GitHub, an id it doesn't know comes back as null with a NOT_FOUND error.
+     *
+     * @param  array<int, mixed>  $ids
+     */
+    private function nodes(array $ids): PromiseInterface
+    {
+        $pullRequests = collect($this->pullRequests)->flatten(1)->keyBy('id');
+        $nodes = [];
+        $errors = [];
+
+        foreach (array_values($ids) as $index => $id) {
+            $node = $pullRequests->get($id);
+            $nodes[] = $node === null ? null : Arr::only($node, ['id', 'state', 'closedAt', 'mergedAt']);
+
+            if ($node === null) {
+                $errors[] = ['type' => 'NOT_FOUND', 'path' => ['nodes', $index], 'message' => "Could not resolve to a node with the global id of '{$id}'."];
+            }
+        }
+
+        return Http::response(['data' => ['nodes' => $nodes], ...($errors === [] ? [] : ['errors' => $errors])]);
     }
 
     /**

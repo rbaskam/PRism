@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { severityStyles } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { PullRequest, PullRequestConversation, PullRequestPermissions, ReviewFinding } from '@/types';
 import { useForm } from '@inertiajs/vue3';
 import { GitBranch, GitPullRequestArrow, Loader2, ShieldCheck, Wand2 } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
+import SeverityBadge from './SeverityBadge.vue';
 import { failedWithFlash, findingLocation, pageVisit, type CodeChangeDraft } from './utils';
 
 type Target = 'pull_request_branch' | 'new_pull_request';
@@ -197,9 +196,7 @@ function handleKeydown(event: KeyboardEvent): void {
                                 />
                                 <span class="min-w-0 flex-1 space-y-0.5">
                                     <span class="flex items-start gap-2">
-                                        <Badge :variant="severityStyles[finding.severity].badge" class="mt-px px-1.5 text-[10px] uppercase">
-                                            {{ severityStyles[finding.severity].label }}
-                                        </Badge>
+                                        <SeverityBadge :severity="finding.severity" />
                                         <span class="text-sm leading-5">{{ finding.title }}</span>
                                     </span>
                                     <span v-if="findingLocation(finding)" class="block truncate font-mono text-xs text-muted-foreground">
@@ -261,8 +258,7 @@ function handleKeydown(event: KeyboardEvent): void {
                             :class="
                                 cn(
                                     'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                    form.target === 'pull_request_branch' &&
-                                        'border-violet-500 bg-violet-50 ring-1 ring-violet-500 dark:bg-violet-500/10',
+                                    form.target === 'pull_request_branch' && 'border-primary bg-primary/5 ring-1 ring-primary',
                                 )
                             "
                             @click="form.target = 'pull_request_branch'"
@@ -283,8 +279,7 @@ function handleKeydown(event: KeyboardEvent): void {
                             :class="
                                 cn(
                                     'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                    form.target === 'new_pull_request' &&
-                                        'border-violet-500 bg-violet-50 ring-1 ring-violet-500 dark:bg-violet-500/10',
+                                    form.target === 'new_pull_request' && 'border-primary bg-primary/5 ring-1 ring-primary',
                                 )
                             "
                             @click="form.target = 'new_pull_request'"

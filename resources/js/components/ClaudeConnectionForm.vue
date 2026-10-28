@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import { cn } from '@/lib/utils';
 import type { ClaudeStatus } from '@/types';
 import { router, useForm } from '@inertiajs/vue3';
@@ -93,7 +94,11 @@ const isConnected = computed(() => props.settings.auth_mode !== null);
 /** How the claude CLI itself is logged in, as reported by `claude auth status`. */
 const loginMethod = computed(() => (props.status.auth_method ? `via ${props.status.auth_method}` : null));
 
+/** Also true while Claude isn't connected yet and an auth mode is picked for the user, so they can connect with one click. */
 const hasUnsavedChanges = computed(() => form.isDirty || form.auth_mode !== props.settings.auth_mode);
+
+/** Only the user's own edits are worth a warning, not the auth mode picked for them. */
+useUnsavedChangesGuard(() => form.isDirty);
 
 const advancedOpen = ref(Boolean(props.settings.model || props.settings.binary_path || props.settings.max_budget_usd) || !props.status.installed);
 
@@ -400,7 +405,7 @@ export interface ClaudeConnectionSettings {
             </Collapsible>
 
             <div class="flex flex-wrap items-center gap-3">
-                <Button type="submit" :disabled="form.processing || form.auth_mode === null">
+                <Button type="submit" :disabled="form.processing || form.auth_mode === null || !hasUnsavedChanges">
                     <Loader2 v-if="form.processing" class="animate-spin" />
                     {{ submitLabel }}
                 </Button>

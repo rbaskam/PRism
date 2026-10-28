@@ -3,17 +3,40 @@ import ExternalLink from '@/components/ExternalLink.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { PullRequest, PullRequestFile, PullRequestPermissions, ReplyDraft, ReviewThread } from '@/types';
+import { getJson } from '@/lib/http';
+import type { PendingReviewComment, PullRequest, PullRequestFile, PullRequestPermissions, ReplyDraft, ReviewFinding, ReviewThread } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { useIntersectionObserver } from '@vueuse/core';
-import { ChevronRight, ExternalLink as ExternalLinkIcon, FileWarning, MessageSquare, MessageSquarePlus, Sparkles } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import {
+    ChevronRight,
+    Clock,
+    ExternalLink as ExternalLinkIcon,
+    FileWarning,
+    MessageSquare,
+    MessageSquareCode,
+    MessageSquarePlus,
+    Sparkles,
+} from 'lucide-vue-next';
+import { computed, reactive, ref } from 'vue';
 import AskClaudeComposer from './AskClaudeComposer.vue';
 import type { QuestionThread } from './code-questions';
 import CodeQuestionThread from './CodeQuestionThread.vue';
-import { countPatchLines, formatLineRange, lineKey, parsePatch, selectionFromRange, spansHunks } from './diff';
+import {
+    countPatchLines,
+    formatLineRange,
+    hiddenLinesAbove,
+    lineKey,
+    parsePatch,
+    selectionFromRange,
+    spansHunks,
+    splitFileLines,
+    withContext,
+    type DiffGap,
+} from './diff';
 import DiffTable from './DiffTable.vue';
+import InlineFinding from './InlineFinding.vue';
 import LineCommentComposer from './LineCommentComposer.vue';
+import PendingCommentCard from './PendingCommentCard.vue';
 import ReviewThreadCard from './ReviewThreadCard.vue';
 
 /** Diffs longer than this start collapsed behind a "Load diff" button. */
@@ -37,12 +60,17 @@ const props = defineProps<{
     threads: QuestionThread[];
     /** GitHub review threads on this file. */
     reviewThreads: ReviewThread[];
+    /** AI findings on this file that are still worth showing (not resolved or dismissed as not useful). */
+    findings: ReviewFinding[];
+    /** The user's comments on this file waiting to be posted with their review. */
+    pendingComments: PendingReviewComment[];
     replyDrafts: ReplyDraft[];
     /** Selected rows in this file, if the selection is here. */
     selection: { anchor: number; focus: number } | null;
     /** The box open under the selection: a question for Claude or a comment for GitHub. */
     composer: 'ask' | 'comment' | null;
     permissions: PullRequestPermissions;
+    layout: 'unified' | 'split';
 }>();
 
 const emit = defineEmits<{
@@ -102,11 +130,60 @@ const isRendered = computed(() => showsDiff.value && (hasBeenNearViewport.value 
 /** Parsed lazily: only when the diff is on screen or questions need placing. */
 const lines = computed(() => (props.file.patch ? parsePatch(props.file.patch) : []));
 
+/*
+ * Unchanged lines around the diff. The file's text is fetched the first time a gap is opened, by its blob SHA, so it
+ * is exactly the version the diff was made against. Deleted files have no new version, and new files are all diff.
+ */
+const fileLines = ref<string[] | null>(null);
+const expanding = ref(false);
+const expandError = ref<string | null>(null);
+const revealed = reactive(new Set<DiffGap>());
+
+const canExpand = computed(() => Boolean(props.file.sha) && props.file.status !== 'removed' && props.file.status !== 'added');
+
+const hiddenAbove = computed(() =>
+    canExpand.value ? new Map([...hiddenLinesAbove(lines.value)].filter(([index]) => !revealed.has(index))) : new Map<number, number>(),
+);
+
+const lastNewLine = computed(() => lines.value.reduce((last, line) => Math.max(last, line.newLine ?? 0), 0));
+
+const canExpandEnd = computed(
+    () =>
+        canExpand.value && !revealed.has('end') && lines.value.length > 0 && (fileLines.value === null || fileLines.value.length > lastNewLine.value),
+);
+
+const displayLines = computed(() => (fileLines.value && revealed.size > 0 ? withContext(lines.value, fileLines.value, revealed) : lines.value));
+
+async function expand(gap: DiffGap): Promise<void> {
+    expandError.value = null;
+
+    if (fileLines.value === null) {
+        expanding.value = true;
+
+        try {
+            const { content } = await getJson<{ content: string }>(
+                route('pull-requests.file-contents.show', { pullRequest: props.pullRequest.id, sha: props.file.sha }),
+                'Could not load the rest of the file',
+            );
+
+            fileLines.value = splitFileLines(content);
+        } catch (error) {
+            expandError.value = error instanceof Error ? error.message : 'Could not load the rest of the file.';
+
+            return;
+        } finally {
+            expanding.value = false;
+        }
+    }
+
+    revealed.add(gap);
+}
+
 /** Row index by "RIGHT:42" key, for placing threads under the line they are on. */
 const indexByKey = computed(() => {
     const indexes = new Map<string, number>();
 
-    if (props.threads.length === 0 && props.reviewThreads.length === 0) {
+    if (props.threads.length === 0 && props.reviewThreads.length === 0 && props.findings.length === 0 && props.pendingComments.length === 0) {
         return indexes;
     }
 
@@ -154,6 +231,42 @@ const reviewThreadPlacement = computed(() => {
     return byIndex;
 });
 
+/** AI findings under the line they are on. Findings on lines outside the diff, or on the whole file, are listed above it. */
+const findingPlacement = computed(() => {
+    const byIndex = new Map<number, ReviewFinding[]>();
+    const orphans: ReviewFinding[] = [];
+
+    for (const finding of props.findings) {
+        const index = finding.line === null ? undefined : indexByKey.value.get(`RIGHT:${finding.line}`);
+
+        if (index === undefined) {
+            orphans.push(finding);
+        } else {
+            byIndex.set(index, [...(byIndex.get(index) ?? []), finding]);
+        }
+    }
+
+    return { byIndex, orphans };
+});
+
+/** Pending comments under the line they end on. Ones whose lines left the diff (after new commits) are listed above it. */
+const pendingPlacement = computed(() => {
+    const byIndex = new Map<number, PendingReviewComment[]>();
+    const orphans: PendingReviewComment[] = [];
+
+    for (const comment of props.pendingComments) {
+        const index = indexByKey.value.get(`${comment.side}:${comment.line}`);
+
+        if (index === undefined) {
+            orphans.push(comment);
+        } else {
+            byIndex.set(index, [...(byIndex.get(index) ?? []), comment]);
+        }
+    }
+
+    return { byIndex, orphans };
+});
+
 const selectionDetails = computed(() => (props.selection ? selectionFromRange(lines.value, props.selection.anchor, props.selection.focus) : null));
 
 const selectedRange = computed<[number, number] | null>(() =>
@@ -177,7 +290,12 @@ const selectionSpansHunks = computed(() =>
 );
 
 const afterIndexes = computed(() => {
-    const indexes = new Set([...placement.value.byIndex.keys(), ...reviewThreadPlacement.value.keys()]);
+    const indexes = new Set([
+        ...placement.value.byIndex.keys(),
+        ...reviewThreadPlacement.value.keys(),
+        ...findingPlacement.value.byIndex.keys(),
+        ...pendingPlacement.value.byIndex.keys(),
+    ]);
 
     if (selectionDetails.value) {
         indexes.add(selectionDetails.value.endIndex);
@@ -233,14 +351,37 @@ function toggleViewed(value: boolean): void {
                     <MessageSquare />
                     {{ reviewThreads.length }}
                 </Badge>
-                <Badge v-if="threads.length" variant="outline" class="px-1.5 text-[10px]" :title="`${threads.length} question thread(s)`">
+                <Badge
+                    v-if="pendingComments.length"
+                    variant="outline"
+                    class="border-primary/50 px-1.5 text-[10px]"
+                    :title="`${pendingComments.length} pending comment${pendingComments.length === 1 ? '' : 's'} in your review`"
+                >
+                    <Clock />
+                    {{ pendingComments.length }}
+                </Badge>
+                <Badge
+                    v-if="findings.length"
+                    variant="outline"
+                    class="px-1.5 text-[10px]"
+                    :title="`${findings.length} AI finding${findings.length === 1 ? '' : 's'}`"
+                >
                     <Sparkles class="text-violet-500" />
+                    {{ findings.length }}
+                </Badge>
+                <Badge
+                    v-if="threads.length"
+                    variant="outline"
+                    class="px-1.5 text-[10px]"
+                    :title="`${threads.length} question${threads.length === 1 ? '' : 's'} for Claude`"
+                >
+                    <MessageSquareCode class="text-violet-500" />
                     {{ threads.length }}
                 </Badge>
-                <Badge :variant="statusStyles[file.status].badge" class="hidden px-1.5 text-[10px] sm:inline-flex">{{
+                <Badge :variant="statusStyles[file.status].badge" class="hidden px-1.5 text-[10px] xl:inline-flex">{{
                     statusStyles[file.status].label
                 }}</Badge>
-                <span class="hidden font-mono text-xs tabular-nums sm:inline">
+                <span class="hidden font-mono text-xs tabular-nums xl:inline">
                     <span class="text-emerald-600 dark:text-emerald-400">+{{ file.additions }}</span>
                     <span class="ml-1 text-red-600 dark:text-red-400">−{{ file.deletions }}</span>
                 </span>
@@ -260,13 +401,25 @@ function toggleViewed(value: boolean): void {
                             : 'hover:bg-muted'
                     "
                 >
-                    <Checkbox class="size-3.5" :checked="viewed" @update:checked="toggleViewed" />
+                    <Checkbox class="size-3.5" :checked="viewed" :aria-label="`Viewed ${file.path}`" @update:checked="toggleViewed" />
                     Viewed
                 </label>
             </div>
         </header>
 
         <div v-if="expanded">
+            <div v-if="pendingPlacement.orphans.length" class="space-y-2 border-b bg-muted/30 px-3 py-3">
+                <p class="text-xs font-medium text-muted-foreground">Pending comments on lines no longer in the diff</p>
+                <PendingCommentCard v-for="comment in pendingPlacement.orphans" :key="comment.id" :comment="comment" show-location />
+            </div>
+
+            <div v-if="findingPlacement.orphans.length" class="space-y-2 border-b bg-muted/30 px-3 py-3">
+                <p class="text-xs font-medium text-muted-foreground">
+                    {{ file.patch ? 'AI findings on lines outside the diff' : 'AI findings on this file' }}
+                </p>
+                <InlineFinding v-for="finding in findingPlacement.orphans" :key="finding.id" :finding="finding" />
+            </div>
+
             <div v-if="placement.orphans.length" class="space-y-2 border-b bg-muted/30 px-3 py-3">
                 <p class="text-xs font-medium text-muted-foreground">
                     {{ file.patch ? 'Questions on lines no longer in the diff' : 'Questions on this file' }}
@@ -298,96 +451,116 @@ function toggleViewed(value: boolean): void {
 
             <div v-else-if="!isRendered" class="bg-muted/10" :style="{ height: `${Math.min(lineCount, 2000) * ROW_HEIGHT}px` }" />
 
-            <DiffTable
-                v-else
-                :path="file.path"
-                :lines="lines"
-                :selected-range="selectedRange"
-                :after-indexes="afterIndexes"
-                @line-click="(index: number, extend: boolean) => emit('line-click', index, extend)"
-                @select-rows="(fromIndex: number, toIndex: number) => emit('select-rows', fromIndex, toIndex)"
-            >
-                <template #after="{ index }">
-                    <div v-if="selectionDetails && questionTarget && selectionDetails.endIndex === index" class="border-y bg-background">
-                        <div v-if="composer === 'ask' && canAsk" class="px-3 py-3">
-                            <AskClaudeComposer
-                                v-model:prompt="prompt"
+            <template v-else>
+                <p
+                    v-if="expandError"
+                    class="border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+                    role="alert"
+                >
+                    {{ expandError }}
+                </p>
+
+                <DiffTable
+                    :path="file.path"
+                    :lines="displayLines"
+                    :layout="layout"
+                    :hidden-above="hiddenAbove"
+                    :can-expand-end="canExpandEnd"
+                    :expanding="expanding"
+                    :selected-range="selectedRange"
+                    :after-indexes="afterIndexes"
+                    @line-click="(index: number, extend: boolean) => emit('line-click', index, extend)"
+                    @select-rows="(fromIndex: number, toIndex: number) => emit('select-rows', fromIndex, toIndex)"
+                    @expand="expand"
+                >
+                    <template #after="{ index }">
+                        <div v-if="selectionDetails && questionTarget && selectionDetails.endIndex === index" class="border-y bg-background">
+                            <div v-if="composer === 'ask' && canAsk" class="px-3 py-3">
+                                <AskClaudeComposer
+                                    v-model:prompt="prompt"
+                                    :pull-request-id="pullRequest.id"
+                                    :target="questionTarget"
+                                    :can-ask="canAsk"
+                                    @cancel="emit('close-composer')"
+                                    @submitted="emit('question-asked')"
+                                />
+                            </div>
+                            <div v-else-if="composer === 'comment'" class="px-3 py-3">
+                                <LineCommentComposer
+                                    v-model:body="comment"
+                                    :pull-request-id="pullRequest.id"
+                                    :target="questionTarget"
+                                    :can-comment="permissions.can_reply_to_comments"
+                                    :spans-hunks="selectionSpansHunks"
+                                    @cancel="emit('close-composer')"
+                                    @submitted="emit('comment-added')"
+                                />
+                            </div>
+                            <div v-else class="flex flex-wrap items-center gap-2 py-1.5 pl-[7.25rem] pr-3">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-7 px-2.5 text-xs shadow-md [&_svg]:size-3.5"
+                                    @click="emit('open-composer', 'comment')"
+                                >
+                                    <MessageSquarePlus />
+                                    Comment
+                                    <kbd class="rounded border px-1 font-mono text-[10px]">c</kbd>
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    class="h-7 px-2.5 text-xs shadow-md [&_svg]:size-3.5"
+                                    :disabled="!canAsk"
+                                    @click="emit('open-composer', 'ask')"
+                                >
+                                    <Sparkles />
+                                    Ask Claude
+                                    <kbd class="rounded border border-primary-foreground/30 px-1 font-mono text-[10px]">a</kbd>
+                                </Button>
+                                <span class="text-xs text-muted-foreground">
+                                    {{ formatLineRange(selectionDetails.startLine, selectionDetails.endLine) }} selected
+                                </span>
+                                <Link v-if="!canAsk" :href="route('settings.claude')" class="text-xs font-medium underline underline-offset-2">
+                                    Connect Claude in Settings
+                                </Link>
+                                <button
+                                    type="button"
+                                    class="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                                    @click="emit('clear-selection')"
+                                >
+                                    Clear <kbd class="font-mono">Esc</kbd>
+                                </button>
+                            </div>
+                        </div>
+                        <div v-if="findingPlacement.byIndex.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
+                            <InlineFinding v-for="finding in findingPlacement.byIndex.get(index)" :key="finding.id" :finding="finding" />
+                        </div>
+                        <div v-if="pendingPlacement.byIndex.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
+                            <PendingCommentCard v-for="comment in pendingPlacement.byIndex.get(index)" :key="comment.id" :comment="comment" />
+                        </div>
+                        <div v-if="reviewThreadPlacement.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
+                            <ReviewThreadCard
+                                v-for="thread in reviewThreadPlacement.get(index)"
+                                :key="thread.id"
+                                :thread="thread"
                                 :pull-request-id="pullRequest.id"
-                                :target="questionTarget"
+                                :permissions="permissions"
+                                :reply-drafts="replyDrafts"
+                                :show-diff-hunk="false"
+                            />
+                        </div>
+                        <div v-if="placement.byIndex.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
+                            <CodeQuestionThread
+                                v-for="thread in placement.byIndex.get(index)"
+                                :key="thread.root.id"
+                                :thread="thread"
+                                :pull-request="pullRequest"
                                 :can-ask="canAsk"
-                                @cancel="emit('close-composer')"
-                                @submitted="emit('question-asked')"
                             />
                         </div>
-                        <div v-else-if="composer === 'comment'" class="px-3 py-3">
-                            <LineCommentComposer
-                                v-model:body="comment"
-                                :pull-request-id="pullRequest.id"
-                                :target="questionTarget"
-                                :can-comment="permissions.can_reply_to_comments"
-                                :spans-hunks="selectionSpansHunks"
-                                @cancel="emit('close-composer')"
-                                @submitted="emit('comment-added')"
-                            />
-                        </div>
-                        <div v-else class="flex flex-wrap items-center gap-2 py-1.5 pl-[7.25rem] pr-3">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                class="h-7 px-2.5 text-xs shadow-md [&_svg]:size-3.5"
-                                @click="emit('open-composer', 'comment')"
-                            >
-                                <MessageSquarePlus />
-                                Comment
-                                <kbd class="rounded border px-1 font-mono text-[10px]">c</kbd>
-                            </Button>
-                            <Button
-                                size="sm"
-                                class="h-7 px-2.5 text-xs shadow-md [&_svg]:size-3.5"
-                                :disabled="!canAsk"
-                                @click="emit('open-composer', 'ask')"
-                            >
-                                <Sparkles />
-                                Ask Claude
-                                <kbd class="rounded border border-primary-foreground/30 px-1 font-mono text-[10px]">a</kbd>
-                            </Button>
-                            <span class="text-xs text-muted-foreground">
-                                {{ formatLineRange(selectionDetails.startLine, selectionDetails.endLine) }} selected
-                            </span>
-                            <Link v-if="!canAsk" :href="route('settings.claude')" class="text-xs font-medium underline underline-offset-2">
-                                Connect Claude in Settings
-                            </Link>
-                            <button
-                                type="button"
-                                class="ml-auto text-xs text-muted-foreground hover:text-foreground"
-                                @click="emit('clear-selection')"
-                            >
-                                Clear <kbd class="font-mono">Esc</kbd>
-                            </button>
-                        </div>
-                    </div>
-                    <div v-if="reviewThreadPlacement.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
-                        <ReviewThreadCard
-                            v-for="thread in reviewThreadPlacement.get(index)"
-                            :key="thread.id"
-                            :thread="thread"
-                            :pull-request-id="pullRequest.id"
-                            :permissions="permissions"
-                            :reply-drafts="replyDrafts"
-                            :show-diff-hunk="false"
-                        />
-                    </div>
-                    <div v-if="placement.byIndex.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
-                        <CodeQuestionThread
-                            v-for="thread in placement.byIndex.get(index)"
-                            :key="thread.root.id"
-                            :thread="thread"
-                            :pull-request="pullRequest"
-                            :can-ask="canAsk"
-                        />
-                    </div>
-                </template>
-            </DiffTable>
+                    </template>
+                </DiffTable>
+            </template>
         </div>
     </section>
 </template>

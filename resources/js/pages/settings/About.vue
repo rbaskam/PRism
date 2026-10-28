@@ -18,6 +18,7 @@ import {
     Bug,
     CheckCircle2,
     ChevronRight,
+    CircleHelp,
     Download,
     ExternalLink as ExternalLinkIcon,
     Github,
@@ -165,13 +166,20 @@ function checkForUpdates(): void {
                     <p class="text-xs text-muted-foreground">Install the new version over this one; your data and settings are kept.</p>
                 </div>
 
+                <div v-else-if="!checkedAt" class="flex items-start gap-3 rounded-lg border p-4">
+                    <CircleHelp class="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                    <div class="space-y-0.5">
+                        <p class="font-medium">Not checked yet</p>
+                        <p class="text-sm text-muted-foreground">Click Check for updates to see whether a newer version is out.</p>
+                    </div>
+                </div>
+
                 <div v-else class="flex items-start gap-3 rounded-lg border p-4">
                     <CheckCircle2 class="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-500" />
                     <div class="space-y-0.5">
                         <p class="font-medium">You're up to date</p>
                         <p class="text-sm text-muted-foreground">
-                            <template v-if="!checkedAt">Updates haven't been checked yet.</template>
-                            <template v-else-if="!latestRelease">No releases have been published yet.</template>
+                            <template v-if="!latestRelease">No releases have been published yet.</template>
                             <template v-else>{{ page.props.name }} {{ currentVersion }} is the latest version.</template>
                         </p>
                     </div>

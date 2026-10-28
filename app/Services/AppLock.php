@@ -81,6 +81,17 @@ class AppLock
     }
 
     /**
+     * Forget the PIN and turn the lock off, for someone who forgot their PIN and proved the app is theirs.
+     */
+    public function removePin(): void
+    {
+        $this->settings->setMany([
+            AppSettings::APP_LOCK_PIN_HASH => null,
+            AppSettings::APP_LOCK_ENABLED => false,
+        ]);
+    }
+
+    /**
      * Whether this device can unlock with biometrics. Touch ID on macOS today; Face ID would come from a mobile build.
      */
     public function biometricsAvailable(): bool

@@ -5,6 +5,7 @@ use App\Enums\ReviewAttention;
 use App\Models\GithubAccount;
 use App\Models\PullRequest;
 use App\Models\Repository;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
@@ -147,18 +148,82 @@ it('does not count a review requested from the user\'s team on their own pull re
     expect(PullRequest::query()->awaitingMyReview()->count())->toBe(0);
 });
 
-it('closes pull requests that are no longer open on GitHub', function () {
+it('closes pull requests that are no longer open on GitHub, noting which were merged', function () {
     $account = GithubAccount::factory()->create();
     $repository = Repository::factory()->create();
-    $merged = PullRequest::factory()->for($repository)->awaitingMyReview()->create(['number' => 99]);
-    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([]))]);
+    $merged = PullRequest::factory()->for($repository)->awaitingMyReview()->create(['number' => 98, 'node_id' => 'PR_merged']);
+    $closed = PullRequest::factory()->for($repository)->create(['number' => 99, 'node_id' => 'PR_closed']);
+    Http::fake(['api.github.com/graphql' => Http::sequence()
+        ->push(githubOpenPullRequestsResponse([]))
+        ->push(['data' => ['nodes' => [
+            ['id' => 'PR_merged', 'state' => 'MERGED', 'closedAt' => '2026-10-20T10:00:00Z', 'mergedAt' => '2026-10-20T10:00:00Z'],
+            ['id' => 'PR_closed', 'state' => 'CLOSED', 'closedAt' => '2026-10-21T10:00:00Z', 'mergedAt' => null],
+        ]]])]);
 
     app(SyncRepositoryPullRequests::class)->handle($repository, $account);
 
     expect($merged->fresh())
         ->state->toBe(PullRequest::STATE_CLOSED)
         ->is_review_requested_from_me->toBeFalse()
-        ->closed_at->not->toBeNull();
+        ->closed_at->toDateTimeString()->toBe('2026-10-20 10:00:00')
+        ->merged_at->toDateTimeString()->toBe('2026-10-20 10:00:00');
+    expect($closed->fresh())
+        ->state->toBe(PullRequest::STATE_CLOSED)
+        ->closed_at->toDateTimeString()->toBe('2026-10-21 10:00:00')
+        ->merged_at->toBeNull();
+    Http::assertSent(fn (Request $request): bool => str_contains($request['query'], 'nodes(ids:')
+        && $request['variables']['ids'] === ['PR_merged', 'PR_closed']);
+});
+
+it('keeps a pull request open when GitHub still reports it as open', function () {
+    $account = GithubAccount::factory()->create();
+    $repository = Repository::factory()->create();
+    $pullRequest = PullRequest::factory()->for($repository)->awaitingMyReview()->create(['node_id' => 'PR_still_open']);
+    Http::fake(['api.github.com/graphql' => Http::sequence()
+        ->push(githubOpenPullRequestsResponse([]))
+        ->push(['data' => ['nodes' => [['id' => 'PR_still_open', 'state' => 'OPEN', 'closedAt' => null, 'mergedAt' => null]]]])]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($pullRequest->fresh())
+        ->state->toBe(PullRequest::STATE_OPEN)
+        ->is_review_requested_from_me->toBeTrue();
+});
+
+it('closes a pull request GitHub can no longer find', function () {
+    $account = GithubAccount::factory()->create();
+    $repository = Repository::factory()->create();
+    $pullRequest = PullRequest::factory()->for($repository)->create(['node_id' => 'PR_gone']);
+    Http::fake(['api.github.com/graphql' => Http::sequence()
+        ->push(githubOpenPullRequestsResponse([]))
+        ->push([
+            'data' => ['nodes' => [null]],
+            'errors' => [['type' => 'NOT_FOUND', 'path' => ['nodes', 0], 'message' => "Could not resolve to a node with the global id of 'PR_gone'."]],
+        ])]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($pullRequest->fresh())
+        ->state->toBe(PullRequest::STATE_CLOSED)
+        ->closed_at->not->toBeNull()
+        ->merged_at->toBeNull();
+});
+
+it('still closes pull requests when GitHub cannot say whether they were merged', function () {
+    $account = GithubAccount::factory()->create();
+    $repository = Repository::factory()->create();
+    $pullRequest = PullRequest::factory()->for($repository)->awaitingMyReview()->create();
+    Http::fake(['api.github.com/graphql' => Http::sequence()
+        ->push(githubOpenPullRequestsResponse([]))
+        ->push(['errors' => [['type' => 'RATE_LIMITED', 'message' => 'API rate limit exceeded.']]])]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($pullRequest->fresh())
+        ->state->toBe(PullRequest::STATE_CLOSED)
+        ->is_review_requested_from_me->toBeFalse()
+        ->closed_at->not->toBeNull()
+        ->merged_at->toBeNull();
 });
 
 it('returns only pull requests whose review was newly requested from the user', function () {
@@ -180,7 +245,7 @@ it('does not count a closed pull request as awaiting review even if GitHub still
     $account = GithubAccount::factory()->create(['login' => 'octocat']);
     $repository = Repository::factory()->create();
     Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([
-        githubPullRequestNode(['state' => 'MERGED', 'reviewRequests' => ['nodes' => [
+        githubPullRequestNode(['state' => 'MERGED', 'closedAt' => '2026-10-20T10:00:00Z', 'mergedAt' => '2026-10-20T10:00:00Z', 'reviewRequests' => ['nodes' => [
             ['requestedReviewer' => ['__typename' => 'User', 'login' => 'octocat']],
         ]]]),
     ]))]);
@@ -189,6 +254,7 @@ it('does not count a closed pull request as awaiting review even if GitHub still
 
     expect($repository->pullRequests()->sole())
         ->state->toBe(PullRequest::STATE_CLOSED)
+        ->merged_at->not->toBeNull()
         ->is_review_requested_from_me->toBeFalse();
 });
 

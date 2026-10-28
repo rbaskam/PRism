@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // A failed validation flashes the submitted form to the session, which is stored unencrypted. Keep secrets out of it.
+        $exceptions->dontFlash(['token', 'credential', 'pin', 'pin_confirmation', 'current_pin']);
+
         // When a page has been open longer than its session, e.g. the lock screen, send the user back to it with
         // a fresh token instead of leaving them on Laravel's "419 Page expired" error.
         $exceptions->respond(function (Response $response, Throwable $exception, Request $request) {

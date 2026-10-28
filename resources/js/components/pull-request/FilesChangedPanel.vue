@@ -4,19 +4,32 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { sendJson } from '@/lib/http';
 import { cn } from '@/lib/utils';
-import type { CodeQuestion, PullRequest, PullRequestFile, PullRequestFiles, PullRequestPermissions, ReplyDraft, ReviewThread } from '@/types';
+import type {
+    CodeQuestion,
+    PendingReviewComment,
+    PullRequest,
+    PullRequestFile,
+    PullRequestFiles,
+    PullRequestPermissions,
+    ReplyDraft,
+    ReviewFinding,
+    ReviewThread,
+} from '@/types';
 import { router } from '@inertiajs/vue3';
-import { useElementBounding, useEventListener } from '@vueuse/core';
+import { useElementBounding, useEventListener, useStorage } from '@vueuse/core';
 import {
     AlertTriangle,
     Check,
     ChevronsDownUp,
     ChevronsUpDown,
+    Columns2,
     Info,
     ListTree,
     Loader2,
+    MessageSquareCode,
     MessageSquarePlus,
     RotateCcw,
+    Rows2,
     Search,
     Sparkles,
     X,
@@ -35,6 +48,10 @@ const props = defineProps<{
     codeQuestions: CodeQuestion[];
     /** GitHub review threads, from the conversation once it has loaded. */
     reviewThreads: ReviewThread[];
+    /** AI findings, shown under the lines they are about. */
+    findings: ReviewFinding[];
+    /** The user's comments waiting to be posted with their review. */
+    pendingComments: PendingReviewComment[];
     replyDrafts: ReplyDraft[];
     permissions: PullRequestPermissions;
     /** Whether the Files changed tab is showing, so keyboard shortcuts only apply there. */
@@ -44,6 +61,8 @@ const props = defineProps<{
 
 const NO_THREADS: QuestionThread[] = [];
 const NO_REVIEW_THREADS: ReviewThread[] = [];
+const NO_FINDINGS: ReviewFinding[] = [];
+const NO_PENDING_COMMENTS: PendingReviewComment[] = [];
 
 const viewed = reactive<Record<string, boolean>>({});
 const changedSinceViewed = reactive<Record<string, boolean>>({});
@@ -52,6 +71,8 @@ const diffRequested = reactive<Record<string, boolean>>({});
 const forceRendered = reactive<Record<string, boolean>>({});
 
 const filter = ref('');
+/** One column (GitHub's unified view) or side by side, remembered on this computer. */
+const layout = useStorage<'unified' | 'split'>('prism.diff-layout', 'unified');
 const hideViewed = ref(false);
 const showFileList = ref(props.files.files.length <= 15);
 const viewedError = ref<string | null>(null);
@@ -108,6 +129,29 @@ const visibleFiles = computed(() => {
 
 const threads = computed(() => groupQuestionThreads(props.codeQuestions));
 const threadsForPath = computed(() => threadsByPath(threads.value));
+
+const pendingCommentsForPath = computed(() => {
+    const byPath = new Map<string, PendingReviewComment[]>();
+
+    for (const comment of props.pendingComments) {
+        byPath.set(comment.path, [...(byPath.get(comment.path) ?? []), comment]);
+    }
+
+    return byPath;
+});
+
+/** Findings worth showing in the diff: resolved ones and ones marked not useful stay in the AI findings tab. */
+const findingsForPath = computed(() => {
+    const byPath = new Map<string, ReviewFinding[]>();
+
+    for (const finding of props.findings) {
+        if (finding.path && !finding.is_resolved && finding.status !== 'not_useful') {
+            byPath.set(finding.path, [...(byPath.get(finding.path) ?? []), finding]);
+        }
+    }
+
+    return byPath;
+});
 const reviewThreadsForPath = computed(() => {
     const byPath = new Map<string, ReviewThread[]>();
 
@@ -260,8 +304,57 @@ function isTyping(target: EventTarget | null): boolean {
     );
 }
 
+/** The file whose header is at the top of the list, or the first one when the list hasn't been scrolled to yet. */
+function currentFileIndex(): number {
+    let current = -1;
+
+    visibleFiles.value.forEach((file, index) => {
+        const top = fileCard(file.path)?.getBoundingClientRect().top;
+
+        if (top !== undefined && top <= toolbarHeight.value + 16) {
+            current = index;
+        }
+    });
+
+    return current;
+}
+
+/** j and k move to the next and previous file, like the findings list. */
+function moveToFile(step: 1 | -1): void {
+    const files = visibleFiles.value;
+    const target = files[Math.min(files.length - 1, Math.max(0, currentFileIndex() + step))];
+
+    if (target) {
+        jumpTo(target);
+    }
+}
+
+/** v marks the file at the top as viewed (or not), which moves on to the next file. */
+function toggleCurrentViewed(): void {
+    const file = visibleFiles.value[Math.max(0, currentFileIndex())];
+
+    if (file) {
+        setViewed(file, !viewed[file.path]);
+    }
+}
+
 useEventListener(document, 'keydown', (event: KeyboardEvent) => {
-    if (!props.isActive || !selection.value || isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
+    if (!props.isActive || isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+    }
+
+    if (!selection.value || composer.value === null) {
+        const fileShortcuts: Record<string, () => void> = { j: () => moveToFile(1), k: () => moveToFile(-1), v: toggleCurrentViewed };
+
+        if (fileShortcuts[event.key] && !(event.target instanceof HTMLElement && event.target.closest('[data-finding-id]'))) {
+            event.preventDefault();
+            fileShortcuts[event.key]();
+
+            return;
+        }
+    }
+
+    if (!selection.value) {
         return;
     }
 
@@ -316,7 +409,7 @@ watch(
 
             if (row) {
                 row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                row.animate([{ backgroundColor: 'rgb(139 92 246 / 0.35)' }, { backgroundColor: 'transparent' }], {
+                row.animate([{ backgroundColor: 'hsl(var(--primary) / 0.3)' }, { backgroundColor: 'transparent' }], {
                     duration: 1800,
                     easing: 'ease-out',
                 });
@@ -400,6 +493,28 @@ watch(
                         <Switch :checked="hideViewed" @update:checked="hideViewed = $event" />
                         Hide viewed
                     </label>
+                    <div class="inline-flex rounded-md border p-0.5" role="group" aria-label="Diff layout">
+                        <button
+                            v-for="option in [
+                                { value: 'unified', label: 'Unified', icon: Rows2 },
+                                { value: 'split', label: 'Side by side', icon: Columns2 },
+                            ] as const"
+                            :key="option.value"
+                            type="button"
+                            class="inline-flex size-7 items-center justify-center rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5"
+                            :class="
+                                layout === option.value
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                            "
+                            :aria-pressed="layout === option.value"
+                            :title="option.label"
+                            @click="layout = option.value"
+                        >
+                            <component :is="option.icon" />
+                            <span class="sr-only">{{ option.label }}</span>
+                        </button>
+                    </div>
                     <Button variant="ghost" size="icon" class="size-8" title="Expand all" @click="setAllExpanded(true)">
                         <ChevronsUpDown />
                         <span class="sr-only">Expand all</span>
@@ -451,7 +566,11 @@ watch(
                         v-if="permissions.can_run_review"
                     >
                         or <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">a</kbd> to ask Claude about it</span
-                    >.
+                    >. In a focused diff, <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">↑</kbd>
+                    <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">↓</kbd> select lines.
+                    <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">j</kbd>
+                    <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">k</kbd> move between files and
+                    <kbd class="rounded border px-1 font-mono text-[10px] text-foreground">v</kbd> marks one viewed.
                 </span>
             </p>
 
@@ -481,10 +600,19 @@ watch(
                     </span>
                     <span class="min-w-0 flex-1 truncate font-mono" :class="{ 'text-muted-foreground': viewed[file.path] }">{{ file.path }}</span>
                     <span
-                        v-if="threadsForPath.get(file.path)?.length"
+                        v-if="findingsForPath.get(file.path)?.length"
                         class="inline-flex shrink-0 items-center gap-0.5 text-violet-600 dark:text-violet-400"
+                        :title="`${findingsForPath.get(file.path)?.length} AI finding(s)`"
                     >
                         <Sparkles class="size-3" />
+                        {{ findingsForPath.get(file.path)?.length }}
+                    </span>
+                    <span
+                        v-if="threadsForPath.get(file.path)?.length"
+                        class="inline-flex shrink-0 items-center gap-0.5 text-violet-600 dark:text-violet-400"
+                        :title="`${threadsForPath.get(file.path)?.length} question(s) for Claude`"
+                    >
+                        <MessageSquareCode class="size-3" />
                         {{ threadsForPath.get(file.path)?.length }}
                     </span>
                     <span class="shrink-0 font-mono tabular-nums">
@@ -510,10 +638,13 @@ watch(
                     :force-render="forceRendered[file.path] ?? false"
                     :threads="threadsForPath.get(file.path) ?? NO_THREADS"
                     :review-threads="reviewThreadsForPath.get(file.path) ?? NO_REVIEW_THREADS"
+                    :findings="findingsForPath.get(file.path) ?? NO_FINDINGS"
+                    :pending-comments="pendingCommentsForPath.get(file.path) ?? NO_PENDING_COMMENTS"
                     :reply-drafts="replyDrafts"
                     :selection="selection?.path === file.path ? selection : null"
                     :composer="selection?.path === file.path ? composer : null"
                     :permissions="permissions"
+                    :layout="layout"
                     @toggle-viewed="(value: boolean) => setViewed(file, value)"
                     @toggle-expanded="expanded[file.path] = !(expanded[file.path] ?? true)"
                     @load-diff="diffRequested[file.path] = true"

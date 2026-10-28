@@ -21,7 +21,8 @@ createInertiaApp({
             .mount(el);
     },
     progress: {
-        color: '#4B5563',
+        // Follows the accent colour (see app.css).
+        color: 'hsl(var(--primary))',
     },
 });
 

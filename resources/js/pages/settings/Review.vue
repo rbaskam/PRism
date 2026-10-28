@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { cn } from '@/lib/utils';
 import type { BreadcrumbItem } from '@/types';
-import { Head, useForm } from '@inertiajs/vue3';
-import { AlertTriangle, Info, Loader2, RotateCcw } from 'lucide-vue-next';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import { AlertTriangle, FolderGit2, Info, Loader2, RotateCcw } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -26,6 +27,8 @@ const props = defineProps<{
     defaultPrompt: string;
     /** Placeholder (e.g. "{number}") => what it is replaced with. */
     placeholders: Record<string, string>;
+    /** Tracked repositories whose reviews use their own prompt instead of this one. */
+    repositoriesWithOwnPrompt: { id: number; full_name: string }[];
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'PR review settings', href: route('settings.review') }];
@@ -33,6 +36,8 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'PR review settings', href: rout
 const MAX_PROMPT_LENGTH = 20000;
 
 const form = useForm({ ...props.settings });
+
+useUnsavedChangesGuard(() => form.isDirty);
 
 const promptTextarea = ref<InstanceType<typeof Textarea> | null>(null);
 
@@ -159,6 +164,24 @@ function save(): void {
                         }}</Badge>
                     </div>
 
+                    <div class="space-y-2 text-sm text-muted-foreground">
+                        <p>
+                            Repositories can override this prompt: open one and choose <span class="font-medium text-foreground">Review prompt</span>.
+                        </p>
+                        <div v-if="repositoriesWithOwnPrompt.length" class="flex flex-wrap items-center gap-1.5">
+                            <span>Using their own prompt:</span>
+                            <Link
+                                v-for="repository in repositoriesWithOwnPrompt"
+                                :key="repository.id"
+                                :href="route('repositories.show', { repository: repository.id })"
+                                class="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                            >
+                                <FolderGit2 class="size-3 shrink-0" />
+                                {{ repository.full_name }}
+                            </Link>
+                        </div>
+                    </div>
+
                     <div class="grid gap-3">
                         <Label for="review-prompt" class="sr-only">Review prompt</Label>
                         <Textarea
@@ -229,12 +252,8 @@ function save(): void {
                     <HeadingSmall :title="section.title" :description="section.description" />
 
                     <div class="divide-y rounded-lg border">
-                        <div
-                            v-for="toggle in section.toggles"
-                            :key="toggle.key"
-                            :class="cn('flex items-start justify-between gap-4 p-4 transition-opacity', isUnavailable(toggle) && 'opacity-50')"
-                        >
-                            <div class="space-y-1">
+                        <div v-for="toggle in section.toggles" :key="toggle.key" class="flex items-start justify-between gap-4 p-4">
+                            <div :class="cn('space-y-1 transition-opacity', isUnavailable(toggle) && 'opacity-60')">
                                 <Label :for="toggle.key" class="cursor-pointer">{{ toggle.label }}</Label>
                                 <p class="text-sm text-muted-foreground">{{ toggle.description }}</p>
                                 <p

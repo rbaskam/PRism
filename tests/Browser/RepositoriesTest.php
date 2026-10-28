@@ -89,3 +89,31 @@ it('says when a repository has no open pull requests', function () {
         ->assertSee('No open pull requests in acme/docs')
         ->assertNoJavaScriptErrors();
 });
+
+it('gives a repository its own review prompt, and goes back to the app-wide one', function () {
+    $repository = Repository::firstWhere('name', 'api');
+
+    $page = visit("/repositories/{$repository->id}")
+        ->click('internal:role=button[name="Review prompt"s]')
+        ->assertSee('Review prompt for acme/api')
+        ->assertSee('It uses the app-wide prompt.')
+        ->fill('#repository-review-prompt', 'Only check ')
+        ->click('internal:role=button[name="{repository}"i]')
+        ->click('internal:role=button[name="Save"s]')
+        ->waitForText('Saved the review prompt for acme/api.')
+        ->assertNoJavaScriptErrors();
+
+    expect($repository->fresh()->review_prompt)->toBe('Only check {repository}');
+
+    $page->navigate('/settings/review')
+        ->assertSee('Using their own prompt:')
+        ->assertSeeIn("a[href$='/repositories/{$repository->id}']", 'acme/api')
+        ->navigate("/repositories/{$repository->id}")
+        ->click('internal:role=button[name="Review prompt Custom"s]')
+        ->assertValue('#repository-review-prompt', 'Only check {repository}')
+        ->click('internal:role=button[name="Use the app-wide prompt"s]')
+        ->waitForText('acme/api now uses the app-wide review prompt.')
+        ->assertNoJavaScriptErrors();
+
+    expect($repository->fresh()->review_prompt)->toBeNull();
+});

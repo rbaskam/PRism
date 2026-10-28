@@ -86,9 +86,9 @@ function resolve(): void {
         class="overflow-hidden rounded-lg border bg-card text-card-foreground"
         :class="{ 'opacity-80': thread.is_resolved && !open }"
     >
-        <div class="flex items-center gap-2 px-3 py-2" :class="{ 'border-b': open }">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2" :class="{ 'border-b': open }">
             <CollapsibleTrigger as-child>
-                <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <button type="button" class="flex min-w-0 grow basis-48 items-center gap-2 text-left">
                     <ChevronRight class="size-4 shrink-0 text-muted-foreground transition-transform" :class="{ 'rotate-90': open }" />
                     <span class="shrink-0 font-mono text-xs text-muted-foreground">{{ thread.line ? `Line ${thread.line}` : 'File' }}</span>
                     <span v-if="!open && firstComment" class="min-w-0 truncate text-xs">
@@ -98,7 +98,7 @@ function resolve(): void {
                 </button>
             </CollapsibleTrigger>
 
-            <div class="flex shrink-0 items-center gap-1.5">
+            <div class="ml-auto flex shrink-0 items-center gap-1.5">
                 <Badge v-if="thread.is_outdated" variant="warning" class="px-1.5 text-[10px]">Outdated</Badge>
                 <Badge v-if="thread.is_resolved" variant="success" class="px-1.5 text-[10px]">
                     <CheckCircle2 />

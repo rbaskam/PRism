@@ -6,6 +6,23 @@
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
+        {{-- Apply the saved mode and accent (see useAppearance.ts) before the page paints, so dark mode doesn't flash white. --}}
+        <script>
+            (function () {
+                try {
+                    var appearance = localStorage.getItem('appearance') || 'system';
+                    var accent = localStorage.getItem('accent');
+                    var isDark = appearance === 'dark' || (appearance === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+                    document.documentElement.classList.toggle('dark', isDark);
+
+                    if (accent && accent !== 'neutral') {
+                        document.documentElement.dataset.accent = accent;
+                    }
+                } catch (error) {}
+            })();
+        </script>
+
         <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">

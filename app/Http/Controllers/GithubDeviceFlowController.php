@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\ConnectGithubAccount;
 use App\Enums\GithubTokenSource;
+use App\Services\AppSettings;
 use App\Services\Github\GithubClient;
 use App\Services\Github\GithubDeviceFlow;
 use Illuminate\Http\Client\ConnectionException;
@@ -36,28 +37,34 @@ class GithubDeviceFlowController extends Controller
         ]);
     }
 
-    public function poll(Request $request, GithubDeviceFlow $deviceFlow, ConnectGithubAccount $connect): JsonResponse
+    /**
+     * Once the user approves, the page goes on to choosing repositories during onboarding, or back to Settings →
+     * GitHub after reconnecting, where the flashed message says who is connected.
+     */
+    public function poll(Request $request, GithubDeviceFlow $deviceFlow, ConnectGithubAccount $connect, AppSettings $settings): JsonResponse
     {
         abort_unless($deviceFlow->isAvailable(), 404);
 
         $validated = $request->validate(['device_code' => ['required', 'string']]);
 
         try {
-            $result = $deviceFlow->poll($validated['device_code']);
+            $poll = $deviceFlow->poll($validated['device_code']);
 
-            if ($result['status'] !== 'authorized') {
-                return response()->json($result);
+            if ($poll['status'] !== 'authorized') {
+                return response()->json($poll);
             }
 
-            $account = $connect->handle($result['token'], GithubTokenSource::DeviceFlow);
+            $result = $connect->handle($poll['token'], GithubTokenSource::DeviceFlow);
         } catch (RequestException|ConnectionException $exception) {
             return response()->json(['status' => 'error', 'message' => GithubClient::describeFailure($exception)], Response::HTTP_BAD_GATEWAY);
         }
 
+        session()->flash('success', $connect->message($result));
+
         return response()->json([
             'status' => 'authorized',
-            'login' => $account->login,
-            'redirect' => route('onboarding.repositories'),
+            'login' => $result['account']->login,
+            'redirect' => route($settings->hasCompletedOnboarding() ? 'settings.github' : 'onboarding.repositories'),
         ]);
     }
 }
