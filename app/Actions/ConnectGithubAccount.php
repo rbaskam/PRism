@@ -7,6 +7,7 @@ use App\Jobs\PollNotifications;
 use App\Jobs\SyncGithub;
 use App\Models\GithubAccount;
 use App\Models\GithubNotification;
+use App\Models\PendingReviewComment;
 use App\Models\PullRequest;
 use App\Services\AppSettings;
 use App\Services\Github\GithubClient;
@@ -80,13 +81,15 @@ class ConnectGithubAccount
     }
 
     /**
-     * Forget the previous account's GitHub notifications and how it was involved in each pull request: review
-     * requests, its reviews, authorship and assignments. The next sync works these out again for the new account.
-     * Tracked repositories, AI reviews and everything else made in the app stay.
+     * Forget the previous account's GitHub notifications, its comments waiting to be posted with a review (they
+     * would otherwise be posted as the new account), and how it was involved in each pull request: review requests,
+     * its reviews, authorship and assignments. The next sync works these out again for the new account. Tracked
+     * repositories, AI reviews and everything else made in the app stay.
      */
     private function forgetPreviousAccount(): void
     {
         GithubNotification::query()->delete();
+        PendingReviewComment::query()->delete();
 
         PullRequest::query()->update([
             'is_review_requested_from_me' => false,

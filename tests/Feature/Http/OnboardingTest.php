@@ -5,6 +5,7 @@ use App\Jobs\PollNotifications;
 use App\Jobs\SyncGithub;
 use App\Models\GithubAccount;
 use App\Models\GithubNotification;
+use App\Models\PendingReviewComment;
 use App\Models\PullRequest;
 use App\Models\ReviewRun;
 use App\Services\AppSettings;
@@ -129,6 +130,7 @@ it('forgets the previous account\'s notifications and review requests when a dif
     GithubNotification::factory()->create();
     $pullRequest = PullRequest::factory()->for($repository)->awaitingTeamReview()->approvedByMe()->authoredByMe()->create(['is_assigned_to_me' => true]);
     $reviewRun = ReviewRun::factory()->for($pullRequest)->create();
+    PendingReviewComment::factory()->for($pullRequest)->create();
     Http::fake(githubUserResponses(githubUser(7, 'monalisa')));
 
     $response = $this->post(route('github.connection.token'), ['token' => 'ghp_test']);
@@ -137,6 +139,7 @@ it('forgets the previous account\'s notifications and review requests when a dif
         ->assertSessionHas('success', 'Connected to GitHub as @monalisa. Notifications and review requests from the previous account were cleared.');
     expect(GithubAccount::sole()->login)->toBe('monalisa')
         ->and(GithubNotification::count())->toBe(0)
+        ->and(PendingReviewComment::count())->toBe(0)
         ->and($pullRequest->fresh())
         ->is_review_requested_from_me->toBeFalse()
         ->is_review_requested_directly->toBeFalse()

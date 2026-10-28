@@ -70,7 +70,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 - **My pull requests** lists every open pull request you opened, were asked to review (directly or through one of your teams), are assigned to or have reviewed, across all the repositories you follow.
 - **Colour coded by where it stands for you:** red when it's awaiting your review, green when you approved it, amber when you requested changes, blue when you commented, and purple for your own pull requests.
 - **Summary cards with counts** for awaiting your review, approved by you (including how many have new commits since), changes requested, your pull requests and via teams. Click a card to filter by it.
-- **Filters** for status, repository, how your review was requested (directly, through any team or through one team), hiding drafts, only pull requests with AI findings, only failing checks, and recently closed (closed or merged in the last two weeks, so you can get back to their AI reviews). Filters are remembered for each page.
+- **Filters** for status, repository, how your review was requested (directly, through any team or through one team), hiding drafts, only pull requests with AI findings, only failing checks, and recently closed (closed or merged in the last two weeks, so you can get back to their AI reviews; merged ones are marked **Merged**). Filters are remembered for each page.
 - **Search** by title, number, author, repository, branch or label. Press `/` to jump to the search box.
 - **Sort** by recently updated, oldest first, newest first, largest change, most AI findings or awaiting review first, and **group by repository** with groups you can collapse.
 - **Everything at a glance on each row:** labels, draft state, CI checks, merge conflicts, lines added and removed, files changed, comments, "New commits since your review", the number of open and new AI findings, and whether an AI review is running.
@@ -92,7 +92,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 - **Review with AI** runs [Claude Code](https://claude.com/claude-code) on your computer in the background, so you can keep working. The sidebar shows which reviews are running.
 - **Claude reads the real code.** When the repository's local clone is linked, Claude reads the code at the pull request's exact commit (in a temporary worktree), not only the diff. Without a clone, it reviews from the diff.
 - **A thorough default review prompt** reads the changed files in full and checks correctness, security, performance, tests and maintainability, with clear severity levels.
-- **A customisable prompt.** Change it in Settings → PR review, with placeholders such as `{repository}`, `{number}`, `{title}`, `{author}`, `{head}`, `{base}` and `{url}`, or reset it to the default.
+- **A customisable prompt.** Change it in Settings → PR review, with placeholders such as `{repository}`, `{number}`, `{title}`, `{author}`, `{head}`, `{base}` and `{url}`, or reset it to the default. Give a repository its own prompt from its page (**Review prompt**).
 - **Structured findings**, each with a severity (critical, high, medium or low), a category (bug, security, duplication, complexity, missing tests, performance or other), the file and line, an explanation and a suggested fix.
 - **Triage** each finding as read, not useful or not a blocker, one at a time with keyboard shortcuts or several at once. Filter findings by status (new, read, not useful, not a blocker, resolved or posted) and by severity.
 - **Re-runs re-check instead of repeating.** Earlier findings and your decisions on them are sent back to Claude, fixed findings are marked as resolved, and PRism tells you when new commits arrive after a review.
@@ -154,6 +154,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 
 - Lock PRism with a PIN of 4 to 8 digits, and unlock it with Touch ID on Macs with a fingerprint reader.
 - Lock it automatically after a period of inactivity, every time the app starts, or straight away with `⌘L` (`Ctrl+L` on Windows).
+- **Forgot your PIN?** Prove the app is yours with a GitHub personal access token for the connected account, and PRism removes the PIN so you can set a new one. The token is only used to check who you are and is never saved.
 
 ### Light and dark mode with accent colours
 

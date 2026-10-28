@@ -18,11 +18,16 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 - Add comments to your review instead of posting each one straight away: **Add to review** keeps a comment on lines in PRism, shows it under its lines (where you can edit or remove it) and posts it with your review when you approve, request changes or comment. A banner shows how many are waiting.
 - **Suggest a change** in a comment on lines: PRism inserts the selected code as a GitHub suggestion for you to edit, which the author can apply on GitHub.
 - Keyboard shortcuts in Files changed: `j`/`k` move between files, `v` marks a file viewed, and `↑`/`↓` select lines in a focused diff (`Shift` to extend), so you can comment or ask Claude without the mouse.
+- Merged pull requests show a purple **Merged** badge instead of "Closed", in pull request lists and on the pull request page.
+- Give a repository its own AI review prompt: open the repository and choose **Review prompt**. Reviews of its pull requests use it instead of the app-wide prompt, the review dialog shows which prompt will be used, and Settings → PR review lists the repositories that have their own.
+- **Forgot your PIN?** on the lock screen: paste a GitHub personal access token for the connected account to remove the PIN and turn the app lock off, then set a new PIN in Settings → Security. The token is only used to check who you are and is never saved.
 - AI findings now show in Files changed under the lines they're about, so you can read them next to the code and mark them read, not useful or not a blocker there. The file list and each file's header show how many findings it has.
 - Files changed highlights the words that changed within an edited line, as GitHub does.
 
 ### Changed
 
+- Reconnecting GitHub from Settings takes you back to Settings when you're done, instead of through setup again.
+- Connecting a different GitHub account clears the previous account's notifications, review requests and comments waiting in a review, so the two accounts' data don't mix.
 - Accent colours are easier to read. In light mode, Green, Rose and Orange buttons now have enough contrast for their text; in dark mode, Violet, Rose and Orange do, and their focus rings stand out from the page. The loading bar, links in descriptions and comments, selected lines in a diff, active filters and the selected option in dialogs now take your accent colour too.
 - Critical findings have a solid red badge, so they stand out from High ones.
 - Claude's review summaries and finding explanations show formatting such as code and bold text, instead of raw Markdown.
@@ -37,6 +42,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 - Dark mode no longer flashes white while a page loads.
 - Settings → About no longer says "You're up to date" before PRism has checked for updates.
 - Screen readers now announce unread notifications, form errors and failed actions.
+
+### Security
+
+- Tokens, API keys and PINs typed into a form that fails validation are no longer kept in the app's session storage.
 
 ## [0.15.0] - 2026-10-23
 
