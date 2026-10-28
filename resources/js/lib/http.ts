@@ -10,7 +10,13 @@ export async function getJson<T>(url: string, failureLabel = 'Request failed'): 
     const response = await fetch(url, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
 
     if (!response.ok) {
-        throw new Error(`${failureLabel} (error ${response.status}).`);
+        const body = await response.json().catch(() => null);
+
+        throw new Error(
+            typeof body?.message === 'string' && body.message !== ''
+                ? `${failureLabel}: ${body.message}`
+                : `${failureLabel} (error ${response.status}).`,
+        );
     }
 
     return (await response.json()) as T;

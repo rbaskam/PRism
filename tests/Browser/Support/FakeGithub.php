@@ -49,6 +49,13 @@ final class FakeGithub
     private array $files = [];
 
     /**
+     * File contents by blob SHA, for showing the lines around a diff.
+     *
+     * @var array<string, string>
+     */
+    private array $blobs = [];
+
+    /**
      * Repositories the user can see, shaped like GitHub's REST API.
      *
      * @var list<array<string, mixed>>
@@ -197,6 +204,16 @@ final class FakeGithub
         return $this;
     }
 
+    /**
+     * The full text of a changed file, served by the blob SHA withFiles() gives it (unless the file set its own).
+     */
+    public function withFileContent(string $filename, string $content, ?string $sha = null): self
+    {
+        $this->blobs[$sha ?? sha1($filename)] = $content;
+
+        return $this;
+    }
+
     public function withRepository(string $fullName, bool $isPrivate = true): self
     {
         [$owner, $name] = explode('/', $fullName);
@@ -252,6 +269,12 @@ final class FakeGithub
             $path === '/user/repos' => Http::response($this->repositories),
             $path === '/user/orgs' => Http::response([]),
             (bool) preg_match('#^/repos/(.+)/pulls/(\d+)/files$#', $path, $matches) => Http::response($this->files["{$matches[1]}#{$matches[2]}"] ?? []),
+            (bool) preg_match('#^/repos/.+/git/blobs/([0-9a-f]{40})$#', $path, $matches) && isset($this->blobs[$matches[1]]) => Http::response([
+                'sha' => $matches[1],
+                'size' => strlen($this->blobs[$matches[1]]),
+                'encoding' => 'base64',
+                'content' => chunk_split(base64_encode($this->blobs[$matches[1]]), 60, "\n"),
+            ]),
             (bool) preg_match('#^/repos/(.+)/pulls/(\d+)/reviews$#', $path, $matches) => $this->submitReview($matches[1], (int) $matches[2], $request),
             $request->method() === 'POST' && preg_match('#^/repos/(.+)/pulls/(\d+)/comments$#', $path, $matches) => $this->createReviewComment($matches[1], (int) $matches[2], $request),
             default => $this->unhandled($request, $path),

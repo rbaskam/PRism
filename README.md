@@ -112,7 +112,8 @@ If you review code in several repositories, or you're a tech lead whose team is 
 
 - **Approve**, **Request changes** or **Comment** with a message, and attach AI findings: findings with a file and line become inline comments on the diff, and the rest are added to the review message.
 - **Post a single finding** to the pull request, after editing it if you like. It's placed on the line in the diff when that line is part of the change, or added as a comment that mentions the file and line.
-- **Comment on lines** in **Files changed**: click a line number (shift-click for a range) or select some code, then press `c`. The comment is posted to GitHub on those lines, and review threads show under the lines they're on, where you can reply to and resolve them.
+- **Comment on lines** in **Files changed**: click a line number (shift-click for a range), select some code or use the arrow keys, then press `c`. **Comment now** posts it to GitHub straight away; **Add to review** keeps it with your review, like a pending review on GitHub, and posts it when you approve, request changes or comment. Pending comments show under their lines, where you can edit or remove them. Review threads show under the lines they're on, where you can reply to and resolve them.
+- **Suggest a change**: for lines on the new version, insert the selected code as a GitHub suggestion, edit it, and the author can apply it with one click on GitHub.
 - **Conversation** shows reviews, review threads grouped by file (with how many are unresolved) and comments. Reply, add a comment, resolve threads, or let Claude **draft a reply** for you to edit, optionally telling it what to say ("agree, I'll fix it in a follow-up").
 - **Description** shows the pull request description as GitHub renders it, and **Open on GitHub** is always one click away.
 - Conversations and diffs are saved, so they open instantly until something changes on GitHub. **Refresh from GitHub** fetches the latest straight away.
@@ -120,7 +121,11 @@ If you review code in several repositories, or you're a tech lead whose team is 
 ### Files changed with Viewed checkboxes
 
 - The full diff, with a **Viewed** checkbox for each file that stays in sync with github.com and a progress bar showing how much you've viewed.
-- Hide viewed files, filter files by name, jump to a file from the file list, and expand or collapse every file at once.
+- **Syntax highlighting** for over 40 languages, in light and dark mode, with the words that changed within a line highlighted too. Code is coloured with [Shiki](https://shiki.style) and shown as text, never inserted as HTML.
+- **Unified or side by side**: switch the layout in the toolbar; PRism remembers your choice.
+- **Show the hidden lines** between and after the changes, to read the code around them.
+- **AI findings under their lines**, so you can triage them next to the code.
+- Hide viewed files, filter files by name, jump to a file from the file list, and expand or collapse every file at once. Press `j`/`k` to move between files and `v` to mark one viewed.
 - See whether each file was added, modified, renamed or deleted, and how many lines were added and removed.
 
 ### Fix with Claude in an isolated git worktree
@@ -254,7 +259,8 @@ For pull requests you're working on, **Fix with Claude** asks Claude to change t
 | --- | --- |
 | Pull request and repository lists | `/` search |
 | AI findings (with a finding focused) | `j`/`k` or ↓/↑ move · `Enter` expand · `r` read · `u` not useful · `b` not a blocker · `n` back to new · `x` select · `p` post to the pull request · `f` fix with Claude |
-| Files changed | `a` ask Claude about the selected lines · `Esc` clear the selection |
+| Files changed | `j`/`k` next/previous file · `v` mark the file viewed · `↑`/`↓` select lines in a focused diff (`Shift` to extend) · `c` comment on the selected lines · `a` ask Claude about them · `Esc` clear the selection |
+| Comment box | `⌘Enter` / `Ctrl+Enter` comment now · `⌘⇧Enter` / `Ctrl+Shift+Enter` add to your review |
 | Dialogs and comment boxes | `⌘Enter` / `Ctrl+Enter` send |
 | Anywhere | `⌘B` / `Ctrl+B` show or hide the sidebar |
 | Anywhere (with the app lock on) | `⌘L` / `Ctrl+L` lock |

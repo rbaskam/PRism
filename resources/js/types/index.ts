@@ -248,6 +248,17 @@ export interface ReplyDraft {
     created_at: string | null;
 }
 
+/** A comment on lines kept in the app until the review is submitted, when it's posted with the review. */
+export interface PendingReviewComment {
+    id: number;
+    path: string;
+    side: 'LEFT' | 'RIGHT';
+    start_line: number | null;
+    line: number;
+    body: string;
+    created_at: string | null;
+}
+
 export interface PullRequestPermissions {
     can_run_review: boolean;
     can_post_findings: boolean;

@@ -7,6 +7,7 @@ use App\Actions\RefreshPullRequest;
 use App\Enums\CodeChangeStatus;
 use App\Http\Resources\CodeChangeResource;
 use App\Http\Resources\CodeQuestionResource;
+use App\Http\Resources\PendingReviewCommentResource;
 use App\Http\Resources\PullRequestResource;
 use App\Http\Resources\ReplyDraftResource;
 use App\Http\Resources\ReviewFindingResource;
@@ -43,6 +44,7 @@ class PullRequestController extends Controller
             'bodyHtml' => $pullRequest->body_html,
             'findings' => ReviewFindingResource::collection($findings)->resolve(),
             'reviewRuns' => ReviewRunResource::collection($pullRequest->reviewRuns()->latest('id')->limit(20)->get())->resolve(),
+            'pendingComments' => PendingReviewCommentResource::collection($pullRequest->pendingReviewComments()->orderBy('id')->get())->resolve(),
             'replyDrafts' => ReplyDraftResource::collection($pullRequest->replyDrafts()->latest('id')->limit(50)->get())->resolve(),
             'codeQuestions' => CodeQuestionResource::collection($pullRequest->codeQuestions()->orderBy('id')->get())->resolve(),
             'codeChanges' => CodeChangeResource::collection(

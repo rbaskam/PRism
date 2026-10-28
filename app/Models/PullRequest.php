@@ -193,6 +193,16 @@ class PullRequest extends Model
     }
 
     /**
+     * Comments on lines kept until the user submits their review.
+     *
+     * @return HasMany<PendingReviewComment, $this>
+     */
+    public function pendingReviewComments(): HasMany
+    {
+        return $this->hasMany(PendingReviewComment::class);
+    }
+
+    /**
      * @return HasMany<CodeQuestion, $this>
      */
     public function codeQuestions(): HasMany

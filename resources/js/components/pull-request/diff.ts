@@ -12,6 +12,8 @@ export interface DiffLine {
     content: string;
     oldLine: number | null;
     newLine: number | null;
+    /** An unchanged line from the full file, shown around the diff. It isn't part of the diff, so it can't be selected. */
+    expanded?: boolean;
 }
 
 export interface DiffSelection {
@@ -361,4 +363,130 @@ export function wordDiffs(lines: DiffLine[]): Map<number, WordSegment[]> {
     }
 
     return result;
+}
+
+/** Where hidden, unchanged lines can be shown: above a hunk (by its header's row index) or after the last one. */
+export type DiffGap = number | 'end';
+
+/** Expanded lines get row indexes above every patch row, so the patch's own rows keep theirs. */
+const EXPANDED_INDEX_BASE = 1_000_000;
+
+/**
+ * How many unchanged lines are hidden above each hunk, keyed by the hunk header's row index. Hunks that start right
+ * after the previous one have none. Lines after the last hunk depend on the file's length, so they aren't counted.
+ */
+export function hiddenLinesAbove(lines: DiffLine[]): Map<number, number> {
+    const hidden = new Map<number, number>();
+    let lastNewLine = 0;
+
+    for (const line of lines) {
+        const header = line.type === 'hunk' ? HUNK_HEADER.exec(line.raw) : null;
+
+        if (header) {
+            const count = Number(header[2]) - lastNewLine - 1;
+
+            if (count > 0) {
+                hidden.set(line.index, count);
+            }
+        } else if (line.newLine !== null) {
+            lastNewLine = line.newLine;
+        }
+    }
+
+    return hidden;
+}
+
+function expandedLine(content: string, oldLine: number, newLine: number): DiffLine {
+    return { index: EXPANDED_INDEX_BASE + newLine, type: 'context', raw: ` ${content}`, content, oldLine, newLine, expanded: true };
+}
+
+/**
+ * The diff with the unchanged lines of the revealed gaps filled in from the file's new version. Lines in a gap have
+ * the same text on both sides, so their old line numbers follow from the next hunk's header (or the last line).
+ */
+export function withContext(lines: DiffLine[], fileLines: string[], revealed: ReadonlySet<DiffGap>): DiffLine[] {
+    const result: DiffLine[] = [];
+    let lastOldLine = 0;
+    let lastNewLine = 0;
+
+    for (const line of lines) {
+        const header = line.type === 'hunk' ? HUNK_HEADER.exec(line.raw) : null;
+
+        if (header && revealed.has(line.index)) {
+            const offset = Number(header[1]) - Number(header[2]);
+
+            for (let newLine = lastNewLine + 1; newLine < Number(header[2]) && newLine <= fileLines.length; newLine++) {
+                result.push(expandedLine(fileLines[newLine - 1], newLine + offset, newLine));
+            }
+        }
+
+        result.push(line);
+        lastOldLine = line.oldLine ?? lastOldLine;
+        lastNewLine = line.newLine ?? lastNewLine;
+    }
+
+    if (revealed.has('end')) {
+        for (let newLine = lastNewLine + 1; newLine <= fileLines.length; newLine++) {
+            result.push(expandedLine(fileLines[newLine - 1], newLine + lastOldLine - lastNewLine, newLine));
+        }
+    }
+
+    return result;
+}
+
+/** A file's text as lines, without the empty "line" after a final newline. */
+export function splitFileLines(content: string): string[] {
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
+
+    return lines.length > 0 && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
+}
+
+/** One row of the side-by-side view: the old version on the left, the new one on the right. */
+export interface SplitRow {
+    key: string;
+    /** Hunk headers and "no newline" markers span both sides. */
+    full: DiffLine | null;
+    left: DiffLine | null;
+    right: DiffLine | null;
+}
+
+/**
+ * Pairs a diff's rows for the side-by-side view: unchanged lines sit on both sides, and each run of deletions is
+ * lined up with the additions that follow it.
+ */
+export function splitRows(lines: DiffLine[]): SplitRow[] {
+    const rows: SplitRow[] = [];
+    let index = 0;
+
+    while (index < lines.length) {
+        const line = lines[index];
+
+        if (line.type === 'hunk' || line.type === 'meta') {
+            rows.push({ key: `full-${line.index}`, full: line, left: null, right: null });
+            index++;
+        } else if (line.type === 'context') {
+            rows.push({ key: `context-${line.index}`, full: null, left: line, right: line });
+            index++;
+        } else {
+            const deletions: DiffLine[] = [];
+            const additions: DiffLine[] = [];
+
+            while (index < lines.length && lines[index].type === 'del') {
+                deletions.push(lines[index++]);
+            }
+
+            while (index < lines.length && lines[index].type === 'add') {
+                additions.push(lines[index++]);
+            }
+
+            for (let pair = 0; pair < Math.max(deletions.length, additions.length); pair++) {
+                const left = deletions[pair] ?? null;
+                const right = additions[pair] ?? null;
+
+                rows.push({ key: `change-${left?.index ?? 'none'}-${right?.index ?? 'none'}`, full: null, left, right });
+            }
+        }
+    }
+
+    return rows;
 }

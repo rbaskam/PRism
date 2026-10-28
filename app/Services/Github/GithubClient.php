@@ -288,6 +288,23 @@ class GithubClient
     }
 
     /**
+     * Get a file's contents by its blob SHA (as listed in a pull request's files), as text. Null when the file is
+     * binary or larger than $maxBytes.
+     */
+    public function blob(string $repository, string $sha, int $maxBytes): ?string
+    {
+        $blob = $this->readRequest()->get("/repos/{$repository}/git/blobs/{$sha}")->throw()->json();
+
+        if (($blob['size'] ?? PHP_INT_MAX) > $maxBytes || ($blob['encoding'] ?? null) !== 'base64') {
+            return null;
+        }
+
+        $content = base64_decode((string) $blob['content'], true);
+
+        return $content === false || ! mb_check_encoding($content, 'UTF-8') ? null : $content;
+    }
+
+    /**
      * Get the viewed state GitHub stores for the user on each file: VIEWED, UNVIEWED or DISMISSED (changed since viewed).
      *
      * @return array<string, string>
@@ -368,9 +385,10 @@ class GithubClient
     }
 
     /**
-     * Submit a review, optionally with inline comments on lines in the diff.
+     * Submit a review, optionally with inline comments on lines in the diff. Comments are on the new version (RIGHT)
+     * unless they say otherwise.
      *
-     * @param  list<array{path: string, line: int, body: string}>  $comments
+     * @param  list<array{path: string, line: int, body: string, side?: string, start_line?: int, start_side?: string}>  $comments
      * @return array<string, mixed>
      */
     public function submitReview(string $repository, int $number, SubmitReviewEvent $event, ?string $body, array $comments = []): array
@@ -382,7 +400,7 @@ class GithubClient
         }
 
         if ($comments !== []) {
-            $payload['comments'] = array_map(fn (array $comment): array => [...$comment, 'side' => 'RIGHT'], $comments);
+            $payload['comments'] = array_map(fn (array $comment): array => ['side' => 'RIGHT', ...$comment], $comments);
         }
 
         return $this->request()->post("/repos/{$repository}/pulls/{$number}/reviews", $payload)->throw()->json();

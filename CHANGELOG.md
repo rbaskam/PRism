@@ -12,6 +12,12 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ### Added
 
+- Syntax highlighting in Files changed and in Claude's changes, for over 40 languages in light and dark mode, together with the words that changed within a line.
+- See a diff side by side: switch between unified and side by side in the Files changed toolbar. PRism remembers your choice.
+- Show the unchanged lines hidden between and after the changes in a file, to read the code around them.
+- Add comments to your review instead of posting each one straight away: **Add to review** keeps a comment on lines in PRism, shows it under its lines (where you can edit or remove it) and posts it with your review when you approve, request changes or comment. A banner shows how many are waiting.
+- **Suggest a change** in a comment on lines: PRism inserts the selected code as a GitHub suggestion for you to edit, which the author can apply on GitHub.
+- Keyboard shortcuts in Files changed: `j`/`k` move between files, `v` marks a file viewed, and `↑`/`↓` select lines in a focused diff (`Shift` to extend), so you can comment or ask Claude without the mouse.
 - AI findings now show in Files changed under the lines they're about, so you can read them next to the code and mark them read, not useful or not a blocker there. The file list and each file's header show how many findings it has.
 - Files changed highlights the words that changed within an edited line, as GitHub does.
 
