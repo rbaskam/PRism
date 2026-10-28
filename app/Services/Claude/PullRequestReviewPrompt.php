@@ -5,6 +5,7 @@ namespace App\Services\Claude;
 use App\Enums\FindingCategory;
 use App\Enums\FindingSeverity;
 use App\Models\PullRequest;
+use App\Models\Repository;
 use App\Models\ReviewFinding;
 use App\Services\AppSettings;
 use Illuminate\Support\Collection;
@@ -18,11 +19,19 @@ class PullRequestReviewPrompt
     public function __construct(private readonly AppSettings $settings) {}
 
     /**
-     * Render the user's review prompt template for a pull request.
+     * The prompt template for a repository's reviews: its own prompt when it has one, otherwise the app-wide prompt.
+     */
+    public function template(Repository $repository): string
+    {
+        return $repository->hasCustomReviewPrompt() ? (string) $repository->review_prompt : $this->settings->reviewPrompt();
+    }
+
+    /**
+     * Render the review prompt template for a pull request.
      */
     public function prompt(PullRequest $pullRequest): string
     {
-        return strtr($this->settings->reviewPrompt(), [
+        return strtr($this->template($pullRequest->repository), [
             '{number}' => (string) $pullRequest->number,
             '{repository}' => $pullRequest->repository->full_name,
             '{title}' => $pullRequest->title,

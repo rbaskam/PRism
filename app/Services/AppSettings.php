@@ -65,6 +65,11 @@ class AppSettings
 
     public const APP_LOCK_GENERATION = 'security.lock_generation';
 
+    /**
+     * The longest review prompt, app-wide or for one repository, in characters.
+     */
+    public const REVIEW_PROMPT_MAX_LENGTH = 20000;
+
     public const DEFAULT_REVIEW_PROMPT = <<<'PROMPT'
         You are a senior engineer reviewing pull request #{number} "{title}" in {repository} ({head} into {base}), opened by @{author}.
 

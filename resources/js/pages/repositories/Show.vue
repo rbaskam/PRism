@@ -2,16 +2,17 @@
 import ExternalLink from '@/components/ExternalLink.vue';
 import EmptyState from '@/components/pull-requests/EmptyState.vue';
 import PullRequestList from '@/components/pull-requests/PullRequestList.vue';
+import RepositoryReviewPromptDialog from '@/components/RepositoryReviewPromptDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { timeAgo } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
-import type { BreadcrumbItem, PullRequest, Repository } from '@/types';
+import type { BreadcrumbItem, PullRequest, Repository, RepositoryReviewPrompt } from '@/types';
 import { Head, usePoll } from '@inertiajs/vue3';
 import { useNow } from '@vueuse/core';
-import { Clock, FolderGit2, FolderOpen, GitBranch, GitPullRequest, Github, Globe, Lock } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { Clock, FolderGit2, FolderOpen, GitBranch, GitPullRequest, Github, Globe, Lock, ScrollText } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
     repository: Repository;
@@ -19,7 +20,10 @@ const props = defineProps<{
     pullRequests: PullRequest[];
     /** "org/slug" teams the user belongs to. */
     teams: string[];
+    reviewPrompt: RepositoryReviewPrompt;
 }>();
+
+const editingReviewPrompt = ref(false);
 
 const openCount = computed(() => props.pullRequests.filter((pullRequest) => pullRequest.state === 'open').length);
 
@@ -55,7 +59,7 @@ const outlineButton = cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-
 
         <div class="mx-auto flex w-full max-w-screen-2xl flex-1 flex-col gap-4 p-4 lg:p-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="min-w-0 space-y-1.5">
+                <div class="min-w-0 grow basis-96 space-y-1.5">
                     <div class="flex min-w-0 items-center gap-2">
                         <FolderGit2 class="size-5 shrink-0 text-muted-foreground" />
                         <h1 class="truncate text-xl font-semibold tracking-tight">
@@ -87,6 +91,11 @@ const outlineButton = cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" :class="outlineButton" aria-haspopup="dialog" @click="editingReviewPrompt = true">
+                        <ScrollText />
+                        Review prompt
+                        <Badge v-if="reviewPrompt.custom !== null" variant="info">Custom</Badge>
+                    </button>
                     <ExternalLink :href="`${repository.html_url}/pulls`" :class="outlineButton">
                         <GitPullRequest />
                         Pull requests on GitHub
@@ -113,5 +122,7 @@ const outlineButton = cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-
                 </template>
             </PullRequestList>
         </div>
+
+        <RepositoryReviewPromptDialog v-model:open="editingReviewPrompt" :repository="repository" :review-prompt="reviewPrompt" />
     </AppLayout>
 </template>

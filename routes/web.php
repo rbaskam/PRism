@@ -16,6 +16,7 @@ use App\Http\Controllers\LocalFolderController;
 use App\Http\Controllers\LockController;
 use App\Http\Controllers\Onboarding\OnboardingController;
 use App\Http\Controllers\PendingReviewCommentController;
+use App\Http\Controllers\PinRecoveryController;
 use App\Http\Controllers\PostedFindingController;
 use App\Http\Controllers\PullRequestCommentController;
 use App\Http\Controllers\PullRequestController;
@@ -50,6 +51,8 @@ Route::get('lock', [LockController::class, 'show'])->name('lock.show');
 Route::post('lock/pin', [LockController::class, 'unlockWithPin'])->name('lock.pin');
 Route::post('lock/biometrics', [LockController::class, 'unlockWithBiometrics'])->name('lock.biometrics');
 Route::post('lock', [LockController::class, 'lock'])->name('lock.store');
+Route::post('lock/recovery', [PinRecoveryController::class, 'store'])->name('lock.recovery');
+Route::post('lock/recovery/token-page', [PinRecoveryController::class, 'openTokenPage'])->name('lock.recovery.token-page');
 
 /*
  * Restarts the desktop app when its server has stopped answering properly.

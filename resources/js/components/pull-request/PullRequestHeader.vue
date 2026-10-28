@@ -166,6 +166,7 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
                     :can-run-review="permissions.can_run_review"
                     :has-runs="hasRuns"
                     :is-running="isReviewRunning"
+                    :repository="pullRequest.repository"
                 />
                 <FixWithClaudeButton :permissions="permissions" :is-working="isChangingCode" @click="emit('fix')" />
             </div>

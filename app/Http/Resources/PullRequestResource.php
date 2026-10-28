@@ -25,6 +25,7 @@ class PullRequestResource extends JsonResource
                 'full_name' => $this->repository->full_name,
                 'name' => $this->repository->name,
                 'owner' => $this->repository->owner,
+                'has_custom_review_prompt' => $this->repository->hasCustomReviewPrompt(),
             ]),
             'number' => $this->number,
             'title' => $this->title,

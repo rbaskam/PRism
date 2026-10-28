@@ -297,6 +297,7 @@ function resetFilters(): void {
                 :can-run-review="permissions.can_run_review"
                 :has-runs="reviewRuns.length > 0"
                 :is-running="isReviewRunning"
+                :repository="pullRequest.repository"
                 size="default"
             />
             <Link

@@ -79,6 +79,18 @@ export interface RepositorySummary {
     full_name: string;
     name: string;
     owner: string;
+    /** Reviews of this repository's pull requests use its own prompt instead of the app-wide one. */
+    has_custom_review_prompt: boolean;
+}
+
+/** The review prompt shown on a repository's page. */
+export interface RepositoryReviewPrompt {
+    /** The repository's own prompt, or null when it uses the app-wide prompt. */
+    custom: string | null;
+    app_wide: string;
+    max_length: number;
+    /** Placeholder (e.g. "{number}") => what it is replaced with. */
+    placeholders: Record<string, string>;
 }
 
 export interface Repository {
