@@ -25,14 +25,19 @@ const steps = ['Connect GitHub', 'Choose repositories', 'Connect Claude'];
                 <span class="text-lg font-semibold">{{ page.props.name }}</span>
             </div>
 
-            <ol class="mb-8 grid grid-cols-3 gap-2">
-                <li v-for="(label, index) in steps" :key="label" class="flex flex-col gap-2">
+            <ol class="mb-8 grid grid-cols-3 gap-2" aria-label="Setup steps">
+                <li
+                    v-for="(label, index) in steps"
+                    :key="label"
+                    class="flex flex-col gap-2"
+                    :aria-current="index + 1 === props.step ? 'step' : undefined"
+                >
                     <div class="h-1.5 rounded-full" :class="index + 1 <= props.step ? 'bg-primary' : 'bg-border'" />
                     <div
                         class="flex items-center gap-1.5 text-xs"
                         :class="index + 1 === props.step ? 'font-medium text-foreground' : 'text-muted-foreground'"
                     >
-                        <Check v-if="index + 1 < props.step" class="size-3.5 text-emerald-600" />
+                        <Check v-if="index + 1 < props.step" class="size-3.5 text-emerald-600 dark:text-emerald-500" />
                         <span>{{ index + 1 }}. {{ label }}</span>
                     </div>
                 </li>

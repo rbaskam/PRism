@@ -59,7 +59,14 @@ const isConflicting = computed(() => props.pullRequest.mergeable === 'CONFLICTIN
 const reviewRun = computed(() => props.pullRequest.latest_review_run ?? null);
 const openFindings = computed(() => props.pullRequest.open_findings_count ?? 0);
 const unreadFindings = computed(() => props.pullRequest.unread_findings_count ?? 0);
-const authorInitials = computed(() => (props.pullRequest.author_login ?? '?').slice(0, 2).toUpperCase());
+/** "OC" for octocat; punctuation in a login such as "a-dev" is skipped, so it shows "AD" rather than "A-". */
+const authorInitials = computed(
+    () =>
+        (props.pullRequest.author_login ?? '?')
+            .replace(/[^a-z0-9]/gi, '')
+            .slice(0, 2)
+            .toUpperCase() || '?',
+);
 const updatedAtTitle = computed(() =>
     props.pullRequest.updated_at ? `Updated ${new Date(props.pullRequest.updated_at).toLocaleString()}` : undefined,
 );

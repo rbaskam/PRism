@@ -158,16 +158,15 @@ async function openAlert(alert: AppAlert): Promise<void> {
                             type="button"
                             :class="
                                 cn(
-                                    'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none',
+                                    'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                                     !alert.is_read && 'bg-primary/[0.04]',
                                 )
                             "
                             @click="openAlert(alert)"
                         >
-                            <span
-                                :class="cn('mt-1.5 size-2 shrink-0 rounded-full', alert.is_read ? 'bg-transparent' : 'bg-primary')"
-                                :aria-label="alert.is_read ? undefined : 'Unread'"
-                            />
+                            <span :class="cn('mt-1.5 size-2 shrink-0 rounded-full', alert.is_read ? 'bg-transparent' : 'bg-primary')">
+                                <span v-if="!alert.is_read" class="sr-only">Unread:</span>
+                            </span>
                             <component :is="icons[alert.type] ?? Bell" class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                             <span class="min-w-0 flex-1 space-y-0.5">
                                 <span :class="cn('block text-sm', alert.is_read ? 'text-muted-foreground' : 'font-semibold')">{{ alert.title }}</span>

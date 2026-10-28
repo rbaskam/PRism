@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useExternalLink } from '@/composables/useExternalLink';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { timeAgo } from '@/lib/pull-requests';
-import { cn } from '@/lib/utils';
+import { cn, filterChipClass } from '@/lib/utils';
 import type { BreadcrumbItem, GithubNotification } from '@/types';
 import { Head, router, usePoll } from '@inertiajs/vue3';
 import {
@@ -251,14 +251,7 @@ function markAllAsRead(): void {
                 <button
                     type="button"
                     :aria-pressed="reasonFilter === null"
-                    :class="
-                        cn(
-                            'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
-                            reasonFilter === null
-                                ? 'border-primary bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                        )
-                    "
+                    :class="filterChipClass(reasonFilter === null)"
                     @click="reasonFilter = null"
                 >
                     All reasons
@@ -268,14 +261,7 @@ function markAllAsRead(): void {
                     :key="reason"
                     type="button"
                     :aria-pressed="reasonFilter === reason"
-                    :class="
-                        cn(
-                            'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
-                            reasonFilter === reason
-                                ? 'border-primary bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                        )
-                    "
+                    :class="filterChipClass(reasonFilter === reason)"
                     @click="toggleReason(reason)"
                 >
                     {{ reasonStyle(reason).label }}
@@ -329,10 +315,9 @@ function markAllAsRead(): void {
                         class="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 pr-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                         @click="open(notification)"
                     >
-                        <span
-                            :class="cn('mt-1.5 size-2 shrink-0 rounded-full', isUnread(notification) ? 'bg-sky-500' : 'bg-transparent')"
-                            :aria-label="isUnread(notification) ? 'Unread' : undefined"
-                        />
+                        <span :class="cn('mt-1.5 size-2 shrink-0 rounded-full', isUnread(notification) ? 'bg-primary' : 'bg-transparent')">
+                            <span v-if="isUnread(notification)" class="sr-only">Unread:</span>
+                        </span>
                         <component
                             :is="subjectIcons[notification.subject_type] ?? Bell"
                             :class="cn('mt-0.5 size-4 shrink-0', isUnread(notification) ? 'text-foreground' : 'text-muted-foreground')"

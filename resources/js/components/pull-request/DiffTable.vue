@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useResizeObserver } from '@vueuse/core';
-import { computed, ref } from 'vue';
-import { isCodeLine, lineNumber, lineSide, type DiffLine } from './diff';
+import { computed, onMounted, ref } from 'vue';
+import { isCodeLine, lineNumber, lineSide, wordDiffs, type DiffLine } from './diff';
 
 /**
  * A file's diff as rows with old and new line numbers. Click a line number to select it (shift-click to extend),
@@ -37,8 +37,19 @@ useResizeObserver(scroller, (entries) => {
     viewportWidth.value = entries[0]?.contentRect.width ?? 0;
 });
 
+/*
+ * Measure before the first paint too. Until then content under a row would be as wide as its longest line of text
+ * (the rows are max-content wide), and shrinking it once the observer reports would resize the table again.
+ */
+onMounted(() => {
+    viewportWidth.value = scroller.value?.clientWidth ?? 0;
+});
+
 /** Content under a row stays in view while the code scrolls sideways. */
 const afterStyle = computed(() => (viewportWidth.value > 0 ? { width: `${viewportWidth.value}px` } : { width: '100%' }));
+
+/** The words that changed within edited lines, highlighted like GitHub does. */
+const words = computed(() => wordDiffs(props.lines));
 
 const markers: Record<DiffLine['type'], string> = { add: '+', del: '-', context: ' ', hunk: '', meta: '' };
 
@@ -154,7 +165,13 @@ function handleMouseup(event: MouseEvent): void {
                         <span class="w-12 pr-2">{{ line.newLine ?? '' }}</span>
                     </div>
                     <span class="diff-marker w-5 shrink-0 select-none text-center">{{ markers[line.type] }}</span>
-                    <span class="whitespace-pre pr-6">{{ line.content || ' ' }}</span>
+                    <span v-if="words.has(line.index)" class="whitespace-pre pr-6"
+                        ><template v-for="(segment, position) in words.get(line.index)" :key="position"
+                            ><mark v-if="segment.changed" class="diff-word">{{ segment.text }}</mark
+                            ><template v-else>{{ segment.text }}</template></template
+                        ></span
+                    >
+                    <span v-else class="whitespace-pre pr-6">{{ line.content || ' ' }}</span>
                 </div>
                 <div v-if="afterIndexes.has(line.index)" class="sticky left-0 font-sans text-sm leading-normal" :style="afterStyle">
                     <slot name="after" :index="line.index" />
@@ -182,8 +199,21 @@ function handleMouseup(event: MouseEvent): void {
     --row-tint: rgb(14 165 233 / 0.08);
 }
 
+.diff-word {
+    color: inherit;
+    border-radius: 2px;
+}
+
+.diff-row-add .diff-word {
+    background: rgb(16 185 129 / 0.3);
+}
+
+.diff-row-del .diff-word {
+    background: rgb(239 68 68 / 0.3);
+}
+
 .diff-row-selected {
-    --row-tint: rgb(245 158 11 / 0.22);
+    --row-tint: hsl(var(--primary) / 0.14);
 }
 
 /* Opaque, so code scrolling sideways passes underneath the sticky line numbers. */
@@ -192,7 +222,7 @@ function handleMouseup(event: MouseEvent): void {
 }
 
 .diff-row-selected .diff-gutter {
-    box-shadow: inset 3px 0 0 rgb(245 158 11);
+    box-shadow: inset 3px 0 0 hsl(var(--ring));
 }
 
 .diff-row-add .diff-marker {
@@ -218,11 +248,19 @@ html.dark .diff-table .diff-row-hunk {
 }
 
 html.dark .diff-table .diff-row-selected {
-    --row-tint: rgb(245 158 11 / 0.24);
+    --row-tint: hsl(var(--primary) / 0.2);
 }
 
 html.dark .diff-table .diff-row-add .diff-marker {
     color: rgb(52 211 153);
+}
+
+html.dark .diff-table .diff-row-add .diff-word {
+    background: rgb(16 185 129 / 0.35);
+}
+
+html.dark .diff-table .diff-row-del .diff-word {
+    background: rgb(239 68 68 / 0.35);
 }
 
 html.dark .diff-table .diff-row-del .diff-marker {

@@ -1,6 +1,10 @@
 <?php
 
+use App\Enums\FindingSeverity;
+use App\Enums\FindingStatus;
 use App\Models\PullRequest;
+use App\Models\ReviewFinding;
+use App\Models\ReviewRun;
 use App\Services\AppSettings;
 use Native\Desktop\Facades\Shell;
 use Tests\Browser\Support\FakeGithub;
@@ -203,4 +207,42 @@ it('snoozes the pull request from its page', function () {
         ->assertNoJavaScriptErrors();
 
     expect($pullRequest->fresh()->isSnoozed())->toBeTrue();
+});
+
+it('shows AI findings under the lines they are about and triages them there', function () {
+    $pullRequest = PullRequest::firstWhere('number', 101);
+    $finding = ReviewFinding::factory()->create([
+        'review_run_id' => ReviewRun::factory()->create(['pull_request_id' => $pullRequest->id])->id,
+        'severity' => FindingSeverity::High,
+        'title' => 'Limit is applied before authentication',
+        'path' => 'app/Http/Middleware/RateLimit.php',
+        'line' => 2,
+    ]);
+    $file = 'section[data-file-path="app/Http/Middleware/RateLimit.php"]';
+
+    $page = visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=tab[name="Files changed"i]')
+        ->waitForText('// limit requests')
+        ->assertSeeIn($file, 'Limit is applied before authentication');
+
+    trackRequests($page);
+    $page->click("[data-finding-id=\"{$finding->id}\"] button[aria-label=\"Mark read\"]");
+    waitForRequests($page);
+
+    $page->assertNoJavaScriptErrors();
+    expect($finding->fresh()->status)->toBe(FindingStatus::Read);
+});
+
+it('highlights the words that changed within an edited line', function () {
+    $this->github->withFiles('acme/api', 101, [
+        ['filename' => 'config/limits.php', 'additions' => 1, 'deletions' => 1, 'patch' => "@@ -1 +1 @@\n-    'per_minute' => 30,\n+    'per_minute' => 60,"],
+    ]);
+    $pullRequest = PullRequest::firstWhere('number', 101);
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->click('internal:role=tab[name="Files changed"i]')
+        ->waitForText('config/limits.php')
+        ->assertSeeIn('.diff-row-del mark.diff-word', '30')
+        ->assertSeeIn('.diff-row-add mark.diff-word', '60')
+        ->assertNoJavaScriptErrors();
 });

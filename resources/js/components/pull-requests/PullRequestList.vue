@@ -57,6 +57,10 @@ const pullRequestsInScope = computed(() =>
 
 const snoozedCount = computed(() => props.pullRequests.filter((pullRequest) => pullRequest.state === 'open' && isSnoozed(pullRequest)).length);
 
+/** Recently closed pull requests are sent too, but with none open the page shows its empty state, not empty filters. */
+const hasOpenPullRequests = computed(() => props.pullRequests.some((pullRequest) => pullRequest.state === 'open'));
+const closedCount = computed(() => props.pullRequests.filter((pullRequest) => pullRequest.state !== 'open').length);
+
 const stats = computed(() => summarisePullRequests(pullRequestsInScope.value));
 
 /** Forget a remembered repository filter once that repository is no longer listed (e.g. it was untracked). */
@@ -213,11 +217,17 @@ function toggleAllGroups(): void {
 
 <template>
     <div class="flex flex-col gap-4">
-        <div v-if="pullRequests.length === 0" class="rounded-lg border border-dashed">
-            <slot name="empty">
-                <EmptyState :icon="GitPullRequest" title="No open pull requests" description="There is nothing here right now." />
-            </slot>
-        </div>
+        <template v-if="!hasOpenPullRequests && !filters.showClosed">
+            <div class="rounded-lg border border-dashed">
+                <slot name="empty">
+                    <EmptyState :icon="GitPullRequest" title="No open pull requests" description="There is nothing here right now." />
+                </slot>
+            </div>
+            <p v-if="closedCount > 0" class="text-center text-sm text-muted-foreground">
+                {{ closedCount }} pull request{{ closedCount === 1 ? ' was' : 's were' }} closed or merged recently.
+                <Button variant="link" class="h-auto p-0" @click="updateFilter('showClosed', true)">Show recently closed</Button>
+            </p>
+        </template>
 
         <template v-else>
             <PullRequestStats :stats="stats" :active="activeStats" @select="selectStat" />

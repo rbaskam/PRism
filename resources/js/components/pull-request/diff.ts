@@ -234,3 +234,131 @@ export function splitUnifiedDiff(diff: string): { files: UnifiedDiffFile[]; trun
 
     return { files, truncated };
 }
+
+/** A piece of a changed line, marked when it differs from the line it replaced (or was replaced by). */
+export interface WordSegment {
+    text: string;
+    changed: boolean;
+}
+
+/** Lines longer than this, or pairs with more tokens than this, aren't compared word by word. */
+const WORD_DIFF_MAX_LENGTH = 500;
+const WORD_DIFF_MAX_TOKENS = 200;
+
+/** A changed line counts as rewritten, rather than edited, when more than this share of it differs. */
+const WORD_DIFF_MAX_CHANGED_RATIO = 0.6;
+
+function tokenize(text: string): string[] {
+    return text.match(/\w+|\s+|[^\w\s]/g) ?? [];
+}
+
+/** Which tokens of `a` and `b` are outside their longest common subsequence. */
+function changedTokens(a: string[], b: string[]): [boolean[], boolean[]] {
+    const table: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+
+    for (let i = a.length - 1; i >= 0; i--) {
+        for (let j = b.length - 1; j >= 0; j--) {
+            table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+        }
+    }
+
+    const aChanged = new Array<boolean>(a.length).fill(true);
+    const bChanged = new Array<boolean>(b.length).fill(true);
+    let i = 0;
+    let j = 0;
+
+    while (i < a.length && j < b.length) {
+        if (a[i] === b[j]) {
+            aChanged[i++] = false;
+            bChanged[j++] = false;
+        } else if (table[i + 1][j] >= table[i][j + 1]) {
+            i++;
+        } else {
+            j++;
+        }
+    }
+
+    return [aChanged, bChanged];
+}
+
+/** Joins tokens into segments. Whitespace between two changed tokens is marked too, so a change reads as one run. */
+function toSegments(tokens: string[], changed: boolean[]): WordSegment[] {
+    const segments: WordSegment[] = [];
+
+    tokens.forEach((token, index) => {
+        const isChanged = changed[index] || (/^\s+$/.test(token) && changed[index - 1] === true && changed[index + 1] === true);
+        const last = segments[segments.length - 1];
+
+        if (last && last.changed === isChanged) {
+            last.text += token;
+        } else {
+            segments.push({ text: token, changed: isChanged });
+        }
+    });
+
+    return segments;
+}
+
+function changedShare(segments: WordSegment[]): number {
+    const total = segments.reduce((length, segment) => length + segment.text.trim().length, 0);
+    const changed = segments.reduce((length, segment) => length + (segment.changed ? segment.text.trim().length : 0), 0);
+
+    return total === 0 ? 0 : changed / total;
+}
+
+/**
+ * Word-level changes for edited lines, keyed by row index. Within each run of deletions followed by additions,
+ * the nth deleted line is paired with the nth added line and the words that differ are marked, like GitHub does.
+ * Lines that were rewritten rather than edited are left out, since marking all of a line adds nothing.
+ */
+export function wordDiffs(lines: DiffLine[]): Map<number, WordSegment[]> {
+    const result = new Map<number, WordSegment[]>();
+    let index = 0;
+
+    while (index < lines.length) {
+        if (lines[index].type !== 'del') {
+            index++;
+            continue;
+        }
+
+        const deletions: DiffLine[] = [];
+        const additions: DiffLine[] = [];
+
+        while (index < lines.length && lines[index].type === 'del') {
+            deletions.push(lines[index++]);
+        }
+
+        while (index < lines.length && lines[index].type === 'add') {
+            additions.push(lines[index++]);
+        }
+
+        for (let pair = 0; pair < Math.min(deletions.length, additions.length); pair++) {
+            const before = deletions[pair];
+            const after = additions[pair];
+
+            if (before.content === after.content || before.content.length > WORD_DIFF_MAX_LENGTH || after.content.length > WORD_DIFF_MAX_LENGTH) {
+                continue;
+            }
+
+            const beforeTokens = tokenize(before.content);
+            const afterTokens = tokenize(after.content);
+
+            if (beforeTokens.length > WORD_DIFF_MAX_TOKENS || afterTokens.length > WORD_DIFF_MAX_TOKENS) {
+                continue;
+            }
+
+            const [beforeChanged, afterChanged] = changedTokens(beforeTokens, afterTokens);
+            const beforeSegments = toSegments(beforeTokens, beforeChanged);
+            const afterSegments = toSegments(afterTokens, afterChanged);
+
+            if (Math.max(changedShare(beforeSegments), changedShare(afterSegments)) > WORD_DIFF_MAX_CHANGED_RATIO) {
+                continue;
+            }
+
+            result.set(before.index, beforeSegments);
+            result.set(after.index, afterSegments);
+        }
+    }
+
+    return result;
+}

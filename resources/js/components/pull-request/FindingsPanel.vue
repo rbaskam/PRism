@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { severityStyles } from '@/lib/pull-requests';
-import { cn } from '@/lib/utils';
+import { filterChipClass } from '@/lib/utils';
 import type { FindingSeverity, FindingStatus, PullRequest, PullRequestPermissions, ReviewFinding, ReviewRun } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
 import { Check, FlagOff, Keyboard, Loader2, RotateCcw, SearchX, Sparkles, ThumbsDown, Wand2, X } from 'lucide-vue-next';
@@ -139,15 +139,6 @@ function resetFilters(): void {
     statusFilter.value = 'open';
     severityFilter.value = 'all';
 }
-
-function chipClass(isActive: boolean): string {
-    return cn(
-        'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40',
-        isActive
-            ? 'border-foreground bg-foreground text-background'
-            : 'bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-    );
-}
 </script>
 
 <template>
@@ -155,13 +146,13 @@ function chipClass(isActive: boolean): string {
         <ReviewRunStatus :pull-request="pullRequest" :review-runs="reviewRuns" :can-run-review="permissions.can_run_review" />
 
         <template v-if="findings.length > 0">
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
                 <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by status">
                     <button
                         v-for="filter in statusFilters"
                         :key="filter.value"
                         type="button"
-                        :class="chipClass(statusFilter === filter.value)"
+                        :class="filterChipClass(statusFilter === filter.value)"
                         :aria-pressed="statusFilter === filter.value"
                         @click="statusFilter = filter.value"
                     >
@@ -169,11 +160,10 @@ function chipClass(isActive: boolean): string {
                         <span class="tabular-nums opacity-70">{{ statusCounts[filter.value] }}</span>
                     </button>
                 </div>
-                <div class="hidden h-5 w-px bg-border sm:block" />
                 <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by severity">
                     <button
                         type="button"
-                        :class="chipClass(severityFilter === 'all')"
+                        :class="filterChipClass(severityFilter === 'all')"
                         :aria-pressed="severityFilter === 'all'"
                         @click="severityFilter = 'all'"
                     >
@@ -183,7 +173,7 @@ function chipClass(isActive: boolean): string {
                         v-for="severity in severities"
                         :key="severity"
                         type="button"
-                        :class="chipClass(severityFilter === severity)"
+                        :class="filterChipClass(severityFilter === severity)"
                         :aria-pressed="severityFilter === severity"
                         :disabled="severityCounts[severity] === 0 && severityFilter !== severity"
                         @click="severityFilter = severityFilter === severity ? 'all' : severity"

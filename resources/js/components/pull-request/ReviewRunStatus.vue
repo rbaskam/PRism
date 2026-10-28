@@ -6,6 +6,7 @@ import type { PullRequest, ReviewRun } from '@/types';
 import { AlertTriangle, Bot, Clock, GitCommitHorizontal, Loader2, RotateCcw, XCircle } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import ElapsedTime from './ElapsedTime.vue';
+import MarkdownText from './MarkdownText.vue';
 import { formatCost, formatDateTime, runStartedAt, shortSha, startReviewRun, verdictStyles } from './utils';
 
 /**
@@ -110,7 +111,7 @@ function retry(): void {
                 </div>
             </div>
 
-            <p v-if="latestCompletedRun.summary" class="whitespace-pre-line px-4 py-3 text-sm leading-relaxed">{{ latestCompletedRun.summary }}</p>
+            <MarkdownText v-if="latestCompletedRun.summary" :text="latestCompletedRun.summary" class="px-4 py-3" />
 
             <div class="flex flex-wrap items-center gap-x-5 gap-y-1 border-t px-4 py-2 text-xs text-muted-foreground">
                 <span>

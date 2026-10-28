@@ -87,7 +87,7 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
 <template>
     <header class="flex flex-col gap-3">
         <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-            <div class="min-w-0 flex-1 space-y-2">
+            <div class="min-w-0 grow basis-96 space-y-2">
                 <div class="flex flex-wrap items-center gap-1.5">
                     <Badge :variant="attention.badge">
                         <span class="size-1.5 rounded-full" :class="attention.dot" />

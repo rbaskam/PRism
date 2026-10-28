@@ -5,6 +5,7 @@ import { formatDuration, timeAgo } from '@/lib/pull-requests';
 import type { ReviewRun } from '@/types';
 import { ChevronRight, History, Loader2 } from 'lucide-vue-next';
 import ElapsedTime from './ElapsedTime.vue';
+import MarkdownText from './MarkdownText.vue';
 import { formatCost, formatDateTime, runStartedAt, runStatusStyles, shortSha, verdictStyles } from './utils';
 
 /** Every AI review of the pull request, newest first, with what it cost and the prompt it ran with. */
@@ -52,7 +53,7 @@ defineProps<{
                     <span v-if="run.head_sha" class="font-mono" title="Commit that was reviewed">{{ shortSha(run.head_sha) }}</span>
                 </div>
 
-                <p v-if="run.summary" class="whitespace-pre-line text-sm leading-relaxed">{{ run.summary }}</p>
+                <MarkdownText v-if="run.summary" :text="run.summary" />
 
                 <p
                     v-if="run.error"

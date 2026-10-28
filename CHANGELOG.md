@@ -10,6 +10,28 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- AI findings now show in Files changed under the lines they're about, so you can read them next to the code and mark them read, not useful or not a blocker there. The file list and each file's header show how many findings it has.
+- Files changed highlights the words that changed within an edited line, as GitHub does.
+
+### Changed
+
+- Accent colours are easier to read. In light mode, Green, Rose and Orange buttons now have enough contrast for their text; in dark mode, Violet, Rose and Orange do, and their focus rings stand out from the page. The loading bar, links in descriptions and comments, selected lines in a diff, active filters and the selected option in dialogs now take your accent colour too.
+- Critical findings have a solid red badge, so they stand out from High ones.
+- Claude's review summaries and finding explanations show formatting such as code and bold text, instead of raw Markdown.
+- Buttons, links and other controls show a focus ring in your accent colour when you move around with the keyboard.
+
+### Fixed
+
+- In a narrow window, pages no longer run off the right-hand edge. The pull request header, file headers and comment threads wrap instead, and the pull request tabs fade at the edge when there are more to scroll to.
+- Settings stays highlighted in the sidebar on every settings page, not just GitHub, and the selected settings section is visible in dark mode.
+- When all your pull requests had been closed recently, My pull requests and repository pages said "No pull requests match your filters", with a Clear filters button that did nothing. They now say nothing needs you, and offer to show the recently closed ones.
+- Switches that are off or unavailable were hard to see in dark mode.
+- Dark mode no longer flashes white while a page loads.
+- Settings → About no longer says "You're up to date" before PRism has checked for updates.
+- Screen readers now announce unread notifications, form errors and failed actions.
+
 ## [0.15.0] - 2026-10-23
 
 ### Added

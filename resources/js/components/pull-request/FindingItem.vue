@@ -3,12 +3,14 @@ import ExternalLink from '@/components/ExternalLink.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { findingStatusLabels, severityStyles, timeAgo } from '@/lib/pull-requests';
+import { findingStatusLabels, timeAgo } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { FindingStatus, ReviewFinding } from '@/types';
 import { Check, ChevronRight, ExternalLink as ExternalLinkIcon, FlagOff, RotateCcw, Send, ThumbsDown, Wand2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import MarkdownText from './MarkdownText.vue';
 import SettingsHint from './SettingsHint.vue';
+import SeverityBadge from './SeverityBadge.vue';
 import { findingLocation } from './utils';
 
 const props = defineProps<{
@@ -128,7 +130,7 @@ function handleKeydown(event: KeyboardEvent): void {
             cn(
                 'group relative cursor-pointer border-b border-l-2 border-l-transparent outline-none transition-colors last:border-b-0 hover:bg-muted/40 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                 isNew && 'border-l-sky-500',
-                selected && 'bg-sky-50/60 dark:bg-sky-500/5',
+                selected && 'bg-primary/5',
             )
         "
         @click="handleRowClick"
@@ -155,9 +157,7 @@ function handleKeydown(event: KeyboardEvent): void {
 
             <div class="min-w-0 flex-1 space-y-1">
                 <div class="flex items-start gap-2">
-                    <Badge :variant="severityStyles[finding.severity].badge" class="mt-px px-1.5 text-[10px] uppercase tracking-wide">
-                        {{ severityStyles[finding.severity].label }}
-                    </Badge>
+                    <SeverityBadge :severity="finding.severity" />
                     <span
                         :class="
                             cn(
@@ -233,7 +233,7 @@ function handleKeydown(event: KeyboardEvent): void {
         </div>
 
         <div v-if="expanded" class="cursor-auto space-y-3 pb-3 pl-16 pr-3" @click.stop>
-            <p class="whitespace-pre-wrap text-sm leading-relaxed">{{ finding.body }}</p>
+            <MarkdownText :text="finding.body" />
 
             <div v-if="finding.suggestion" class="space-y-1">
                 <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Suggested fix</p>

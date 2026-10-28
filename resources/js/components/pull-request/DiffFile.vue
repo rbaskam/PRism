@@ -3,16 +3,25 @@ import ExternalLink from '@/components/ExternalLink.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { PullRequest, PullRequestFile, PullRequestPermissions, ReplyDraft, ReviewThread } from '@/types';
+import type { PullRequest, PullRequestFile, PullRequestPermissions, ReplyDraft, ReviewFinding, ReviewThread } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { useIntersectionObserver } from '@vueuse/core';
-import { ChevronRight, ExternalLink as ExternalLinkIcon, FileWarning, MessageSquare, MessageSquarePlus, Sparkles } from 'lucide-vue-next';
+import {
+    ChevronRight,
+    ExternalLink as ExternalLinkIcon,
+    FileWarning,
+    MessageSquare,
+    MessageSquareCode,
+    MessageSquarePlus,
+    Sparkles,
+} from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AskClaudeComposer from './AskClaudeComposer.vue';
 import type { QuestionThread } from './code-questions';
 import CodeQuestionThread from './CodeQuestionThread.vue';
 import { countPatchLines, formatLineRange, lineKey, parsePatch, selectionFromRange, spansHunks } from './diff';
 import DiffTable from './DiffTable.vue';
+import InlineFinding from './InlineFinding.vue';
 import LineCommentComposer from './LineCommentComposer.vue';
 import ReviewThreadCard from './ReviewThreadCard.vue';
 
@@ -37,6 +46,8 @@ const props = defineProps<{
     threads: QuestionThread[];
     /** GitHub review threads on this file. */
     reviewThreads: ReviewThread[];
+    /** AI findings on this file that are still worth showing (not resolved or dismissed as not useful). */
+    findings: ReviewFinding[];
     replyDrafts: ReplyDraft[];
     /** Selected rows in this file, if the selection is here. */
     selection: { anchor: number; focus: number } | null;
@@ -106,7 +117,7 @@ const lines = computed(() => (props.file.patch ? parsePatch(props.file.patch) : 
 const indexByKey = computed(() => {
     const indexes = new Map<string, number>();
 
-    if (props.threads.length === 0 && props.reviewThreads.length === 0) {
+    if (props.threads.length === 0 && props.reviewThreads.length === 0 && props.findings.length === 0) {
         return indexes;
     }
 
@@ -154,6 +165,24 @@ const reviewThreadPlacement = computed(() => {
     return byIndex;
 });
 
+/** AI findings under the line they are on. Findings on lines outside the diff, or on the whole file, are listed above it. */
+const findingPlacement = computed(() => {
+    const byIndex = new Map<number, ReviewFinding[]>();
+    const orphans: ReviewFinding[] = [];
+
+    for (const finding of props.findings) {
+        const index = finding.line === null ? undefined : indexByKey.value.get(`RIGHT:${finding.line}`);
+
+        if (index === undefined) {
+            orphans.push(finding);
+        } else {
+            byIndex.set(index, [...(byIndex.get(index) ?? []), finding]);
+        }
+    }
+
+    return { byIndex, orphans };
+});
+
 const selectionDetails = computed(() => (props.selection ? selectionFromRange(lines.value, props.selection.anchor, props.selection.focus) : null));
 
 const selectedRange = computed<[number, number] | null>(() =>
@@ -177,7 +206,7 @@ const selectionSpansHunks = computed(() =>
 );
 
 const afterIndexes = computed(() => {
-    const indexes = new Set([...placement.value.byIndex.keys(), ...reviewThreadPlacement.value.keys()]);
+    const indexes = new Set([...placement.value.byIndex.keys(), ...reviewThreadPlacement.value.keys(), ...findingPlacement.value.byIndex.keys()]);
 
     if (selectionDetails.value) {
         indexes.add(selectionDetails.value.endIndex);
@@ -233,14 +262,28 @@ function toggleViewed(value: boolean): void {
                     <MessageSquare />
                     {{ reviewThreads.length }}
                 </Badge>
-                <Badge v-if="threads.length" variant="outline" class="px-1.5 text-[10px]" :title="`${threads.length} question thread(s)`">
+                <Badge
+                    v-if="findings.length"
+                    variant="outline"
+                    class="px-1.5 text-[10px]"
+                    :title="`${findings.length} AI finding${findings.length === 1 ? '' : 's'}`"
+                >
                     <Sparkles class="text-violet-500" />
+                    {{ findings.length }}
+                </Badge>
+                <Badge
+                    v-if="threads.length"
+                    variant="outline"
+                    class="px-1.5 text-[10px]"
+                    :title="`${threads.length} question${threads.length === 1 ? '' : 's'} for Claude`"
+                >
+                    <MessageSquareCode class="text-violet-500" />
                     {{ threads.length }}
                 </Badge>
-                <Badge :variant="statusStyles[file.status].badge" class="hidden px-1.5 text-[10px] sm:inline-flex">{{
+                <Badge :variant="statusStyles[file.status].badge" class="hidden px-1.5 text-[10px] xl:inline-flex">{{
                     statusStyles[file.status].label
                 }}</Badge>
-                <span class="hidden font-mono text-xs tabular-nums sm:inline">
+                <span class="hidden font-mono text-xs tabular-nums xl:inline">
                     <span class="text-emerald-600 dark:text-emerald-400">+{{ file.additions }}</span>
                     <span class="ml-1 text-red-600 dark:text-red-400">−{{ file.deletions }}</span>
                 </span>
@@ -260,13 +303,20 @@ function toggleViewed(value: boolean): void {
                             : 'hover:bg-muted'
                     "
                 >
-                    <Checkbox class="size-3.5" :checked="viewed" @update:checked="toggleViewed" />
+                    <Checkbox class="size-3.5" :checked="viewed" :aria-label="`Viewed ${file.path}`" @update:checked="toggleViewed" />
                     Viewed
                 </label>
             </div>
         </header>
 
         <div v-if="expanded">
+            <div v-if="findingPlacement.orphans.length" class="space-y-2 border-b bg-muted/30 px-3 py-3">
+                <p class="text-xs font-medium text-muted-foreground">
+                    {{ file.patch ? 'AI findings on lines outside the diff' : 'AI findings on this file' }}
+                </p>
+                <InlineFinding v-for="finding in findingPlacement.orphans" :key="finding.id" :finding="finding" />
+            </div>
+
             <div v-if="placement.orphans.length" class="space-y-2 border-b bg-muted/30 px-3 py-3">
                 <p class="text-xs font-medium text-muted-foreground">
                     {{ file.patch ? 'Questions on lines no longer in the diff' : 'Questions on this file' }}
@@ -365,6 +415,9 @@ function toggleViewed(value: boolean): void {
                                 Clear <kbd class="font-mono">Esc</kbd>
                             </button>
                         </div>
+                    </div>
+                    <div v-if="findingPlacement.byIndex.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
+                        <InlineFinding v-for="finding in findingPlacement.byIndex.get(index)" :key="finding.id" :finding="finding" />
                     </div>
                     <div v-if="reviewThreadPlacement.has(index)" class="space-y-2 border-y bg-muted/30 px-3 py-3">
                         <ReviewThreadCard

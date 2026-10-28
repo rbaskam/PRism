@@ -263,3 +263,17 @@ it('spells out which filters are hiding pull requests and removes them one at a 
         ->assertSee('Showing 6 of 6 pull requests')
         ->assertNoJavaScriptErrors();
 });
+
+it('says nothing needs you when your only pull requests were closed recently, and shows them on request', function () {
+    (new FakeGithub)->withPullRequests('acme/api', [FakeGithub::pullRequest(101, 'Add rate limiting', FakeGithub::requestedFrom('octocat'))])->fake();
+    syncFromGithub();
+    PullRequest::firstWhere('number', 101)->update(['state' => PullRequest::STATE_CLOSED, 'closed_at' => now()->subDay()]);
+
+    visit('/')
+        ->assertSee('Nothing needs you right now')
+        ->assertDontSee('No pull requests match your filters')
+        ->assertSee('1 pull request was closed or merged recently.')
+        ->click('Show recently closed')
+        ->assertSee('Add rate limiting')
+        ->assertNoJavaScriptErrors();
+});

@@ -127,3 +127,10 @@ it('shows the version and the changelog', function () {
         ->assertSee('Changelog')
         ->assertNoJavaScriptErrors();
 });
+
+it('marks Settings as the current page in the sidebar on every settings page', function () {
+    visit('/settings/notifications')
+        ->assertScript('[...document.querySelectorAll(\'a[aria-current="page"]\')].map((link) => link.textContent.trim()).join()', 'Notifications')
+        ->assertScript('document.querySelector(\'[data-sidebar="menu-button"][data-active="true"]\')?.textContent.trim()', 'Settings')
+        ->assertNoJavaScriptErrors();
+});

@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { severityStyles } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { PullRequest, PullRequestPermissions, ReviewFinding, SubmitReviewEvent } from '@/types';
 import { useForm } from '@inertiajs/vue3';
 import { Check, Loader2, MessageSquare, XCircle } from 'lucide-vue-next';
 import { computed, watch, type Component } from 'vue';
 import SettingsHint from './SettingsHint.vue';
+import SeverityBadge from './SeverityBadge.vue';
 import { failedWithFlash, findingLocation, pageVisit, refreshConversation } from './utils';
 
 /**
@@ -61,7 +60,7 @@ const eventOptions: EventOption[] = [
         label: 'Comment',
         description: 'Feedback without a verdict.',
         icon: MessageSquare,
-        selectedClass: 'border-foreground/60 bg-muted ring-1 ring-foreground/60',
+        selectedClass: 'border-primary bg-primary/5 ring-1 ring-primary',
         iconClass: 'text-foreground',
         submitClass: '',
     },
@@ -238,9 +237,7 @@ function handleKeydown(event: KeyboardEvent): void {
                                     />
                                     <span class="min-w-0 flex-1 space-y-0.5">
                                         <span class="flex items-start gap-2">
-                                            <Badge :variant="severityStyles[finding.severity].badge" class="mt-px px-1.5 text-[10px] uppercase">
-                                                {{ severityStyles[finding.severity].label }}
-                                            </Badge>
+                                            <SeverityBadge :severity="finding.severity" />
                                             <span class="text-sm leading-5">{{ finding.title }}</span>
                                         </span>
                                         <span v-if="findingLocation(finding)" class="block truncate font-mono text-xs text-muted-foreground">

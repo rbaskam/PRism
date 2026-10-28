@@ -23,8 +23,8 @@ export const attentionStyles: Record<ReviewAttention, AttentionStyle> = {
     none: { label: 'Not involved', badge: 'muted', border: 'border-l-transparent', dot: 'bg-muted-foreground/40' },
 };
 
-export const severityStyles: Record<FindingSeverity, { label: string; badge: 'danger' | 'warning' | 'info' | 'muted' }> = {
-    critical: { label: 'Critical', badge: 'danger' },
+export const severityStyles: Record<FindingSeverity, { label: string; badge: 'destructive' | 'danger' | 'warning' | 'info' | 'muted' }> = {
+    critical: { label: 'Critical', badge: 'destructive' },
     high: { label: 'High', badge: 'danger' },
     medium: { label: 'Medium', badge: 'warning' },
     low: { label: 'Low', badge: 'info' },

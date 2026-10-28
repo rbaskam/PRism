@@ -30,6 +30,7 @@ import type {
     SubmitReviewEvent,
 } from '@/types';
 import { Deferred, Head, router, usePage, usePoll } from '@inertiajs/vue3';
+import { useResizeObserver, useScroll } from '@vueuse/core';
 import { FileDiff, FileText, History, Loader2, MessageSquareCode, MessagesSquare, Sparkles, Wand2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -69,6 +70,19 @@ const tabs = ['findings', 'files', 'questions', 'changes', 'conversation', 'desc
 /** Alerts link straight to a tab, e.g. ?tab=conversation for a new comment. */
 const requestedTab = new URL(usePage().url, window.location.origin).searchParams.get('tab');
 const activeTab = ref(requestedTab !== null && tabs.includes(requestedTab) ? requestedTab : 'findings');
+
+/** In a narrow window the tabs scroll sideways; the edges fade where more tabs are hidden, so they can be found. */
+const tabScroller = ref<HTMLElement | null>(null);
+const { arrivedState: tabScrollEdges, measure: measureTabScroll } = useScroll(tabScroller);
+
+useResizeObserver(tabScroller, () => measureTabScroll());
+
+const tabScrollerMask = computed(() => {
+    const start = tabScrollEdges.left ? 'black' : 'transparent';
+    const end = tabScrollEdges.right ? 'black' : 'transparent';
+
+    return { maskImage: `linear-gradient(to right, ${start}, black 2rem, black calc(100% - 2rem), ${end})` };
+});
 
 /*
  * Diffs can be large, so they are only fetched from GitHub once the Files changed tab is opened. A full page reload
@@ -228,7 +242,7 @@ function openPostDialog(finding: ReviewFinding): void {
             </div>
 
             <Tabs v-model="activeTab" class="min-w-0">
-                <div class="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+                <div ref="tabScroller" class="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0" :style="tabScrollerMask">
                     <TabsList>
                         <TabsTrigger value="findings">
                             <Loader2 v-if="isReviewRunning" class="size-3.5 animate-spin text-violet-500" />
@@ -300,6 +314,7 @@ function openPostDialog(finding: ReviewFinding): void {
                         :pull-request="pullRequest"
                         :code-questions="codeQuestions"
                         :review-threads="conversation?.threads ?? []"
+                        :findings="findings"
                         :reply-drafts="replyDrafts"
                         :permissions="permissions"
                         :is-active="activeTab === 'files'"

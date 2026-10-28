@@ -15,7 +15,7 @@ const mainNavItems = computed<NavItem[]>(() => [
     { title: 'My pull requests', href: route('dashboard'), icon: LayoutGrid, badge: page.props.counts.awaiting_review },
     { title: 'Repositories', href: route('repositories.index'), icon: FolderGit2 },
     { title: 'Inbox', href: route('inbox.index'), icon: Inbox, badge: page.props.counts.unread_inbox },
-    { title: 'Settings', href: route('settings.github'), icon: Settings },
+    { title: 'Settings', href: route('settings'), icon: Settings },
 ]);
 </script>
 

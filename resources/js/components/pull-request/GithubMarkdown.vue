@@ -92,15 +92,11 @@ function handleClick(event: MouseEvent): void {
     font-size: 0.875rem;
 }
 
-.github-markdown {
-    --github-markdown-link: 37 99 235;
-}
-
 .github-markdown :deep(a) {
-    color: rgb(var(--github-markdown-link));
+    color: hsl(var(--primary));
     text-decoration: underline;
     text-underline-offset: 2px;
-    text-decoration-color: rgb(var(--github-markdown-link) / 0.35);
+    text-decoration-color: hsl(var(--primary) / 0.35);
     cursor: pointer;
 }
 
@@ -325,11 +321,5 @@ function handleClick(event: MouseEvent): void {
 
 .github-markdown :deep(.blob-code-marker-addition::before) {
     content: '+ ';
-}
-</style>
-
-<style>
-html.dark .github-markdown {
-    --github-markdown-link: 96 165 250;
 }
 </style>

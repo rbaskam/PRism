@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { severityStyles } from '@/lib/pull-requests';
 import type { ReviewFinding } from '@/types';
 import { useForm } from '@inertiajs/vue3';
 import { Loader2, MapPin, Send } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
+import SeverityBadge from './SeverityBadge.vue';
 import { failedWithFlash, findingLocation, pageVisit, refreshConversation } from './utils';
 
 /**
@@ -74,7 +73,7 @@ function handleKeydown(event: KeyboardEvent): void {
 
             <form v-if="finding" class="grid gap-3" @submit.prevent="submit">
                 <div class="flex flex-wrap items-center gap-2 text-sm">
-                    <Badge :variant="severityStyles[finding.severity].badge">{{ severityStyles[finding.severity].label }}</Badge>
+                    <SeverityBadge :severity="finding.severity" />
                     <span class="font-medium">{{ finding.title }}</span>
                 </div>
 

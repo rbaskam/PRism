@@ -155,8 +155,8 @@ function destroy(): void {
 
 <template>
     <div class="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
-        <div class="flex items-center gap-2 px-3 py-2" :class="{ 'border-b': open }">
-            <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left" :aria-expanded="open" @click="open = !open">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2" :class="{ 'border-b': open }">
+            <button type="button" class="flex min-w-0 grow basis-48 items-center gap-2 text-left" :aria-expanded="open" @click="open = !open">
                 <ChevronRight class="size-4 shrink-0 text-muted-foreground transition-transform" :class="{ 'rotate-90': open }" />
                 <Sparkles class="size-3.5 shrink-0 text-violet-500" />
                 <span v-if="showLocation" class="min-w-0 truncate font-mono text-xs" :title="root.location">{{ root.location }}</span>
@@ -166,7 +166,7 @@ function destroy(): void {
                 <span v-if="!open || showLocation" class="min-w-0 truncate text-xs text-muted-foreground">— {{ root.prompt }}</span>
             </button>
 
-            <div class="flex shrink-0 items-center gap-1.5">
+            <div class="ml-auto flex shrink-0 items-center gap-1.5">
                 <Badge v-if="thread.entries.length > 1" variant="outline" class="px-1.5 text-[10px]">
                     {{ thread.entries.length - 1 }} follow-up{{ thread.entries.length === 2 ? '' : 's' }}
                 </Badge>

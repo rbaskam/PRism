@@ -4,7 +4,16 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { sendJson } from '@/lib/http';
 import { cn } from '@/lib/utils';
-import type { CodeQuestion, PullRequest, PullRequestFile, PullRequestFiles, PullRequestPermissions, ReplyDraft, ReviewThread } from '@/types';
+import type {
+    CodeQuestion,
+    PullRequest,
+    PullRequestFile,
+    PullRequestFiles,
+    PullRequestPermissions,
+    ReplyDraft,
+    ReviewFinding,
+    ReviewThread,
+} from '@/types';
 import { router } from '@inertiajs/vue3';
 import { useElementBounding, useEventListener } from '@vueuse/core';
 import {
@@ -15,6 +24,7 @@ import {
     Info,
     ListTree,
     Loader2,
+    MessageSquareCode,
     MessageSquarePlus,
     RotateCcw,
     Search,
@@ -35,6 +45,8 @@ const props = defineProps<{
     codeQuestions: CodeQuestion[];
     /** GitHub review threads, from the conversation once it has loaded. */
     reviewThreads: ReviewThread[];
+    /** AI findings, shown under the lines they are about. */
+    findings: ReviewFinding[];
     replyDrafts: ReplyDraft[];
     permissions: PullRequestPermissions;
     /** Whether the Files changed tab is showing, so keyboard shortcuts only apply there. */
@@ -44,6 +56,7 @@ const props = defineProps<{
 
 const NO_THREADS: QuestionThread[] = [];
 const NO_REVIEW_THREADS: ReviewThread[] = [];
+const NO_FINDINGS: ReviewFinding[] = [];
 
 const viewed = reactive<Record<string, boolean>>({});
 const changedSinceViewed = reactive<Record<string, boolean>>({});
@@ -108,6 +121,19 @@ const visibleFiles = computed(() => {
 
 const threads = computed(() => groupQuestionThreads(props.codeQuestions));
 const threadsForPath = computed(() => threadsByPath(threads.value));
+
+/** Findings worth showing in the diff: resolved ones and ones marked not useful stay in the AI findings tab. */
+const findingsForPath = computed(() => {
+    const byPath = new Map<string, ReviewFinding[]>();
+
+    for (const finding of props.findings) {
+        if (finding.path && !finding.is_resolved && finding.status !== 'not_useful') {
+            byPath.set(finding.path, [...(byPath.get(finding.path) ?? []), finding]);
+        }
+    }
+
+    return byPath;
+});
 const reviewThreadsForPath = computed(() => {
     const byPath = new Map<string, ReviewThread[]>();
 
@@ -316,7 +342,7 @@ watch(
 
             if (row) {
                 row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                row.animate([{ backgroundColor: 'rgb(139 92 246 / 0.35)' }, { backgroundColor: 'transparent' }], {
+                row.animate([{ backgroundColor: 'hsl(var(--primary) / 0.3)' }, { backgroundColor: 'transparent' }], {
                     duration: 1800,
                     easing: 'ease-out',
                 });
@@ -481,10 +507,19 @@ watch(
                     </span>
                     <span class="min-w-0 flex-1 truncate font-mono" :class="{ 'text-muted-foreground': viewed[file.path] }">{{ file.path }}</span>
                     <span
-                        v-if="threadsForPath.get(file.path)?.length"
+                        v-if="findingsForPath.get(file.path)?.length"
                         class="inline-flex shrink-0 items-center gap-0.5 text-violet-600 dark:text-violet-400"
+                        :title="`${findingsForPath.get(file.path)?.length} AI finding(s)`"
                     >
                         <Sparkles class="size-3" />
+                        {{ findingsForPath.get(file.path)?.length }}
+                    </span>
+                    <span
+                        v-if="threadsForPath.get(file.path)?.length"
+                        class="inline-flex shrink-0 items-center gap-0.5 text-violet-600 dark:text-violet-400"
+                        :title="`${threadsForPath.get(file.path)?.length} question(s) for Claude`"
+                    >
+                        <MessageSquareCode class="size-3" />
                         {{ threadsForPath.get(file.path)?.length }}
                     </span>
                     <span class="shrink-0 font-mono tabular-nums">
@@ -510,6 +545,7 @@ watch(
                     :force-render="forceRendered[file.path] ?? false"
                     :threads="threadsForPath.get(file.path) ?? NO_THREADS"
                     :review-threads="reviewThreadsForPath.get(file.path) ?? NO_REVIEW_THREADS"
+                    :findings="findingsForPath.get(file.path) ?? NO_FINDINGS"
                     :reply-drafts="replyDrafts"
                     :selection="selection?.path === file.path ? selection : null"
                     :composer="selection?.path === file.path ? composer : null"

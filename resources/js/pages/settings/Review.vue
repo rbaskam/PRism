@@ -229,12 +229,8 @@ function save(): void {
                     <HeadingSmall :title="section.title" :description="section.description" />
 
                     <div class="divide-y rounded-lg border">
-                        <div
-                            v-for="toggle in section.toggles"
-                            :key="toggle.key"
-                            :class="cn('flex items-start justify-between gap-4 p-4 transition-opacity', isUnavailable(toggle) && 'opacity-50')"
-                        >
-                            <div class="space-y-1">
+                        <div v-for="toggle in section.toggles" :key="toggle.key" class="flex items-start justify-between gap-4 p-4">
+                            <div :class="cn('space-y-1 transition-opacity', isUnavailable(toggle) && 'opacity-60')">
                                 <Label :for="toggle.key" class="cursor-pointer">{{ toggle.label }}</Label>
                                 <p class="text-sm text-muted-foreground">{{ toggle.description }}</p>
                                 <p

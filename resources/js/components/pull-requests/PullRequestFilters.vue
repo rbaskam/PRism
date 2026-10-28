@@ -8,7 +8,7 @@ import {
     type RequestedFilter,
 } from '@/composables/usePullRequestFilters';
 import { attentionStyles } from '@/lib/pull-requests';
-import { cn } from '@/lib/utils';
+import { cn, filterChipClass } from '@/lib/utils';
 import type { ReviewAttention } from '@/types';
 import { onKeyStroke } from '@vueuse/core';
 import { AlarmClock, Archive, CircleX, EyeOff, Search, Sparkles, X } from 'lucide-vue-next';
@@ -64,13 +64,6 @@ const toggles = [
 
 /** A drop-down that is filtering the list gets the accent border, so it stands out from one left on "All". */
 const activeSelectClass = '[&_select]:border-primary [&_select]:ring-1 [&_select]:ring-primary';
-
-function chipClass(isActive: boolean): string {
-    return cn(
-        'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
-        isActive ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-background text-foreground hover:bg-accent',
-    );
-}
 
 function isTypingInField(target: EventTarget | null): boolean {
     return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
@@ -163,14 +156,14 @@ function onSearchEscape(event: KeyboardEvent): void {
             </NativeSelect>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
             <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by status">
                 <button
                     v-for="option in attentionFilterOptions"
                     :key="option.value"
                     type="button"
                     :aria-pressed="filters.attention.includes(option.value)"
-                    :class="chipClass(filters.attention.includes(option.value))"
+                    :class="filterChipClass(filters.attention.includes(option.value))"
                     :title="attentionStyles[option.value].label"
                     @click="toggleAttention(option.value)"
                 >
@@ -185,15 +178,13 @@ function onSearchEscape(event: KeyboardEvent): void {
                 </button>
             </div>
 
-            <span class="hidden h-5 w-px bg-border md:block" aria-hidden="true" />
-
             <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="More filters">
                 <button
                     v-for="toggle in toggles"
                     :key="toggle.key"
                     type="button"
                     :aria-pressed="filters[toggle.key]"
-                    :class="chipClass(filters[toggle.key])"
+                    :class="filterChipClass(filters[toggle.key])"
                     @click="update(toggle.key, !filters[toggle.key])"
                 >
                     <component :is="toggle.icon" />
@@ -203,7 +194,7 @@ function onSearchEscape(event: KeyboardEvent): void {
                     v-if="snoozedCount > 0 || filters.showSnoozed"
                     type="button"
                     :aria-pressed="filters.showSnoozed"
-                    :class="chipClass(filters.showSnoozed)"
+                    :class="filterChipClass(filters.showSnoozed)"
                     title="Also show pull requests you snoozed"
                     @click="update('showSnoozed', !filters.showSnoozed)"
                 >

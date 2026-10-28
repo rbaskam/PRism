@@ -27,17 +27,20 @@ function isActive(item: NavItem): boolean {
     <div class="px-4 py-6">
         <Heading title="Settings" description="Connections, the AI review prompt and what the app may write to GitHub" />
 
-        <div class="flex flex-col space-y-8 md:space-y-0 lg:flex-row lg:space-x-12 lg:space-y-0">
+        <div class="flex flex-col lg:flex-row lg:space-x-12">
             <aside class="w-full max-w-xl lg:w-48">
                 <nav class="flex flex-col space-x-0 space-y-1">
                     <Button
                         v-for="item in sidebarNavItems"
                         :key="item.href"
                         variant="ghost"
-                        :class="['w-full justify-start', { 'bg-muted': isActive(item) }]"
+                        :class="[
+                            'w-full justify-start',
+                            { 'bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent': isActive(item) },
+                        ]"
                         as-child
                     >
-                        <Link :href="item.href">
+                        <Link :href="item.href" :aria-current="isActive(item) ? 'page' : undefined">
                             <component :is="item.icon" />
                             {{ item.title }}
                         </Link>
@@ -45,9 +48,9 @@ function isActive(item: NavItem): boolean {
                 </nav>
             </aside>
 
-            <Separator class="my-6 md:hidden" />
+            <Separator class="my-6 lg:hidden" />
 
-            <div class="flex-1 md:max-w-3xl">
+            <div class="min-w-0 flex-1 lg:max-w-3xl">
                 <section class="max-w-3xl space-y-12">
                     <slot />
                 </section>

@@ -76,6 +76,26 @@ This applies to every file, test, fixture and doc, every commit message, pull re
 - Use fixed colours only where the colour carries meaning that must not change with the accent: status and severity, CI results, diff lines, GitHub label colours. Give each one a `dark:` variant in the existing style, e.g. `border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200`. Prefer the `Badge` variants (`success`, `danger`, `warning`, `info`, `muted`) and the shared styles in `resources/js/lib/pull-requests.ts` and `resources/js/components/pull-request/utils.ts` over new combinations.
 - A new colour token goes in both `:root` and `.dark`, and in every `[data-accent]` block if it should follow the accent. A new accent needs the `Accent` type in `useAppearance.ts`, a swatch in `resources/js/components/AccentPicker.vue`, and both its light and dark blocks in `app.css`.
 - Before finishing a UI change, check it in light mode, in dark mode and with at least one accent other than Neutral. Text must stay readable, nothing may disappear into its background, and focus rings, primary buttons, switches and selected items must take the accent colour. Say in the pull request if you couldn't check it visually.
+- An accent's `--primary` keeps at least 4.5:1 contrast with its `--primary-foreground` (button text) and 3:1 with the page background (focus rings, switches), in both modes. Check any new accent or token change against both. Dark-mode accents use a lighter `--primary` with dark text, like Blue and Green.
+
+## Design conventions: keep the app consistent
+
+- Every page must work at the desktop window's minimum width of 960px, which leaves about 700px beside the sidebar:
+  - Flex children that hold text get `min-w-0`.
+  - A title beside an action group gets a real basis (`grow basis-96`), so the actions wrap below it instead of squeezing it.
+  - A row that can't wrap scrolls sideways and fades at the edge that hides content (see the pull request tabs).
+  - Breakpoints are based on the window, not the content area. Pick `xl:` rather than `sm:` when hiding secondary details beside the sidebar.
+- Selected and active states take the accent: `bg-primary`/`text-primary-foreground` for a filled state, or `border-primary ring-1 ring-primary bg-primary/5` for a selected card. Never use `bg-foreground`/`text-background` or a fixed colour for "selected".
+- Filter chips use `filterChipClass()` from `resources/js/lib/utils.ts`. Don't style a new chip by hand.
+- Use the shared pieces before writing new markup:
+  - `SeverityBadge` for finding severities (Critical is solid, so it stands apart from High).
+  - `Badge` variants for statuses.
+  - `EmptyState` for empty lists.
+  - `MarkdownText` for anything Claude writes (summaries, finding bodies, answers), never plain text.
+- An empty list says why it's empty. When filters hide everything, say so and offer to clear them. When there's nothing at all, show the page's own empty state, not empty filters.
+- Every interactive element shows keyboard focus in the accent colour. Use `focus-visible:ring-2 focus-visible:ring-ring`, or leave the global `:focus-visible` outline in `app.css` in place. Never remove a focus style without replacing it.
+- Icon-only buttons need an `aria-label`, and a `title` when a tooltip helps. Meaning shown only by a dot or a colour needs `sr-only` text: `aria-label` on a plain `span` is not read out. Error messages use `role="alert"`.
+- Rows of the same kind look the same everywhere: thread, question and finding cards under diff lines share one header layout (chevron, title that truncates, actions on the right that wrap below when narrow).
 
 === foundation rules ===
 
