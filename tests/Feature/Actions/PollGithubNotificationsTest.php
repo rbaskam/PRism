@@ -195,7 +195,11 @@ it('closes a pull request merged on GitHub as soon as its notification updates, 
     ]);
     Http::fake([
         'api.github.com/notifications*' => Http::response([githubNotificationThread('100', 'review_requested', 12, '2026-10-14T09:00:00Z')]),
-        'api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([])),
+        'api.github.com/graphql' => Http::sequence()
+            ->push(githubOpenPullRequestsResponse([]))
+            ->push(['data' => ['nodes' => [
+                ['id' => $pullRequest->node_id, 'state' => 'MERGED', 'closedAt' => '2026-10-14T09:00:00Z', 'mergedAt' => '2026-10-14T09:00:00Z'],
+            ]]]),
         '*/api/*' => Http::response(),
     ]);
 
@@ -203,7 +207,8 @@ it('closes a pull request merged on GitHub as soon as its notification updates, 
 
     expect($pullRequest->fresh())
         ->state->toBe(PullRequest::STATE_CLOSED)
-        ->closed_at->not->toBeNull();
+        ->closed_at->not->toBeNull()
+        ->merged_at->not->toBeNull();
 });
 
 it('leaves repositories alone when nothing changed on their pull requests', function () {

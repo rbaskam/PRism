@@ -30,6 +30,8 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 
 const props = defineProps<{
     account: GithubUser | null;
+    /** Settings → GitHub sends the user here to reconnect; connecting then goes back to Settings instead of on to step 2. */
+    onboardingCompleted: boolean;
     githubCliInstalled: boolean;
     deviceFlowAvailable: boolean;
     requiredScopes: string[];
@@ -58,7 +60,12 @@ const { getInitials } = useInitials();
 /** Poll failures in a row (e.g. a network blip) tolerated before giving up. */
 const MAX_POLL_FAILURES = 3;
 
-const choosingAccount = ref(props.account === null);
+const isReconnecting = computed(() => props.onboardingCompleted && props.account !== null);
+const pageTitle = computed(() => (isReconnecting.value ? 'Reconnect GitHub' : 'Connect GitHub'));
+const nextRoute = computed(() => (props.onboardingCompleted ? route('settings.github') : route('onboarding.repositories')));
+
+/** Reconnecting goes straight to the ways to sign in: the user already chose to connect again. */
+const choosingAccount = ref(props.account === null || props.onboardingCompleted);
 const tokenOpen = ref(!props.deviceFlowAvailable && !props.githubCliInstalled);
 
 const tokenUrl = computed(() => `https://github.com/settings/tokens/new?scopes=${props.requiredScopes.join(',')}&description=PRism`);
@@ -183,7 +190,7 @@ async function poll(): Promise<void> {
     switch (result.status) {
         case 'authorized':
             deviceState.value = 'authorized';
-            router.visit(result.redirect ?? route('onboarding.repositories'));
+            router.visit(result.redirect ?? nextRoute.value);
 
             return;
         case 'expired':
@@ -217,11 +224,16 @@ onBeforeUnmount(stopPolling);
 
 <template>
     <OnboardingLayout
-        :step="1"
-        title="Connect GitHub"
-        :description="`${$page.props.name} reads your pull requests, review requests and notifications from GitHub. Your token is stored encrypted on this computer.`"
+        :step="onboardingCompleted ? undefined : 1"
+        :title="pageTitle"
+        :description="
+            isReconnecting
+                ? `Sign in again to give ${$page.props.name} a new token, or connect a different GitHub account. Your token is stored encrypted on this computer.`
+                : `${$page.props.name} reads your pull requests, review requests and notifications from GitHub. Your token is stored encrypted on this computer.`
+        "
+        :back="isReconnecting ? { href: route('settings.github'), label: 'Back to Settings' } : undefined"
     >
-        <Head title="Connect GitHub" />
+        <Head :title="pageTitle" />
 
         <div v-if="account && !choosingAccount" class="space-y-6">
             <div class="flex items-center gap-4 rounded-lg border p-4">
@@ -248,6 +260,22 @@ onBeforeUnmount(stopPolling);
         </div>
 
         <div v-else class="space-y-4">
+            <div v-if="isReconnecting && account" class="flex items-center gap-3 rounded-lg border bg-muted/40 p-4">
+                <Avatar class="size-9">
+                    <AvatarImage v-if="account.avatar_url" :src="account.avatar_url" :alt="account.login" />
+                    <AvatarFallback>{{ getInitials(account.name ?? account.login) }}</AvatarFallback>
+                </Avatar>
+                <div class="min-w-0 flex-1 text-sm">
+                    <p class="truncate">
+                        Connected as <span class="font-medium">@{{ account.login }}</span>
+                    </p>
+                    <p class="text-muted-foreground">
+                        Connecting a different account clears the notifications and review requests of @{{ account.login }}. Tracked repositories and
+                        AI reviews stay.
+                    </p>
+                </div>
+            </div>
+
             <section v-if="deviceFlowAvailable" class="rounded-lg border p-5">
                 <div class="flex items-start gap-3">
                     <div class="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
@@ -310,7 +338,7 @@ onBeforeUnmount(stopPolling);
                         class="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400"
                     >
                         <Check class="size-4" />
-                        Connected. Loading your repositories…
+                        {{ onboardingCompleted ? 'Connected. Going back to Settings…' : 'Connected. Loading your repositories…' }}
                     </p>
 
                     <div v-else-if="deviceState === 'failed'" class="space-y-3">
@@ -402,7 +430,10 @@ onBeforeUnmount(stopPolling);
             </Collapsible>
 
             <div v-if="account" class="flex justify-end">
-                <Button variant="ghost" @click="choosingAccount = false">Keep using @{{ account.login }}</Button>
+                <Button v-if="isReconnecting" variant="ghost" as-child>
+                    <Link :href="route('settings.github')">Keep using @{{ account.login }}</Link>
+                </Button>
+                <Button v-else variant="ghost" @click="choosingAccount = false">Keep using @{{ account.login }}</Button>
             </div>
         </div>
     </OnboardingLayout>

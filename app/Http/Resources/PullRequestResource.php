@@ -61,6 +61,7 @@ class PullRequestResource extends JsonResource
             'created_at' => $this->github_created_at?->toIso8601String(),
             'updated_at' => $this->github_updated_at?->toIso8601String(),
             'closed_at' => $this->closed_at?->toIso8601String(),
+            'merged_at' => $this->merged_at?->toIso8601String(),
             'synced_at' => $this->synced_at?->toIso8601String(),
         ];
     }

@@ -138,6 +138,7 @@ export interface PullRequest {
     number: number;
     title: string;
     html_url: string;
+    /** A merged pull request is closed too, with merged_at set. */
     state: 'open' | 'closed';
     is_draft: boolean;
     author_login: string | null;
@@ -175,6 +176,7 @@ export interface PullRequest {
     created_at: string | null;
     updated_at: string | null;
     closed_at: string | null;
+    merged_at: string | null;
     synced_at: string | null;
 }
 

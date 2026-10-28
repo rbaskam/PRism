@@ -277,3 +277,30 @@ it('says nothing needs you when your only pull requests were closed recently, an
         ->assertSee('Add rate limiting')
         ->assertNoJavaScriptErrors();
 });
+
+it('shows which recently closed pull requests were merged, there and on the pull request', function () {
+    $github = (new FakeGithub)
+        ->withPullRequests('acme/api', [
+            FakeGithub::pullRequest(101, 'Add rate limiting', FakeGithub::reviewedBy('octocat', 'APPROVED')),
+            FakeGithub::pullRequest(102, 'Fix login redirect', ['author' => ['login' => 'octocat', 'avatarUrl' => null]]),
+        ])
+        ->fake();
+    syncFromGithub();
+    $github->merge('acme/api', 101)->close('acme/api', 102);
+    syncFromGithub();
+
+    visit('/')
+        ->assertSee('2 pull requests were closed or merged recently.')
+        ->click('Show recently closed')
+        ->assertSeeIn('div.group:has(a[title="Add rate limiting"])', 'Merged')
+        ->assertDontSeeIn('div.group:has(a[title="Add rate limiting"])', 'Closed')
+        ->assertSeeIn('div.group:has(a[title="Fix login redirect"])', 'Closed')
+        ->assertDontSeeIn('div.group:has(a[title="Fix login redirect"])', 'Merged')
+        ->click('a[title="Add rate limiting"]')
+        ->waitForText('Review history')
+        ->assertSeeIn('header:has(h1)', 'Merged')
+        ->assertNoJavaScriptErrors();
+
+    expect(PullRequest::firstWhere('number', 101)->merged_at)->not->toBeNull()
+        ->and(PullRequest::firstWhere('number', 102)->merged_at)->toBeNull();
+});

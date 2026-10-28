@@ -6,11 +6,15 @@ use App\Models\GithubAccount;
 use App\Models\PullRequest;
 use App\Models\Repository;
 use App\Services\Github\GithubClient;
+use App\Services\Github\GithubException;
 use App\Services\Github\PullRequestMapper;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * Pulls a repository's open pull requests from GitHub and closes any that are no longer open.
+ * Pulls a repository's open pull requests from GitHub and closes any that are no longer open, noting which were merged.
  */
 class SyncRepositoryPullRequests
 {
@@ -49,13 +53,46 @@ class SyncRepositoryPullRequests
             }
         }
 
-        $repository->pullRequests()
-            ->open()
-            ->whereNotIn('id', $seenIds)
-            ->update(['state' => PullRequest::STATE_CLOSED, 'closed_at' => now(), 'is_review_requested_from_me' => false]);
+        $this->closeThoseNoLongerOpen($repository->pullRequests()->open()->whereNotIn('id', $seenIds)->get());
 
         $repository->update(['synced_at' => now()]);
 
         return ['newly_requested' => $newlyRequested, 'newly_opened' => $newlyOpened];
+    }
+
+    /**
+     * Close pull requests that left the open list, asking GitHub whether each one was merged or closed. One that
+     * GitHub still reports as open (it moved while the list was being paged through) is left for the next sync. When
+     * GitHub can't be asked, they are closed now and show as closed rather than merged.
+     *
+     * @param  Collection<int, PullRequest>  $pullRequests
+     */
+    private function closeThoseNoLongerOpen(Collection $pullRequests): void
+    {
+        if ($pullRequests->isEmpty()) {
+            return;
+        }
+
+        try {
+            $states = $this->github->pullRequestStates($pullRequests->pluck('node_id')->all());
+        } catch (RequestException|ConnectionException|GithubException $exception) {
+            report($exception);
+            $states = [];
+        }
+
+        foreach ($pullRequests as $pullRequest) {
+            $state = $states[$pullRequest->node_id] ?? null;
+
+            if ($state !== null && $state['state'] === 'OPEN') {
+                continue;
+            }
+
+            $pullRequest->update([
+                'state' => PullRequest::STATE_CLOSED,
+                'closed_at' => isset($state['closed_at']) ? Carbon::parse($state['closed_at']) : now(),
+                'merged_at' => isset($state['merged_at']) ? Carbon::parse($state['merged_at']) : null,
+                'is_review_requested_from_me' => false,
+            ]);
+        }
     }
 }

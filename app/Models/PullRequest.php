@@ -49,6 +49,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $github_created_at
  * @property Carbon|null $github_updated_at
  * @property Carbon|null $closed_at
+ * @property Carbon|null $merged_at
  * @property Carbon|null $synced_at
  * @property array{threads: list<array<string, mixed>>, comments: list<array<string, mixed>>, reviews: list<array<string, mixed>>}|null $conversation
  * @property Carbon|null $conversation_synced_at
@@ -111,6 +112,7 @@ class PullRequest extends Model
         'github_created_at',
         'github_updated_at',
         'closed_at',
+        'merged_at',
         'synced_at',
         'conversation',
         'conversation_synced_at',
@@ -140,6 +142,7 @@ class PullRequest extends Model
             'github_created_at' => 'datetime',
             'github_updated_at' => 'datetime',
             'closed_at' => 'datetime',
+            'merged_at' => 'datetime',
             'synced_at' => 'datetime',
             'conversation' => 'array',
             'conversation_synced_at' => 'datetime',

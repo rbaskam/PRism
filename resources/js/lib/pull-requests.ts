@@ -52,6 +52,15 @@ export function checksLabel(state: string | null): { label: string; badge: 'succ
     }
 }
 
+/** "Merged" or "Closed" for a pull request that is no longer open, with its Badge variant; null while it's open. */
+export function closedStateLabel(pullRequest: Pick<PullRequest, 'state' | 'merged_at'>): { label: string; badge: 'merged' | 'muted' } | null {
+    if (pullRequest.state === 'open') {
+        return null;
+    }
+
+    return pullRequest.merged_at ? { label: 'Merged', badge: 'merged' } : { label: 'Closed', badge: 'muted' };
+}
+
 /** "owner/repo#123" */
 export function pullRequestReference(pullRequest: PullRequest): string {
     return `${pullRequest.repository?.full_name ?? ''}#${pullRequest.number}`;

@@ -93,6 +93,7 @@ function githubPullRequestNode(array $overrides = []): array
         'createdAt' => '2026-10-01T10:00:00Z',
         'updatedAt' => '2026-10-02T10:00:00Z',
         'closedAt' => null,
+        'mergedAt' => null,
         'additions' => 10,
         'deletions' => 2,
         'changedFiles' => 1,

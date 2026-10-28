@@ -33,6 +33,12 @@ class AppSettings
 
     public const GITHUB_CLI_PATH = 'github.cli_path';
 
+    /**
+     * The GitHub user id of the account connected last, kept after disconnecting so connecting a different account
+     * can be told apart from reconnecting the same one.
+     */
+    public const GITHUB_ACCOUNT_ID = 'github.account_id';
+
     public const LOCAL_CODE_FOLDER = 'local.code_folder';
 
     public const ALLOW_CODE_CHANGES = 'review.allow_code_changes';

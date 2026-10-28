@@ -4,7 +4,7 @@ import AttentionBadge from '@/components/pull-requests/AttentionBadge.vue';
 import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { attentionStyles, checksLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
+import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { PullRequest } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
@@ -45,6 +45,7 @@ const numberFormat = new Intl.NumberFormat();
 
 const style = computed(() => attentionStyles[props.pullRequest.attention]);
 const checks = computed(() => checksLabel(props.pullRequest.checks_state));
+const closedState = computed(() => closedStateLabel(props.pullRequest));
 const checksIcon = computed(() => {
     switch (checks.value?.badge) {
         case 'success':
@@ -154,7 +155,7 @@ const hasStatusBadges = computed(
                     >
                         {{ pullRequest.title }}
                     </Link>
-                    <Badge v-if="pullRequest.state !== 'open'" variant="muted" class="px-1.5 py-0 text-[11px]">Closed</Badge>
+                    <Badge v-if="closedState" :variant="closedState.badge" class="px-1.5 py-0 text-[11px]">{{ closedState.label }}</Badge>
                     <Badge v-if="pullRequest.is_draft" variant="outline" class="px-1.5 py-0 text-[11px] text-muted-foreground">Draft</Badge>
                     <span
                         v-for="label in visibleLabels"

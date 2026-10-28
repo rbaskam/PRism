@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\NotificationSound;
+use App\Models\GithubAccount;
 use App\Models\PullRequest;
 use App\Models\Repository;
 use App\Services\AppSettings;
@@ -47,6 +48,32 @@ it('tracks a repository picked from your GitHub repositories and syncs its pull 
 
     expect(Repository::query()->tracked()->pluck('full_name')->sort()->values()->all())->toBe(['acme/api', 'acme/web'])
         ->and(PullRequest::query()->pluck('title')->all())->toBe(['Redesign settings']);
+});
+
+it('reconnects GitHub and comes back to the settings without going through setup again', function () {
+    GithubAccount::current()->update(['github_id' => FakeGithub::USER_ID]);
+    trackedRepository('acme/api');
+    (new FakeGithub)->fake();
+
+    visit('/settings/github')
+        ->click('Reconnect')
+        ->waitForText('Reconnect GitHub')
+        ->assertPathIs('/onboarding/github')
+        ->assertMissing('[aria-label="Setup steps"]')
+        ->assertSee('Connected as @octocat')
+        ->click('Back to Settings')
+        ->waitForText('Tracked repositories')
+        ->assertPathIs('/settings/github')
+        ->click('Reconnect')
+        ->waitForText('Reconnect GitHub')
+        ->fill('#github-token', 'ghp_test')
+        ->click('internal:role=button[name="Connect"s]')
+        ->waitForText('Reconnected to GitHub as @octocat.')
+        ->assertPathIs('/settings/github')
+        ->assertSee('Tracked repositories')
+        ->assertNoJavaScriptErrors();
+
+    expect(GithubAccount::sole()->token)->toBe('ghp_test');
 });
 
 it('says when Claude Code is not installed', function () {

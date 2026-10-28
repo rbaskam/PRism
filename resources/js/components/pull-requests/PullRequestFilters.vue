@@ -56,10 +56,10 @@ const teamOptions = computed<string[]>(() => {
 });
 
 const toggles = [
-    { key: 'hideDrafts', label: 'Hide drafts', icon: EyeOff },
-    { key: 'onlyWithFindings', label: 'With AI findings', icon: Sparkles },
-    { key: 'onlyFailingChecks', label: 'Failing checks', icon: CircleX },
-    { key: 'showClosed', label: 'Recently closed', icon: Archive },
+    { key: 'hideDrafts', label: 'Hide drafts', icon: EyeOff, title: undefined },
+    { key: 'onlyWithFindings', label: 'With AI findings', icon: Sparkles, title: undefined },
+    { key: 'onlyFailingChecks', label: 'Failing checks', icon: CircleX, title: undefined },
+    { key: 'showClosed', label: 'Recently closed', icon: Archive, title: 'Also show pull requests merged or closed in the last two weeks' },
 ] as const;
 
 /** A drop-down that is filtering the list gets the accent border, so it stands out from one left on "All". */
@@ -185,6 +185,7 @@ function onSearchEscape(event: KeyboardEvent): void {
                     type="button"
                     :aria-pressed="filters[toggle.key]"
                     :class="filterChipClass(filters[toggle.key])"
+                    :title="toggle.title"
                     @click="update(toggle.key, !filters[toggle.key])"
                 >
                     <component :is="toggle.icon" />
