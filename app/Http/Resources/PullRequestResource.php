@@ -58,6 +58,7 @@ class PullRequestResource extends JsonResource
             'is_assigned_to_me' => $this->is_assigned_to_me,
             'open_findings_count' => $this->whenCounted('open_findings_count'),
             'unread_findings_count' => $this->whenCounted('unread_findings_count'),
+            'has_unseen_findings' => $this->hasUnseenFindings(),
             'latest_review_run' => ReviewRunResource::make($this->whenLoaded('latestReviewRun')),
             'created_at' => $this->github_created_at?->toIso8601String(),
             'updated_at' => $this->github_updated_at?->toIso8601String(),

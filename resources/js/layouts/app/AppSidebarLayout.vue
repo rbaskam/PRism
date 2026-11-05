@@ -19,8 +19,9 @@ withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
 });
 
-// Keep the sidebar badges (awaiting reviews, unread inbox, running AI reviews) fresh.
-usePoll(30000, { only: ['counts'] });
+// Keep the sidebar badges (awaiting reviews, unread inbox, running AI reviews) and new AI findings on recently viewed
+// pull requests fresh.
+usePoll(30000, { only: ['counts', 'recentPullRequests'] });
 
 // Clicking, typing and scrolling count as using the app, so the app lock doesn't kick in while it's in use.
 useActivityHeartbeat();

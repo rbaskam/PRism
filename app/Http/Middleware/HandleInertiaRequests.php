@@ -108,7 +108,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * The pull requests the user opened most recently, for the sidebar's "Recently viewed" list.
      *
-     * @return list<array{id: int, reference: string, title: string, state: string, is_draft: bool, merged_at: string|null}>
+     * @return list<array{id: int, reference: string, title: string, state: string, is_draft: bool, merged_at: string|null, has_unseen_findings: bool}>
      */
     private function recentPullRequests(): array
     {
@@ -124,6 +124,7 @@ class HandleInertiaRequests extends Middleware
                 'state' => $pullRequest->state,
                 'is_draft' => $pullRequest->is_draft,
                 'merged_at' => $pullRequest->merged_at?->toIso8601String(),
+                'has_unseen_findings' => $pullRequest->hasUnseenFindings(),
             ])
             ->values()
             ->all();

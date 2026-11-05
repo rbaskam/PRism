@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UnseenFindingsDot from '@/components/pull-requests/UnseenFindingsDot.vue';
 import { SidebarGroup, SidebarGroupAction, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { sendJson } from '@/lib/http';
 import { closedStateLabel, pullRequestStateIcon } from '@/lib/pull-requests';
@@ -9,7 +10,8 @@ import { computed, ref } from 'vue';
 
 /**
  * The pull requests the user opened most recently, so they can get back to ones they started reviewing without
- * searching for them again. Hidden while the sidebar is collapsed to icons, where they'd all look the same.
+ * searching for them again. A dot marks the ones an AI review found something new in since. Hidden while the sidebar
+ * is collapsed to icons, where they'd all look the same.
  */
 
 const page = usePage<SharedData>();
@@ -45,9 +47,10 @@ async function clear(): Promise<void> {
 </script>
 
 <template>
-    <SidebarGroup v-if="pullRequests.length" class="group-data-[collapsible=icon]:hidden" data-recent-pull-requests>
+    <SidebarGroup class="group-data-[collapsible=icon]:hidden" data-recent-pull-requests>
         <SidebarGroupLabel>Recently viewed</SidebarGroupLabel>
         <SidebarGroupAction
+            v-if="pullRequests.length"
             as="button"
             type="button"
             :disabled="clearing"
@@ -58,7 +61,7 @@ async function clear(): Promise<void> {
         >
             <X />
         </SidebarGroupAction>
-        <SidebarMenu>
+        <SidebarMenu v-if="pullRequests.length">
             <SidebarMenuItem v-for="pullRequest in pullRequests" :key="pullRequest.id">
                 <SidebarMenuButton as-child class="h-auto py-1.5" :is-active="isActive(pullRequest)">
                     <Link
@@ -67,15 +70,17 @@ async function clear(): Promise<void> {
                         :aria-current="isActive(pullRequest) ? 'page' : undefined"
                     >
                         <component :is="pullRequestStateIcon(pullRequest)" class="mt-0.5 self-start text-muted-foreground" aria-hidden="true" />
-                        <span class="flex min-w-0 flex-col">
+                        <span class="flex min-w-0 flex-1 flex-col">
                             <span class="truncate">{{ pullRequest.title }}</span>
                             <span class="truncate text-xs font-normal text-muted-foreground">
                                 {{ pullRequest.reference }}<template v-if="stateLabel(pullRequest)"> · {{ stateLabel(pullRequest) }}</template>
                             </span>
                         </span>
+                        <UnseenFindingsDot v-if="pullRequest.has_unseen_findings" class="mr-0.5" />
                     </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
         </SidebarMenu>
+        <p v-else class="px-2 text-xs text-muted-foreground">Pull requests you open appear here.</p>
     </SidebarGroup>
 </template>

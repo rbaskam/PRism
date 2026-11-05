@@ -29,9 +29,12 @@ class PullRequestController extends Controller
 {
     public function show(Request $request, PullRequest $pullRequest, AppSettings $settings, PullRequestReviewPrompt $reviewPrompt, RefreshPullRequest $refresh, LoadPullRequestFiles $loadFiles): Response
     {
-        // Polls and deferred props reload the page in the background; only opening it counts as viewing it.
+        // Polls and deferred props reload the page in the background; only opening it counts as viewing it. New
+        // findings that arrive while the page is open have been seen, though.
         if (! $this->isPartialReload($request)) {
             $pullRequest->markViewed();
+        } elseif ($this->isReloading($request, 'findings')) {
+            $pullRequest->markFindingsSeen();
         }
 
         $pullRequest->load(['repository', 'latestReviewRun'])->loadCount([

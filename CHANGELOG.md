@@ -10,6 +10,14 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- When an AI review finds something new, a violet dot marks the pull request in My pull requests, on its repository's page and in **Recently viewed** until you open it.
+
+### Changed
+
+- **Recently viewed** always shows in the sidebar, with a hint while it's empty.
+
 ## [0.17.0] - 2026-11-05
 
 ### Added

@@ -48,6 +48,7 @@ it('shares the most recently opened pull requests in tracked repositories, newes
             'state' => 'open',
             'is_draft' => false,
             'merged_at' => null,
+            'has_unseen_findings' => false,
         ])
         ->where('recentPullRequests.1.state', 'closed')
         ->where('recentPullRequests.1.merged_at', fn (?string $mergedAt) => $mergedAt !== null)
@@ -64,4 +65,46 @@ it('clears the recently viewed list without touching the pull requests', functio
     expect($pullRequest->fresh())->not->toBeNull()
         ->last_viewed_at->toBeNull();
     $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('recentPullRequests', []));
+});
+
+it('points out new AI findings in lists until the pull request is opened', function () {
+    onboardedAccount();
+    $pullRequest = PullRequest::factory()->for(trackedRepository('acme/api'))->awaitingMyReview()->create([
+        'last_viewed_at' => now()->subHour(),
+        'unseen_findings_at' => now(),
+    ]);
+
+    $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
+        ->where('pullRequests.0.has_unseen_findings', true)
+        ->where('recentPullRequests.0.has_unseen_findings', true));
+
+    $this->get(route('pull-requests.show', $pullRequest))->assertOk();
+
+    expect($pullRequest->fresh()->hasUnseenFindings())->toBeFalse();
+    $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
+        ->where('pullRequests.0.has_unseen_findings', false)
+        ->where('recentPullRequests.0.has_unseen_findings', false));
+});
+
+it('counts new AI findings as seen when they load on the open pull request, but not on other background reloads', function () {
+    onboardedAccount();
+    $pullRequest = PullRequest::factory()->create(['unseen_findings_at' => now()]);
+    $reload = fn (string $props) => $this->get(route('pull-requests.show', $pullRequest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'pull-requests/Show',
+        'X-Inertia-Partial-Data' => $props,
+    ])->assertOk();
+
+    $reload('counts,recentPullRequests');
+
+    expect($pullRequest->fresh())
+        ->hasUnseenFindings()->toBeTrue()
+        ->last_viewed_at->toBeNull();
+
+    $reload('reviewRuns,findings,pullRequest');
+
+    expect($pullRequest->fresh())
+        ->hasUnseenFindings()->toBeFalse()
+        ->last_viewed_at->toBeNull();
 });

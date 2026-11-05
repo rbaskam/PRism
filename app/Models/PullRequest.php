@@ -57,6 +57,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $files_head_sha
  * @property Carbon|null $snoozed_until
  * @property Carbon|null $last_viewed_at
+ * @property Carbon|null $unseen_findings_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -126,6 +127,7 @@ class PullRequest extends Model
         'files_head_sha',
         'snoozed_until',
         'last_viewed_at',
+        'unseen_findings_at',
     ];
 
     /**
@@ -156,6 +158,7 @@ class PullRequest extends Model
             'files_snapshot' => 'array',
             'snoozed_until' => 'datetime',
             'last_viewed_at' => 'datetime',
+            'unseen_findings_at' => 'datetime',
         ];
     }
 
@@ -382,12 +385,35 @@ class PullRequest extends Model
      * Get the "owner/name#123" reference for the pull request.
      */
     /**
-     * Remember that the user just opened the pull request, for the sidebar's "Recently viewed" list. Its updated_at
-     * is left alone, since nothing about the pull request itself changed.
+     * Remember that the user just opened the pull request, for the sidebar's "Recently viewed" list, and that they've
+     * now seen any new AI findings. Its updated_at is left alone, since nothing about the pull request itself changed.
      */
     public function markViewed(): void
     {
-        static::withoutTimestamps(fn () => $this->update(['last_viewed_at' => now()]));
+        static::withoutTimestamps(fn () => $this->update(['last_viewed_at' => now(), 'unseen_findings_at' => null]));
+    }
+
+    /**
+     * Point out the pull request in lists until the user opens it, because an AI review found something new.
+     */
+    public function markFindingsUnseen(): void
+    {
+        static::withoutTimestamps(fn () => $this->update(['unseen_findings_at' => now()]));
+    }
+
+    /**
+     * The user saw the findings, e.g. they arrived on the pull request page while it was open.
+     */
+    public function markFindingsSeen(): void
+    {
+        if ($this->unseen_findings_at !== null) {
+            static::withoutTimestamps(fn () => $this->update(['unseen_findings_at' => null]));
+        }
+    }
+
+    public function hasUnseenFindings(): bool
+    {
+        return $this->unseen_findings_at !== null;
     }
 
     public function reference(): string
