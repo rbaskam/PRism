@@ -83,6 +83,8 @@ const visibleFindings = computed(() =>
 
 const latestRun = computed(() => props.reviewRuns[0] ?? null);
 const isReviewRunning = computed(() => latestRun.value?.is_active === true);
+/** Only a review that finished can have found nothing: one that failed or was cancelled didn't look. */
+const hasCompletedRun = computed(() => props.reviewRuns.some((run) => run.status === 'completed'));
 
 const selectedVisibleIds = computed(() => selectedIds.value.filter((id) => visibleFindings.value.some((finding) => finding.id === id)));
 
@@ -282,10 +284,10 @@ function resetFilters(): void {
         <div v-else class="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
             <Sparkles class="size-8 text-violet-500/70" />
             <div class="space-y-1">
-                <p class="text-sm font-medium">{{ reviewRuns.length > 0 ? 'Claude found nothing to flag' : 'No AI review yet' }}</p>
+                <p class="text-sm font-medium">{{ hasCompletedRun ? 'Claude found nothing to flag' : 'No AI review yet' }}</p>
                 <p class="max-w-md text-sm text-muted-foreground">
                     {{
-                        reviewRuns.length > 0
+                        hasCompletedRun
                             ? 'Run the review again after new commits to re-check the changes.'
                             : 'Claude Code reviews the diff for bugs, security issues, duplication and missing tests. You decide what gets posted to GitHub.'
                     }}

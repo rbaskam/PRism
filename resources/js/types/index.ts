@@ -19,6 +19,9 @@ export interface RecentPullRequest {
     id: number;
     /** e.g. "acme/api#42" */
     reference: string;
+    number: number;
+    /** The repository's name without its owner, e.g. "api". */
+    repository: string;
     title: string;
     state: 'open' | 'closed';
     is_draft: boolean;
@@ -78,7 +81,8 @@ export type BreadcrumbItemType = BreadcrumbItem;
 /** Where a pull request stands from the connected user's point of view. */
 export type ReviewAttention = 'awaiting' | 'approved' | 'changes_requested' | 'commented' | 'authored' | 'none';
 
-export type AiTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
+/** Only AI reviews can be cancelled. */
+export type AiTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type FindingStatus = 'new' | 'read' | 'not_useful' | 'not_blocker';
 

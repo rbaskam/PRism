@@ -418,14 +418,14 @@ it('lists the pull requests you opened recently in the sidebar, newest first, un
     $page->navigate("/pull-requests/{$onboarding->id}")
         ->waitForText('Files changed')
         ->assertSeeIn('[data-recent-pull-requests]', 'Recently viewed')
-        ->assertScript(recentlyViewedLinks(), ['New onboarding flow acme/web#202 · Draft', 'Add rate limiting acme/api#101'])
+        ->assertScript(recentlyViewedLinks(), ['New onboarding flow #202 · Draft · web', 'Add rate limiting #101 · api'])
         ->assertAttribute('[data-recent-pull-requests] a[aria-current="page"]', 'title', 'New onboarding flow (acme/web#202)');
     $this->travel(1)->minute();
 
     $page->click('[data-recent-pull-requests] a[title^="Add rate limiting"]')
         ->waitForText('Files changed')
         ->assertPathIs("/pull-requests/{$rateLimiting->id}")
-        ->assertScript(recentlyViewedLinks(), ['Add rate limiting acme/api#101', 'New onboarding flow acme/web#202 · Draft'])
+        ->assertScript(recentlyViewedLinks(), ['Add rate limiting #101 · api', 'New onboarding flow #202 · Draft · web'])
         ->assertSeeIn('[data-recent-pull-requests] a[aria-current="page"]', 'Add rate limiting');
 
     trackRequests($page);

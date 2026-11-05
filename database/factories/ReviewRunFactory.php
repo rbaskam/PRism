@@ -44,4 +44,18 @@ class ReviewRunFactory extends Factory
             'finished_at' => null,
         ]);
     }
+
+    /**
+     * Indicate that Claude is reviewing right now.
+     */
+    public function running(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => AiTaskStatus::Running,
+            'summary' => null,
+            'verdict' => null,
+            'started_at' => now(),
+            'finished_at' => null,
+        ]);
+    }
 }
