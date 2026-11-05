@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AiTaskStatus;
 use App\Enums\FindingSeverity;
 use App\Enums\FindingStatus;
 use App\Models\PendingReviewComment;
@@ -277,6 +278,21 @@ it('shows AI findings under the lines they are about and triages them there', fu
 
     $page->assertNoJavaScriptErrors();
     expect($finding->fresh()->status)->toBe(FindingStatus::Read);
+});
+
+it('cancels an AI review that is still running', function () {
+    $pullRequest = PullRequest::firstWhere('number', 101);
+    $run = ReviewRun::factory()->running()->for($pullRequest)->create();
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->assertSee('Claude is reviewing…')
+        ->click('internal:role=button[name="Cancel review"s]')
+        ->waitForText('AI review cancelled')
+        ->assertDontSee('Claude is reviewing…')
+        ->assertDontSee('Claude found nothing to flag')
+        ->assertNoJavaScriptErrors();
+
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Cancelled);
 });
 
 it('highlights the words that changed within an edited line', function () {

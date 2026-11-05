@@ -44,6 +44,8 @@ it('shares the most recently opened pull requests in tracked repositories, newes
         ->where('recentPullRequests.0', [
             'id' => $pullRequests[0]->id,
             'reference' => 'acme/api#1',
+            'number' => 1,
+            'repository' => 'api',
             'title' => 'Viewed 1 minutes ago',
             'state' => 'open',
             'is_draft' => false,

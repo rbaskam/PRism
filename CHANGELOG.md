@@ -10,6 +10,19 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- **Cancel review** on a pull request's AI findings tab stops Claude while it's reviewing or still waiting to start.
+
+### Changed
+
+- **Recently viewed** shows each pull request's number before its repository, so it's never cut off.
+
+### Fixed
+
+- Quitting PRism while Claude was reviewing no longer leaves the pull request showing "Claude is reviewing…" for half an hour. The review is marked as stopped within a few minutes, so you can run it again.
+- A pull request whose AI reviews all failed or were cancelled no longer says "Claude found nothing to flag".
+
 ## [0.18.0] - 2026-11-05
 
 ### Added

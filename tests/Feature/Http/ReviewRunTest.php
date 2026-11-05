@@ -49,3 +49,36 @@ it('asks the user to connect Claude before running a review', function () {
     expect(ReviewRun::count())->toBe(0);
     Queue::assertNothingPushed();
 });
+
+it('cancels a review that has not finished', function () {
+    onboardedAccount();
+    $run = ReviewRun::factory()->running()->create();
+
+    $response = $this->from(route('pull-requests.show', $run->pull_request_id))->post(route('review-runs.cancel', $run));
+
+    $response->assertRedirect(route('pull-requests.show', $run->pull_request_id))->assertSessionHas('success', 'AI review cancelled.');
+    expect($run->fresh())
+        ->status->toBe(AiTaskStatus::Cancelled)
+        ->finished_at->not->toBeNull();
+});
+
+it('leaves a review that already finished as it was', function () {
+    onboardedAccount();
+    $run = ReviewRun::factory()->create();
+
+    $this->post(route('review-runs.cancel', $run))->assertRedirect()->assertSessionMissing('success');
+
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Completed);
+});
+
+it('starts a new review once the last one was cancelled', function () {
+    Queue::fake([RunPullRequestReview::class]);
+    onboardedAccount();
+    app(AppSettings::class)->set(AppSettings::CLAUDE_AUTH_MODE, ClaudeAuthMode::CliLogin->value);
+    $cancelled = ReviewRun::factory()->running()->create(['status' => AiTaskStatus::Cancelled]);
+
+    $this->post(route('pull-requests.review-runs.store', $cancelled->pull_request_id));
+
+    expect(ReviewRun::count())->toBe(2);
+    Queue::assertPushed(RunPullRequestReview::class);
+});

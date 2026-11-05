@@ -39,11 +39,17 @@ export function startReviewRun(pullRequestId: number, options: VisitOptions = {}
     router.post(route('pull-requests.review-runs.store', { pullRequest: pullRequestId }), {}, pageVisit(options));
 }
 
+/** Stops an AI review that hasn't finished. */
+export function cancelReviewRun(reviewRunId: number, options: VisitOptions = {}): void {
+    router.post(route('review-runs.cancel', { reviewRun: reviewRunId }), {}, pageVisit(options));
+}
+
 export const runStatusStyles: Record<AiTaskStatus, { label: string; badge: BadgeVariant }> = {
     queued: { label: 'Queued', badge: 'muted' },
     running: { label: 'Reviewing', badge: 'info' },
     completed: { label: 'Completed', badge: 'success' },
     failed: { label: 'Failed', badge: 'danger' },
+    cancelled: { label: 'Cancelled', badge: 'muted' },
 };
 
 export const verdictStyles: Record<NonNullable<ReviewRun['verdict']>, { label: string; badge: BadgeVariant }> = {
