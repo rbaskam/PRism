@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuickSwitcher } from '@/composables/useQuickSwitcher';
 import { getJson } from '@/lib/http';
-import { attentionStyles, closedStateLabel } from '@/lib/pull-requests';
+import { attentionStyles, closedStateLabel, pullRequestStateIcon } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { ReviewAttention } from '@/types';
 import { router } from '@inertiajs/vue3';
@@ -18,10 +18,6 @@ import {
     FileCode2,
     FolderGit2,
     Github,
-    GitMerge,
-    GitPullRequest,
-    GitPullRequestClosed,
-    GitPullRequestDraft,
     Inbox,
     Info,
     LayoutGrid,
@@ -246,14 +242,6 @@ function onKeydown(event: KeyboardEvent): void {
     }
 }
 
-function pullRequestIcon(pullRequest: SwitcherPullRequest): LucideIcon {
-    if (pullRequest.state !== 'open') {
-        return pullRequest.merged_at ? GitMerge : GitPullRequestClosed;
-    }
-
-    return pullRequest.is_draft ? GitPullRequestDraft : GitPullRequest;
-}
-
 /** ⌘K (Ctrl+K on Windows) opens the switcher from anywhere, even while typing, and closes it again. */
 useEventListener(window, 'keydown', (event: KeyboardEvent) => {
     if (event.key?.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
@@ -351,7 +339,11 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
                             </template>
 
                             <template v-else>
-                                <component :is="pullRequestIcon(item.pullRequest)" class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                <component
+                                    :is="pullRequestStateIcon(item.pullRequest)"
+                                    class="size-4 shrink-0 text-muted-foreground"
+                                    aria-hidden="true"
+                                />
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate font-medium">{{ item.pullRequest.title }}</span>
                                     <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">

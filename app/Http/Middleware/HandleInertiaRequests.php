@@ -66,6 +66,7 @@ class HandleInertiaRequests extends Middleware
             'update' => fn (): ?array => app(UpdateChecker::class)->updateIsAvailable() ? app(UpdateChecker::class)->latestRelease() : null,
             'whatsNew' => fn (): ?array => $this->whatsNew(),
             'counts' => fn (): array => $this->counts(),
+            'recentPullRequests' => fn (): array => $this->recentPullRequests(),
             'flash' => fn (): array => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
@@ -102,6 +103,30 @@ class HandleInertiaRequests extends Middleware
             'active_reviews' => count($reviewing),
             'reviewing' => $reviewing,
         ];
+    }
+
+    /**
+     * The pull requests the user opened most recently, for the sidebar's "Recently viewed" list.
+     *
+     * @return list<array{id: int, reference: string, title: string, state: string, is_draft: bool, merged_at: string|null}>
+     */
+    private function recentPullRequests(): array
+    {
+        return PullRequest::query()
+            ->recentlyViewed()
+            ->with('repository')
+            ->limit(PullRequest::RECENTLY_VIEWED_LIMIT)
+            ->get()
+            ->map(fn (PullRequest $pullRequest): array => [
+                'id' => $pullRequest->id,
+                'reference' => $pullRequest->reference(),
+                'title' => $pullRequest->title,
+                'state' => $pullRequest->state,
+                'is_draft' => $pullRequest->is_draft,
+                'merged_at' => $pullRequest->merged_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
