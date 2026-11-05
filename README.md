@@ -78,6 +78,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 - A notice tells you when you have review requests in repositories you don't track yet.
 - The sidebar shows how many pull requests await your review and how many notifications are unread. On macOS, the Dock icon shows the number awaiting your review.
 - **Recently viewed** in the sidebar lists the last five pull requests you opened, so you can get back to the ones you started reviewing without searching for them again.
+- When an AI review finds something new, a violet dot marks the pull request in your lists and in Recently viewed until you open it.
 - PRism syncs with GitHub every five minutes. Use **Sync with GitHub** in the sidebar to sync straight away.
 
 ### Team review requests

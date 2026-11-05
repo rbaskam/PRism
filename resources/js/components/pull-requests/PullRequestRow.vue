@@ -2,6 +2,7 @@
 import ExternalLink from '@/components/ExternalLink.vue';
 import AttentionBadge from '@/components/pull-requests/AttentionBadge.vue';
 import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
+import UnseenFindingsDot from '@/components/pull-requests/UnseenFindingsDot.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
@@ -154,6 +155,7 @@ const hasStatusBadges = computed(
                 </div>
 
                 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <UnseenFindingsDot v-if="pullRequest.has_unseen_findings" />
                     <Link
                         data-pull-request-link
                         :href="route('pull-requests.show', { pullRequest: pullRequest.id })"

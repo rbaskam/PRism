@@ -1,7 +1,9 @@
 <?php
 
+use App\Actions\RecordReviewResult;
 use App\Models\PullRequest;
 use App\Models\Repository;
+use App\Models\ReviewRun;
 use Tests\Browser\Support\FakeGithub;
 
 /**
@@ -408,7 +410,8 @@ it('lists the pull requests you opened recently in the sidebar, newest first, un
     $onboarding = PullRequest::firstWhere('number', 202);
 
     $page = visit('/')->assertSee('Add rate limiting')
-        ->assertMissing('[data-recent-pull-requests]')
+        ->assertSeeIn('[data-recent-pull-requests]', 'Pull requests you open appear here.')
+        ->assertMissing('internal:role=button[name="Clear recently viewed pull requests"s]')
         ->navigate("/pull-requests/{$rateLimiting->id}")
         ->waitForText('Files changed');
     $this->travel(1)->minute();
@@ -429,7 +432,36 @@ it('lists the pull requests you opened recently in the sidebar, newest first, un
     $page->click('internal:role=button[name="Clear recently viewed pull requests"s]');
     waitForRequests($page);
 
-    $page->assertMissing('[data-recent-pull-requests]')
+    $page->assertSeeIn('[data-recent-pull-requests]', 'Pull requests you open appear here.')
+        ->assertCount('[data-recent-pull-requests] a', 0)
         ->assertNoJavaScriptErrors();
     expect(PullRequest::query()->whereNotNull('last_viewed_at')->count())->toBe(0);
+});
+
+it('marks pull requests with new AI findings in the list and the sidebar until you open them', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+    $rateLimiting = PullRequest::firstWhere('number', 101);
+    PullRequest::firstWhere('number', 102)->update(['last_viewed_at' => now()->subHours(2)]);
+    $rateLimiting->update(['last_viewed_at' => now()->subHour()]);
+    app(RecordReviewResult::class)->handle(ReviewRun::factory()->for($rateLimiting)->create(), [
+        'summary' => 'One problem.',
+        'verdict' => 'request_changes',
+        'findings' => [['category' => 'security', 'severity' => 'high', 'path' => 'app/Limits.php', 'line' => 3, 'title' => 'Limit can be bypassed', 'body' => 'Check the header.']],
+        'previous_findings' => [],
+    ]);
+
+    $page = visit('/')->assertSee('Add rate limiting')
+        ->assertCount('[data-pull-request-row] [data-unseen-findings]', 1)
+        ->assertSeeIn('[data-pull-request-row]:has([data-unseen-findings])', 'Add rate limiting')
+        ->assertCount('[data-recent-pull-requests] [data-unseen-findings]', 1)
+        ->assertSeeIn('[data-recent-pull-requests] a:has([data-unseen-findings])', 'Add rate limiting');
+
+    $page->click('[data-pull-request-row]:has([data-unseen-findings]) [data-pull-request-link]')
+        ->waitForText('Limit can be bypassed')
+        ->assertCount('[data-unseen-findings]', 0)
+        ->navigate('/')
+        ->assertSee('Add rate limiting')
+        ->assertCount('[data-unseen-findings]', 0)
+        ->assertNoJavaScriptErrors();
 });

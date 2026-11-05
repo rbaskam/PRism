@@ -23,6 +23,8 @@ export interface RecentPullRequest {
     state: 'open' | 'closed';
     is_draft: boolean;
     merged_at: string | null;
+    /** An AI review found something new since the user last opened the pull request. */
+    has_unseen_findings: boolean;
 }
 
 export interface GithubUser {
@@ -198,6 +200,8 @@ export interface PullRequest {
     is_assigned_to_me: boolean;
     open_findings_count?: number;
     unread_findings_count?: number;
+    /** An AI review found something new since the user last opened the pull request. */
+    has_unseen_findings: boolean;
     latest_review_run?: ReviewRun | null;
     created_at: string | null;
     updated_at: string | null;
