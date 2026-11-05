@@ -82,9 +82,9 @@ class ConnectGithubAccount
 
     /**
      * Forget the previous account's GitHub notifications, its comments waiting to be posted with a review (they
-     * would otherwise be posted as the new account), and how it was involved in each pull request: review requests,
-     * its reviews, authorship and assignments. The next sync works these out again for the new account. Tracked
-     * repositories, AI reviews and everything else made in the app stay.
+     * would otherwise be posted as the new account), the pull requests it recently viewed, and how it was involved in
+     * each pull request: review requests, its reviews, authorship and assignments. The next sync works these out again
+     * for the new account. Tracked repositories, AI reviews and everything else made in the app stay.
      */
     private function forgetPreviousAccount(): void
     {
@@ -100,6 +100,7 @@ class ConnectGithubAccount
             'my_review_state' => null,
             'my_review_submitted_at' => null,
             'my_review_commit_sha' => null,
+            'last_viewed_at' => null,
         ]);
     }
 }

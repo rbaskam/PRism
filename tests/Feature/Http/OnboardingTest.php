@@ -128,7 +128,7 @@ it('forgets the previous account\'s notifications and review requests when a dif
     onboardedAccount(['github_id' => 42, 'login' => 'octocat']);
     $repository = trackedRepository('acme/api');
     GithubNotification::factory()->create();
-    $pullRequest = PullRequest::factory()->for($repository)->awaitingTeamReview()->approvedByMe()->authoredByMe()->create(['is_assigned_to_me' => true]);
+    $pullRequest = PullRequest::factory()->for($repository)->awaitingTeamReview()->approvedByMe()->authoredByMe()->create(['is_assigned_to_me' => true, 'last_viewed_at' => now()]);
     $reviewRun = ReviewRun::factory()->for($pullRequest)->create();
     PendingReviewComment::factory()->for($pullRequest)->create();
     Http::fake(githubUserResponses(githubUser(7, 'monalisa')));
@@ -147,6 +147,7 @@ it('forgets the previous account\'s notifications and review requests when a dif
         ->is_authored_by_me->toBeFalse()
         ->is_assigned_to_me->toBeFalse()
         ->my_review_state->toBeNull()
+        ->last_viewed_at->toBeNull()
         ->and($repository->fresh()->is_tracked)->toBeTrue()
         ->and($reviewRun->fresh())->not->toBeNull();
     Queue::assertPushed(SyncGithub::class);

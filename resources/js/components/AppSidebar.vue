@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import NavMain from '@/components/NavMain.vue';
+import NavRecentPullRequests from '@/components/NavRecentPullRequests.vue';
 import NavUser from '@/components/NavUser.vue';
 import SyncButton from '@/components/SyncButton.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -57,6 +58,7 @@ const mainNavItems = computed<NavItem[]>(() => [
 
         <SidebarContent>
             <NavMain :items="mainNavItems" />
+            <NavRecentPullRequests />
         </SidebarContent>
 
         <SidebarFooter>

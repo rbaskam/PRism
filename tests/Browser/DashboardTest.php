@@ -30,6 +30,14 @@ function githubWithPullRequestsForOctocat(): FakeGithub
         ->fake();
 }
 
+/**
+ * JavaScript that reads the sidebar's "Recently viewed" links as "title reference", top to bottom.
+ */
+function recentlyViewedLinks(): string
+{
+    return '[...document.querySelectorAll("[data-recent-pull-requests] a")].map((link) => link.innerText.replace(/\\s+/g, " ").trim())';
+}
+
 beforeEach(function () {
     onboardedAccount(['login' => 'octocat']);
     trackedRepository('acme/api');
@@ -391,4 +399,37 @@ it('shows counts as dots and keeps search in reach when the sidebar is collapsed
         ->waitForText('Require a PIN to open')
         ->assertPathIs('/settings/security')
         ->assertNoJavaScriptErrors();
+});
+
+it('lists the pull requests you opened recently in the sidebar, newest first, until you clear them', function () {
+    githubWithPullRequestsForOctocat();
+    syncFromGithub();
+    $rateLimiting = PullRequest::firstWhere('number', 101);
+    $onboarding = PullRequest::firstWhere('number', 202);
+
+    $page = visit('/')->assertSee('Add rate limiting')
+        ->assertMissing('[data-recent-pull-requests]')
+        ->navigate("/pull-requests/{$rateLimiting->id}")
+        ->waitForText('Files changed');
+    $this->travel(1)->minute();
+    $page->navigate("/pull-requests/{$onboarding->id}")
+        ->waitForText('Files changed')
+        ->assertSeeIn('[data-recent-pull-requests]', 'Recently viewed')
+        ->assertScript(recentlyViewedLinks(), ['New onboarding flow acme/web#202 · Draft', 'Add rate limiting acme/api#101'])
+        ->assertAttribute('[data-recent-pull-requests] a[aria-current="page"]', 'title', 'New onboarding flow (acme/web#202)');
+    $this->travel(1)->minute();
+
+    $page->click('[data-recent-pull-requests] a[title^="Add rate limiting"]')
+        ->waitForText('Files changed')
+        ->assertPathIs("/pull-requests/{$rateLimiting->id}")
+        ->assertScript(recentlyViewedLinks(), ['Add rate limiting acme/api#101', 'New onboarding flow acme/web#202 · Draft'])
+        ->assertSeeIn('[data-recent-pull-requests] a[aria-current="page"]', 'Add rate limiting');
+
+    trackRequests($page);
+    $page->click('internal:role=button[name="Clear recently viewed pull requests"s]');
+    waitForRequests($page);
+
+    $page->assertMissing('[data-recent-pull-requests]')
+        ->assertNoJavaScriptErrors();
+    expect(PullRequest::query()->whereNotNull('last_viewed_at')->count())->toBe(0);
 });

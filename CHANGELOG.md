@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- **Recently viewed** in the sidebar lists the last five pull requests you opened, so you can get back to ones you started reviewing without searching for them again. Clear the list with the × beside it.
+
 ## [0.16.0] - 2026-10-28
 
 ### Added

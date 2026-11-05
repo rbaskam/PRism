@@ -15,6 +15,16 @@ export interface NavItem {
     badgeLabel?: string;
 }
 
+export interface RecentPullRequest {
+    id: number;
+    /** e.g. "acme/api#42" */
+    reference: string;
+    title: string;
+    state: 'open' | 'closed';
+    is_draft: boolean;
+    merged_at: string | null;
+}
+
 export interface GithubUser {
     login: string;
     name: string | null;
@@ -47,6 +57,8 @@ export interface SharedData {
         /** Pull requests Claude is reviewing right now, oldest first. */
         reviewing: { pull_request_id: number; reference: string; title: string; status: 'queued' | 'running' }[];
     };
+    /** The pull requests the user opened most recently, newest first, for the sidebar's "Recently viewed" list. */
+    recentPullRequests: RecentPullRequest[];
     flash: { success: string | null; error: string | null };
     errors: Record<string, string>;
     ziggy: {
