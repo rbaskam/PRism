@@ -6,6 +6,9 @@
                 "artisan",
                 "boost:mcp"
             ]
+        },
+        "laraplugins": {
+            "url": "https://laraplugins.io/mcp/plugins"
         }
     }
 }
