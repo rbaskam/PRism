@@ -56,6 +56,8 @@ use Illuminate\Support\Carbon;
  * @property array{files: list<array<string, mixed>>, github_viewed_states: array<string, string>}|null $files_snapshot
  * @property string|null $files_head_sha
  * @property Carbon|null $snoozed_until
+ * @property Carbon|null $last_viewed_at
+ * @property Carbon|null $unseen_findings_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -72,6 +74,11 @@ class PullRequest extends Model
      * How long closed pull requests stay in the lists (behind the "Recently closed" filter).
      */
     public const RECENTLY_CLOSED_DAYS = 14;
+
+    /**
+     * How many recently viewed pull requests the sidebar lists.
+     */
+    public const RECENTLY_VIEWED_LIMIT = 5;
 
     /**
      * The attributes that are mass assignable.
@@ -119,6 +126,8 @@ class PullRequest extends Model
         'files_snapshot',
         'files_head_sha',
         'snoozed_until',
+        'last_viewed_at',
+        'unseen_findings_at',
     ];
 
     /**
@@ -148,6 +157,8 @@ class PullRequest extends Model
             'conversation_synced_at' => 'datetime',
             'files_snapshot' => 'array',
             'snoozed_until' => 'datetime',
+            'last_viewed_at' => 'datetime',
+            'unseen_findings_at' => 'datetime',
         ];
     }
 
@@ -260,6 +271,19 @@ class PullRequest extends Model
     }
 
     /**
+     * Scope the query to the pull requests the user opened in the app, in tracked repositories, most recent first.
+     *
+     * @param  Builder<PullRequest>  $query
+     */
+    public function scopeRecentlyViewed(Builder $query): void
+    {
+        $query->whereNotNull('last_viewed_at')
+            ->whereHas('repository', fn (Builder $query) => $query->tracked())
+            ->orderByDesc('last_viewed_at')
+            ->orderByDesc('id');
+    }
+
+    /**
      * Scope the query to pull requests the user hasn't snoozed, or whose snooze has ended.
      *
      * @param  Builder<PullRequest>  $query
@@ -360,6 +384,38 @@ class PullRequest extends Model
     /**
      * Get the "owner/name#123" reference for the pull request.
      */
+    /**
+     * Remember that the user just opened the pull request, for the sidebar's "Recently viewed" list, and that they've
+     * now seen any new AI findings. Its updated_at is left alone, since nothing about the pull request itself changed.
+     */
+    public function markViewed(): void
+    {
+        static::withoutTimestamps(fn () => $this->update(['last_viewed_at' => now(), 'unseen_findings_at' => null]));
+    }
+
+    /**
+     * Point out the pull request in lists until the user opens it, because an AI review found something new.
+     */
+    public function markFindingsUnseen(): void
+    {
+        static::withoutTimestamps(fn () => $this->update(['unseen_findings_at' => now()]));
+    }
+
+    /**
+     * The user saw the findings, e.g. they arrived on the pull request page while it was open.
+     */
+    public function markFindingsSeen(): void
+    {
+        if ($this->unseen_findings_at !== null) {
+            static::withoutTimestamps(fn () => $this->update(['unseen_findings_at' => null]));
+        }
+    }
+
+    public function hasUnseenFindings(): bool
+    {
+        return $this->unseen_findings_at !== null;
+    }
+
     public function reference(): string
     {
         return $this->repository->full_name.'#'.$this->number;

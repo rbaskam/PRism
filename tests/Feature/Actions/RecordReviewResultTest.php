@@ -33,7 +33,8 @@ it('stores new findings from a review', function () {
     expect($run->fresh())
         ->summary->toBe('Looks risky.')
         ->verdict->toBe('request_changes')
-        ->new_findings_count->toBe(1);
+        ->new_findings_count->toBe(1)
+        ->and($run->pullRequest->fresh()->hasUnseenFindings())->toBeTrue();
 });
 
 it('keeps the user decision when a re-run reports the same finding again', function () {
@@ -70,7 +71,8 @@ it('keeps the user decision when a re-run reports the same finding again', funct
         ->line->toBe(12);
     expect($secondRun->fresh())
         ->new_findings_count->toBe(0)
-        ->repeated_findings_count->toBe(1);
+        ->repeated_findings_count->toBe(1)
+        ->and($secondRun->pullRequest->fresh()->hasUnseenFindings())->toBeFalse();
 });
 
 it('marks earlier findings resolved when Claude says they are fixed', function () {

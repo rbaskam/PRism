@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  * Stores Claude's answer for a review run without duplicating findings from earlier runs.
  *
  * A finding Claude reports again keeps the user's decision, and previous findings Claude
- * says are gone are marked resolved.
+ * says are gone are marked resolved. New findings mark the pull request in lists until the user opens it.
  */
 class RecordReviewResult
 {
@@ -82,6 +82,10 @@ class RecordReviewResult
                     $finding->update(['resolved_at' => now()]);
                     $resolvedCount++;
                 }
+            }
+
+            if ($newCount > 0) {
+                $pullRequest->markFindingsUnseen();
             }
 
             $run->update([

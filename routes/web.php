@@ -25,6 +25,7 @@ use App\Http\Controllers\PullRequestFileViewController;
 use App\Http\Controllers\PullRequestReviewController;
 use App\Http\Controllers\PullRequestSnoozeController;
 use App\Http\Controllers\QuickSwitcherController;
+use App\Http\Controllers\RecentPullRequestController;
 use App\Http\Controllers\ReplyDraftController;
 use App\Http\Controllers\RepositoryController;
 use App\Http\Controllers\ReviewFindingController;
@@ -91,6 +92,7 @@ Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
             Route::post('sync', SyncController::class)->name('sync');
             Route::post('sync/on-return', SyncOnReturnController::class)->name('sync.on-return');
             Route::get('quick-switcher', QuickSwitcherController::class)->name('quick-switcher');
+            Route::delete('recent-pull-requests', [RecentPullRequestController::class, 'destroy'])->name('recent-pull-requests.destroy');
 
             Route::get('repositories', [RepositoryController::class, 'index'])->name('repositories.index');
             Route::get('repositories/{repository}', [RepositoryController::class, 'show'])->name('repositories.show');

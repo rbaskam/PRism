@@ -1,4 +1,5 @@
 import type { FindingSeverity, FindingStatus, PullRequest, ReviewAttention } from '@/types';
+import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, type LucideIcon } from 'lucide-vue-next';
 
 export interface AttentionStyle {
     label: string;
@@ -62,6 +63,15 @@ export function closedStateLabel(pullRequest: Pick<PullRequest, 'state' | 'merge
 }
 
 /** "owner/repo#123" */
+/** The GitHub-style icon for a pull request's state: open, draft, merged or closed. */
+export function pullRequestStateIcon(pullRequest: { state: string; merged_at: string | null; is_draft: boolean }): LucideIcon {
+    if (pullRequest.state !== 'open') {
+        return pullRequest.merged_at ? GitMerge : GitPullRequestClosed;
+    }
+
+    return pullRequest.is_draft ? GitPullRequestDraft : GitPullRequest;
+}
+
 export function pullRequestReference(pullRequest: PullRequest): string {
     return `${pullRequest.repository?.full_name ?? ''}#${pullRequest.number}`;
 }
