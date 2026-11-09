@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-09
+
 ### Added
 
 - **Cancel review** on a pull request's AI findings tab stops Claude while it's reviewing or still waiting to start.
