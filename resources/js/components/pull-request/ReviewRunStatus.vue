@@ -3,14 +3,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDuration, timeAgo } from '@/lib/pull-requests';
 import type { PullRequest, ReviewRun } from '@/types';
-import { AlertTriangle, Bot, Clock, GitCommitHorizontal, Loader2, RotateCcw, XCircle } from 'lucide-vue-next';
+import { AlertTriangle, Ban, Bot, Clock, GitCommitHorizontal, Loader2, RotateCcw, X, XCircle } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import ElapsedTime from './ElapsedTime.vue';
 import MarkdownText from './MarkdownText.vue';
-import { formatCost, formatDateTime, runStartedAt, shortSha, startReviewRun, verdictStyles } from './utils';
+import { cancelReviewRun, formatCost, formatDateTime, runStartedAt, shortSha, startReviewRun, verdictStyles } from './utils';
 
 /**
- * Where the AI review stands: queued, running (with a live timer), failed, or the latest result.
+ * Where the AI review stands: queued or running (with a live timer and a way to cancel it), failed, cancelled, or the
+ * latest result.
  */
 const props = defineProps<{
     pullRequest: PullRequest;
@@ -36,6 +37,15 @@ function retry(): void {
         onFinish: () => (retrying.value = false),
     });
 }
+
+const cancelling = ref(false);
+
+function cancel(run: ReviewRun): void {
+    cancelReviewRun(run.id, {
+        onStart: () => (cancelling.value = true),
+        onFinish: () => (cancelling.value = false),
+    });
+}
 </script>
 
 <template>
@@ -47,8 +57,13 @@ function retry(): void {
             aria-live="polite"
         >
             <Clock class="size-4 shrink-0 animate-pulse text-muted-foreground" />
-            <span class="font-medium">Queued — waiting for the review worker</span>
+            <span class="min-w-0 font-medium">Queued — waiting for the review worker</span>
             <span class="ml-auto text-xs text-muted-foreground"><ElapsedTime :since="runStartedAt(latestRun)" /></span>
+            <Button size="sm" variant="outline" class="shrink-0" :disabled="cancelling" @click="cancel(latestRun)">
+                <Loader2 v-if="cancelling" class="animate-spin" />
+                <X v-else />
+                Cancel review
+            </Button>
         </div>
 
         <div
@@ -58,8 +73,19 @@ function retry(): void {
             aria-live="polite"
         >
             <Loader2 class="size-4 shrink-0 animate-spin text-violet-500" />
-            <span class="font-medium">Claude is reviewing… (<ElapsedTime :since="runStartedAt(latestRun)" />)</span>
-            <span class="ml-auto hidden text-xs opacity-75 sm:inline">Findings appear here when it finishes. You can keep working.</span>
+            <span class="min-w-0 font-medium">Claude is reviewing… (<ElapsedTime :since="runStartedAt(latestRun)" />)</span>
+            <span class="ml-auto hidden text-xs opacity-75 xl:inline">Findings appear here when it finishes. You can keep working.</span>
+            <Button
+                size="sm"
+                variant="outline"
+                class="ml-auto shrink-0 border-violet-300 bg-transparent hover:bg-violet-100 dark:border-violet-500/40 dark:hover:bg-violet-500/20 xl:ml-0"
+                :disabled="cancelling"
+                @click="cancel(latestRun)"
+            >
+                <Loader2 v-if="cancelling" class="animate-spin" />
+                <X v-else />
+                Cancel review
+            </Button>
         </div>
 
         <div
@@ -89,6 +115,20 @@ function retry(): void {
                 <RotateCcw v-else />
                 Try again
             </Button>
+        </div>
+
+        <div
+            v-else-if="latestRun.status === 'cancelled'"
+            class="flex items-center gap-3 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground"
+            role="status"
+        >
+            <Ban class="size-4 shrink-0" />
+            <p class="font-medium text-foreground">
+                AI review cancelled
+                <span class="font-normal text-muted-foreground" :title="formatDateTime(latestRun.finished_at ?? latestRun.created_at)">
+                    {{ timeAgo(latestRun.finished_at ?? latestRun.created_at) }}
+                </span>
+            </p>
         </div>
 
         <section v-if="latestCompletedRun" class="rounded-lg border bg-card text-card-foreground">

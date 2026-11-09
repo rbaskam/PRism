@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AiTaskStatus;
 use Database\Factories\ReviewRunFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,6 +39,17 @@ class ReviewRun extends Model
 {
     /** @use HasFactory<ReviewRunFactory> */
     use HasFactory;
+
+    /**
+     * How often a running review touches `updated_at` to show it's still going.
+     */
+    public const HEARTBEAT_SECONDS = 30;
+
+    /**
+     * A running review that hasn't shown it's still going for this long was stopped, usually because PRism quit while
+     * Claude was reviewing. Long enough to cover fetching a large pull request before Claude starts.
+     */
+    public const INTERRUPTED_AFTER_MINUTES = 5;
 
     /**
      * The attributes that are mass assignable.
@@ -86,6 +98,27 @@ class ReviewRun extends Model
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Runs marked as running whose worker has stopped, so they would otherwise show as reviewing forever.
+     *
+     * @param  Builder<ReviewRun>  $query
+     */
+    public function scopeInterrupted(Builder $query): void
+    {
+        $query->where('status', AiTaskStatus::Running)
+            ->where('updated_at', '<', now()->subMinutes(self::INTERRUPTED_AFTER_MINUTES));
+    }
+
+    /**
+     * Stop the review if it hasn't finished. The worker notices within a second or two and stops Claude.
+     */
+    public function cancel(): void
+    {
+        if ($this->status->isActive()) {
+            $this->update(['status' => AiTaskStatus::Cancelled, 'finished_at' => now()]);
+        }
     }
 
     /**

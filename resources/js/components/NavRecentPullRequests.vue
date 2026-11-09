@@ -24,7 +24,7 @@ function isActive(pullRequest: RecentPullRequest): boolean {
     return page.url.split(/[?#]/)[0] === path;
 }
 
-/** "Merged", "Closed" or "Draft", read out after the reference since the icon alone shows it. */
+/** "Merged", "Closed" or "Draft", read out after the number since the icon alone shows it. */
 function stateLabel(pullRequest: RecentPullRequest): string | null {
     return closedStateLabel(pullRequest)?.label ?? (pullRequest.is_draft ? 'Draft' : null);
 }
@@ -72,8 +72,10 @@ async function clear(): Promise<void> {
                         <component :is="pullRequestStateIcon(pullRequest)" class="mt-0.5 self-start text-muted-foreground" aria-hidden="true" />
                         <span class="flex min-w-0 flex-1 flex-col">
                             <span class="truncate">{{ pullRequest.title }}</span>
-                            <span class="truncate text-xs font-normal text-muted-foreground">
-                                {{ pullRequest.reference }}<template v-if="stateLabel(pullRequest)"> · {{ stateLabel(pullRequest) }}</template>
+                            <span class="flex min-w-0 gap-1 text-xs font-normal text-muted-foreground">
+                                <span class="shrink-0 tabular-nums">#{{ pullRequest.number }}</span>
+                                <span v-if="stateLabel(pullRequest)" class="shrink-0">· {{ stateLabel(pullRequest) }}</span>
+                                <span class="truncate">· {{ pullRequest.repository }}</span>
                             </span>
                         </span>
                         <UnseenFindingsDot v-if="pullRequest.has_unseen_findings" class="mr-0.5" />
