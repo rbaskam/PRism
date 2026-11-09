@@ -3,9 +3,11 @@
 use App\Enums\AlertType;
 use App\Enums\ClaudeAuthMode;
 use App\Enums\NotificationSound;
+use App\Jobs\SyncGithub;
 use App\Models\Setting;
 use App\Services\AppSettings;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 
 it('saves an Anthropic API key encrypted', function () {
@@ -75,6 +77,27 @@ it('saves the review prompt and what the app may write to GitHub', function () {
         ->and($settings->allowsPostingFindings())->toBeTrue()
         ->and($settings->allowsReplyingToComments())->toBeFalse()
         ->and($settings->reviewsAutomaticallyWhenRequested())->toBeTrue();
+});
+
+it('syncs with GitHub when the user changes whether comments end a review request', function () {
+    onboardedAccount();
+    Bus::fake();
+    $settings = [
+        'prompt' => AppSettings::DEFAULT_REVIEW_PROMPT,
+        'allow_posting_findings' => false,
+        'allow_replying_to_comments' => false,
+        'auto_review_on_request' => false,
+        'keep_awaiting_after_comments' => true,
+    ];
+
+    $this->put(route('settings.review.update'), $settings)->assertSessionHas('success', 'Review settings saved.');
+
+    expect(app(AppSettings::class)->keepsAwaitingAfterComments())->toBeTrue();
+    Bus::assertDispatchedTimes(SyncGithub::class, 1);
+
+    $this->put(route('settings.review.update'), $settings);
+
+    Bus::assertDispatchedTimes(SyncGithub::class, 1);
 });
 
 it('saves which desktop alerts the user wants', function () {

@@ -28,6 +28,21 @@ it('approves a pull request on GitHub and shows it as approved', function () {
     Http::assertSent(fn (Request $request): bool => $request['event'] === 'APPROVE' && $request['body'] === 'LGTM');
 });
 
+it('keeps the pull request awaiting your review after a comment when you choose to', function (bool $keepsAwaiting) {
+    onboardedAccount();
+    app(AppSettings::class)->set(AppSettings::KEEP_AWAITING_AFTER_COMMENTS, $keepsAwaiting);
+    $pullRequest = PullRequest::factory()->awaitingTeamReview()->create();
+    Http::fake([
+        "api.github.com/repos/{$pullRequest->repository->full_name}/pulls/{$pullRequest->number}/reviews" => Http::response(['id' => 1, 'html_url' => 'https://github.com/r/1']),
+    ]);
+
+    $this->post(route('pull-requests.reviews.store', $pullRequest), ['event' => 'COMMENT', 'body' => 'What happens when the list is empty?']);
+
+    expect($pullRequest->fresh())
+        ->my_review_state->toBe(ReviewState::Commented)
+        ->is_review_requested_from_me->toBe($keepsAwaiting);
+})->with(['kept awaiting' => true, 'counted as a review' => false]);
+
 it('requires a comment when requesting changes', function () {
     onboardedAccount();
     $pullRequest = PullRequest::factory()->create();

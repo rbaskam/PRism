@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncGithub;
 use App\Models\Repository;
 use App\Services\AppSettings;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,7 @@ class ReviewSettingsController extends Controller
                 'allow_posting_findings' => $settings->allowsPostingFindings(),
                 'allow_replying_to_comments' => $settings->allowsReplyingToComments(),
                 'auto_review_on_request' => $settings->reviewsAutomaticallyWhenRequested(),
+                'keep_awaiting_after_comments' => $settings->keepsAwaitingAfterComments(),
                 'allow_code_changes' => $settings->allowsCodeChanges(),
                 'allow_pushing' => $settings->allowsPushing(),
             ],
@@ -42,18 +44,27 @@ class ReviewSettingsController extends Controller
             'allow_posting_findings' => ['required', 'boolean'],
             'allow_replying_to_comments' => ['required', 'boolean'],
             'auto_review_on_request' => ['required', 'boolean'],
+            'keep_awaiting_after_comments' => ['sometimes', 'boolean'],
             'allow_code_changes' => ['sometimes', 'boolean'],
             'allow_pushing' => ['sometimes', 'boolean'],
         ]);
+
+        $keptAwaitingAfterComments = $settings->keepsAwaitingAfterComments();
 
         $settings->setMany([
             AppSettings::REVIEW_PROMPT => trim($validated['prompt']) === trim(AppSettings::DEFAULT_REVIEW_PROMPT) ? null : $validated['prompt'],
             AppSettings::ALLOW_POSTING_FINDINGS => $validated['allow_posting_findings'],
             AppSettings::ALLOW_REPLYING_TO_COMMENTS => $validated['allow_replying_to_comments'],
             AppSettings::AUTO_REVIEW_ON_REQUEST => $validated['auto_review_on_request'],
+            AppSettings::KEEP_AWAITING_AFTER_COMMENTS => $validated['keep_awaiting_after_comments'] ?? $settings->keepsAwaitingAfterComments(),
             AppSettings::ALLOW_CODE_CHANGES => $validated['allow_code_changes'] ?? $settings->allowsCodeChanges(),
             AppSettings::ALLOW_PUSHING => $validated['allow_pushing'] ?? $settings->allowsPushing(),
         ]);
+
+        // What counts as answering a review request changed, so work out again which pull requests await the user.
+        if ($settings->keepsAwaitingAfterComments() !== $keptAwaitingAfterComments) {
+            SyncGithub::dispatch();
+        }
 
         return back()->with('success', 'Review settings saved.');
     }

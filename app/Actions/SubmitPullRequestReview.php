@@ -8,17 +8,22 @@ use App\Enums\SubmitReviewEvent;
 use App\Models\PendingReviewComment;
 use App\Models\PullRequest;
 use App\Models\ReviewFinding;
+use App\Services\AppSettings;
 use App\Services\Github\GithubClient;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Client\RequestException;
 
 /**
  * Approves, requests changes on, or comments on a pull request, optionally attaching findings as inline comments.
- * The user's pending comments on lines are posted with it, and removed from the app once GitHub has them.
+ * The user's pending comments on lines are posted with it, and removed from the app once GitHub has them. The review
+ * answers the request for the user's review, unless it's only a comment and the user keeps those awaiting.
  */
 class SubmitPullRequestReview
 {
-    public function __construct(private readonly GithubClient $github) {}
+    public function __construct(
+        private readonly GithubClient $github,
+        private readonly AppSettings $settings,
+    ) {}
 
     /**
      * @param  Collection<int, ReviewFinding>  $findings
@@ -76,9 +81,11 @@ class SubmitPullRequestReview
             },
             'my_review_submitted_at' => now(),
             'my_review_commit_sha' => $pullRequest->head_sha,
-            'is_review_requested_from_me' => false,
-            'is_review_requested_directly' => false,
-            'requested_via_teams' => [],
+            ...($event === SubmitReviewEvent::Comment && $this->settings->keepsAwaitingAfterComments() ? [] : [
+                'is_review_requested_from_me' => false,
+                'is_review_requested_directly' => false,
+                'requested_via_teams' => [],
+            ]),
         ]);
     }
 }

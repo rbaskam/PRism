@@ -83,20 +83,24 @@ it('says when Claude Code is not installed', function () {
 });
 
 it('saves the review prompt and what Claude may do', function () {
+    (new FakeGithub)->fake();
     $page = visit('/settings/review');
     trackRequests($page);
     $page->fill('#review-prompt', 'Review {repository}#{number} for security problems only.')
         ->click('#allow_posting_findings')
+        ->click('#keep_awaiting_after_comments')
         ->click('Save');
     waitForRequests($page);
 
     $page->navigate('/settings/review')
         ->assertValue('#review-prompt', 'Review {repository}#{number} for security problems only.')
+        ->assertSee('Your review queue')
         ->assertNoJavaScriptErrors();
 
     $settings = app(AppSettings::class);
     expect($settings->reviewPrompt())->toBe('Review {repository}#{number} for security problems only.')
-        ->and($settings->allowsPostingFindings())->toBeTrue();
+        ->and($settings->allowsPostingFindings())->toBeTrue()
+        ->and($settings->keepsAwaitingAfterComments())->toBeTrue();
 });
 
 it('saves which desktop alerts you get and their sound', function () {
