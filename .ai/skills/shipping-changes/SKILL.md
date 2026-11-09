@@ -34,21 +34,23 @@ Add the change under `## [Unreleased]` in `CHANGELOG.md`, creating the section h
 - Start breaking changes with `BREAKING:`.
 - Never edit released sections or bump versions; the release workflow does it.
 - No user-facing change (CI, refactor, tests only)? Skip the entry and add the `skip-changelog` label to the pull request.
+- Fill in the pull request template (`.github/pull_request_template.md`): what changed, how it was tested, and the checklist.
 
 ## 3. Run the checks CI runs
 
 ```bash
 vendor/bin/pint                                      # then: vendor/bin/pint --test
 vendor/bin/phpstan analyse --memory-limit=1G         # Larastan, level 6
-php artisan test --compact --testsuite=Unit,Feature
+php artisan test --compact --testsuite=Unit,Feature --coverage --min=80   # needs PCOV or Xdebug; CI fails below 80%
 npx eslint .
+npm run lint:design                                  # colour and focus rules for light, dark and accents
 npx prettier --check resources/                      # fix with: npx prettier --write resources/
 npx vue-tsc --noEmit
 npm run build
 vendor/bin/pest --testsuite=Browser --parallel       # needs the build above; first time: npx playwright install chromium
 ```
 
-Fix everything before opening the pull request.
+Fix everything before opening the pull request. Every behaviour change needs tests in the same pull request: CI's "Tests included" check fails when code changes without anything under `tests/`, unless the pull request only changes copy, styling or layout and is labelled `skip-tests`. Never lower the coverage threshold or exclude code to pass it.
 
 If the change touches the UI, also check it against every theme setting (see "Themes" in the project rules): open Settings → Appearance and look at the change in light mode, dark mode and at least one accent colour other than Neutral. Text must stay readable, and buttons, switches, focus rings and selected items must take the accent. Say in the pull request if you couldn't check it visually.
 

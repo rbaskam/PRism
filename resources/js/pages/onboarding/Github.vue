@@ -309,7 +309,7 @@ onBeforeUnmount(stopPolling);
                             <div class="mt-2 flex items-center justify-center gap-2">
                                 <span class="select-all font-mono text-3xl font-semibold tracking-[0.2em]">{{ deviceCode.user_code }}</span>
                                 <Button variant="ghost" size="icon" :title="codeCopied ? 'Copied' : 'Copy code'" @click="copyCode">
-                                    <Check v-if="codeCopied" class="text-emerald-600" />
+                                    <Check v-if="codeCopied" class="text-emerald-600 dark:text-emerald-400" />
                                     <Copy v-else />
                                     <span class="sr-only">Copy code</span>
                                 </Button>

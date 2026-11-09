@@ -7,7 +7,8 @@
         "dev": "vite",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
-        "lint": "eslint . --fix"
+        "lint": "eslint . --fix",
+        "lint:design": "node .github/scripts/check-design-rules.mjs"
     },
     "devDependencies": {
         "@eslint/js": "^9.19.0",

@@ -269,7 +269,7 @@ function destroy(): void {
                         <div class="flex items-center justify-between gap-2 border-b bg-muted/50 px-3 py-1">
                             <span class="text-xs font-medium text-muted-foreground">Suggested code</span>
                             <Button variant="ghost" size="sm" class="h-6 px-2 text-xs [&_svg]:size-3.5" @click="copySuggestion(question)">
-                                <Check v-if="copiedId === question.id" class="text-emerald-600" />
+                                <Check v-if="copiedId === question.id" class="text-emerald-600 dark:text-emerald-400" />
                                 <Copy v-else />
                                 {{ copiedId === question.id ? 'Copied' : 'Copy' }}
                             </Button>

@@ -366,25 +366,13 @@ Create the certificate in Xcode (Settings → Accounts → Manage Certificates �
 
 ## Contributing
 
-1. Create a branch from `main` (`feat/…`, `fix/…`).
-2. Add your user-facing change under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in the right section (`Added`, `Changed`, `Fixed`, …). Changes with nothing user-facing get the `skip-changelog` label instead.
-3. Run the checks:
-   ```bash
-   vendor/bin/pint --test
-   vendor/bin/phpstan analyse --memory-limit=1G
-   php artisan test --compact
-   npx eslint .
-   npx prettier --check resources/
-   npx vue-tsc --noEmit
-   npm run build
-   ```
-4. Commit with a [Conventional Commit](https://www.conventionalcommits.org) message and open a pull request (`gh pr create --fill`).
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to report issues, set up your fork, work with an AI coding agent, and what a pull request needs: tests (coverage stays at 80% or more), a changelog entry, and the design rules for light, dark and accent colours. Report security problems privately, as described in [SECURITY.md](SECURITY.md).
 
 AI coding agents get the same rules from [AGENTS.md](AGENTS.md) and the skills in `.ai/skills` (synced to `.claude`, `.cursor` and `.junie` by `php artisan boost:update`).
 
 ## CI and releases
 
-- **Every pull request** runs [CI](.github/workflows/ci.yml): Pint, Larastan (PHPStan), the Pest/PHPUnit test suite, ESLint, Prettier, vue-tsc, a production frontend build, and a check that `CHANGELOG.md` was updated. `main` is protected, so a pull request can only be merged once all of them pass.
+- **Every pull request** runs [CI](.github/workflows/ci.yml): Pint, Larastan (PHPStan), the Pest test suite with at least 80% line coverage, the browser tests, ESLint, the design rules check, Prettier, vue-tsc and a production frontend build. It also checks that `CHANGELOG.md` was updated and that code changes come with tests. `main` is protected, so a pull request can only be merged once all of them pass.
 - **Merging into `main`** runs CI again. When it passes, the [Release](.github/workflows/release.yml) workflow builds a release, if `## [Unreleased]` in the changelog has entries:
   1. Works out the next version: `### Removed` or `BREAKING` bumps major, `### Added`/`### Changed`/`### Deprecated` bump minor, anything else bumps patch.
   2. Moves those entries into a new version section, commits `chore(release): vX.Y.Z` and tags `vX.Y.Z`.
@@ -402,7 +390,7 @@ gh auth switch --user <owner>        # or gh auth login, if the owner isn't sign
 bash .github/scripts/setup-repository.sh
 ```
 
-It protects `main` with a ruleset, so changes need a pull request and passing CI, and branches can't be force-pushed or deleted. It also adds a deploy key (the `RELEASE_DEPLOY_KEY` secret) that lets the release workflow push its version commit to the protected branch, and creates the `skip-changelog` label.
+It protects `main` with a ruleset, so changes need a pull request and passing CI, and branches can't be force-pushed or deleted. It also adds a deploy key (the `RELEASE_DEPLOY_KEY` secret) that lets the release workflow push its version commit to the protected branch, creates the `skip-changelog`, `skip-tests` and `needs-triage` labels, and turns on private vulnerability reporting.
 
 ### Publishing a release by hand
 

@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   php:
+    # The name is a required status check in the "Protect main" ruleset (.github/scripts/setup-repository.sh): keep it.
     name: PHP (Pint, Larastan, Pest)
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +25,7 @@ jobs:
           php-version: '8.3'
           extensions: mbstring, pdo_sqlite, sqlite3, zip, intl
           tools: composer:v2
-          coverage: none
+          coverage: pcov
 
       - name: Cache Composer packages
         uses: actions/cache@v4
@@ -46,8 +47,9 @@ jobs:
       - name: Larastan
         run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress --error-format=github
 
-      - name: Pest
-        run: php artisan test --compact --testsuite=Unit,Feature
+      # Fails the check when line coverage of app/ drops below 80%.
+      - name: Pest (coverage at least 80%)
+        run: php artisan test --compact --testsuite=Unit,Feature --coverage --min=80
 
   browser:
     name: Browser tests (${{ matrix.shard }}/2)
@@ -136,6 +138,9 @@ jobs:
 
       - name: ESLint
         run: npx eslint .
+
+      - name: Design rules
+        run: npm run lint:design
 
       - name: Prettier
         run: npx prettier --check resources/

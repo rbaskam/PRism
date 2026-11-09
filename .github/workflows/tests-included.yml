@@ -1,0 +1,46 @@
+name: Tests included
+
+# Every change to the app comes with tests (see "Test Enforcement" in AGENTS.md). Separate from CI so adding or
+# removing the skip-tests label re-runs only this check.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: tests-included-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests-included:
+    # The name is a required status check in the "Protect main" ruleset (.github/scripts/setup-repository.sh): keep it.
+    name: Tests included
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Code changes come with tests
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-tests') }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          changed="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          code="$(grep -E '^(app|bootstrap|config|database|routes|resources/(js|views))/' <<< "$changed" || true)"
+          tests="$(grep -E '^tests/' <<< "$changed" || true)"
+
+          if [ -n "$code" ] && [ -z "$tests" ]; then
+            echo "::error::This pull request changes code but no tests. Add or update tests under tests/ (a browser test for page changes), or label it 'skip-tests' if it only changes copy, styling or layout."
+            echo "Changed code:"
+            echo "$code"
+            exit 1
+          fi
+
+          if [ -n "$code" ]; then
+            echo "Code changes come with tests."
+          else
+            echo "No code changes."
+          fi
