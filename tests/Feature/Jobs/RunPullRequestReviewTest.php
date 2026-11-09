@@ -9,9 +9,12 @@ use App\Models\GithubAccount;
 use App\Models\ReviewFinding;
 use App\Models\ReviewRun;
 use App\Services\AppSettings;
+use App\Services\Claude\ClaudeCode;
 use App\Services\Claude\ClaudeException;
 use Illuminate\Process\PendingProcess;
+use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Sleep;
 
 /**
  * @param  array<string, mixed>  $structuredOutput
@@ -113,4 +116,81 @@ it('tells Claude about earlier findings and the user decisions on them', functio
 
         return str_contains($systemPrompt, 'Race condition in sync') && str_contains($systemPrompt, 'Not a blocker');
     });
+});
+
+it('stops Claude as soon as the user cancels the review', function () {
+    GithubAccount::factory()->create();
+    connectClaude();
+    $run = ReviewRun::factory()->queued()->create();
+    Process::fake(['*' => Process::describe()
+        ->output(claudeOutput(['summary' => 's', 'verdict' => 'approve', 'findings' => [['category' => 'bug', 'severity' => 'high', 'path' => 'a.php', 'line' => 1, 'title' => 'Bug', 'body' => 'b', 'suggestion' => null]], 'previous_findings' => []]))
+        ->iterations(ClaudeCode::POLLS_PER_CHECK * 3)]);
+    Sleep::fake();
+    Sleep::whenFakingSleep(fn () => ReviewRun::findOrFail($run->id)->cancel());
+
+    RunPullRequestReview::dispatchSync($run);
+
+    Sleep::assertSleptTimes(ClaudeCode::POLLS_PER_CHECK);
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Cancelled);
+    expect(ReviewFinding::count())->toBe(0);
+    expect(Alert::count())->toBe(0);
+});
+
+it('does not start Claude for a review cancelled while it waited for the worker', function () {
+    connectClaude();
+    $run = ReviewRun::factory()->queued()->create();
+    $run->cancel();
+    Process::fake();
+
+    RunPullRequestReview::dispatchSync($run);
+
+    Process::assertNothingRan();
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Cancelled);
+});
+
+it('touches the run every so often while Claude works, to show it is still going', function () {
+    GithubAccount::factory()->create();
+    connectClaude();
+    $this->travelTo($startedAt = now()->startOfSecond()->toImmutable());
+    $run = ReviewRun::factory()->queued()->create();
+    Process::fake(['*' => Process::describe()
+        ->output(claudeOutput(['summary' => 's', 'verdict' => 'approve', 'findings' => [], 'previous_findings' => []]))
+        ->iterations(ReviewRun::HEARTBEAT_SECONDS * ClaudeCode::POLLS_PER_CHECK * 3)]);
+    Sleep::fake(syncWithCarbon: true);
+    $heartbeats = [];
+    Sleep::whenFakingSleep(function () use ($run, &$heartbeats): void {
+        $heartbeats[] = ReviewRun::findOrFail($run->id)->updated_at->toIso8601String();
+    });
+
+    RunPullRequestReview::dispatchSync($run);
+
+    expect(array_values(array_unique($heartbeats)))->toBe([
+        $startedAt->toIso8601String(),
+        $startedAt->addSeconds(ReviewRun::HEARTBEAT_SECONDS)->toIso8601String(),
+        $startedAt->addSeconds(ReviewRun::HEARTBEAT_SECONDS * 2)->toIso8601String(),
+    ]);
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Completed);
+});
+
+it('stops Claude when it runs out of time', function () {
+    GithubAccount::factory()->create();
+    connectClaude();
+    $run = ReviewRun::factory()->queued()->create();
+    Process::fake(['*' => Process::describe()->iterations(1501 * ClaudeCode::POLLS_PER_CHECK)]);
+    Sleep::fake(syncWithCarbon: true);
+
+    expect(fn () => RunPullRequestReview::dispatchSync($run))->toThrow(ClaudeException::class, 'did not finish within 25 minutes');
+
+    expect($run->fresh())
+        ->status->toBe(AiTaskStatus::Failed)
+        ->error->toContain('25 minutes');
+});
+
+it('leaves a cancelled review alone when the queue gives up on its job', function () {
+    $run = ReviewRun::factory()->running()->create(['status' => AiTaskStatus::Cancelled]);
+
+    (new RunPullRequestReview($run))->failed(new MaxAttemptsExceededException('Attempted too many times.'));
+
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Cancelled);
+    expect(Alert::count())->toBe(0);
 });

@@ -102,6 +102,7 @@ Route::middleware(EnsureAppIsUnlocked::class)->group(function () {
 
             Route::get('pull-requests/{pullRequest}', [PullRequestController::class, 'show'])->name('pull-requests.show');
             Route::post('pull-requests/{pullRequest}/review-runs', [ReviewRunController::class, 'store'])->name('pull-requests.review-runs.store');
+            Route::post('review-runs/{reviewRun}/cancel', [ReviewRunController::class, 'cancel'])->name('review-runs.cancel');
             Route::patch('pull-requests/{pullRequest}/findings', [ReviewFindingController::class, 'bulkUpdate'])->name('pull-requests.findings.bulk-update');
             Route::post('pull-requests/{pullRequest}/reviews', [PullRequestReviewController::class, 'store'])->name('pull-requests.reviews.store');
             Route::post('pull-requests/{pullRequest}/snooze', [PullRequestSnoozeController::class, 'store'])->name('pull-requests.snooze.store');

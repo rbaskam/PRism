@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\FailInterruptedReviewRuns;
 use App\Actions\RestartAppIfServerStopped;
 use App\Jobs\CheckForUpdates;
 use App\Jobs\PollNotifications;
@@ -26,4 +27,10 @@ Schedule::call(function (): void {
     ->everyMinute()
     ->name('restart-app-if-server-stopped')
     ->when(fn (): bool => (bool) config('nativephp-internal.running'));
+// A review left running when PRism quit would otherwise show as reviewing until the queue gives up on it.
+Schedule::call(function (): void {
+    app(FailInterruptedReviewRuns::class)->handle();
+})
+    ->everyMinute()
+    ->name('fail-interrupted-review-runs');
 Schedule::command('model:prune', ['--model' => [Alert::class]])->daily();

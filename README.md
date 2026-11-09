@@ -77,7 +77,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 - **Repositories** shows a card for each repository with its open pull requests, how many await your review and how many you've approved. Each repository has its own page listing all its open pull requests, including ones that don't involve you.
 - A notice tells you when you have review requests in repositories you don't track yet.
 - The sidebar shows how many pull requests await your review and how many notifications are unread. On macOS, the Dock icon shows the number awaiting your review.
-- **Recently viewed** in the sidebar lists the last five pull requests you opened, so you can get back to the ones you started reviewing without searching for them again.
+- **Recently viewed** in the sidebar lists the last five pull requests you opened, with their numbers, so you can get back to the ones you started reviewing without searching for them again.
 - When an AI review finds something new, a violet dot marks the pull request in your lists and in Recently viewed until you open it.
 - PRism syncs with GitHub every five minutes. Use **Sync with GitHub** in the sidebar to sync straight away.
 
@@ -91,7 +91,7 @@ If you review code in several repositories, or you're a tech lead whose team is 
 
 ### AI code review with Claude Code
 
-- **Review with AI** runs [Claude Code](https://claude.com/claude-code) on your computer in the background, so you can keep working. The sidebar shows which reviews are running.
+- **Review with AI** runs [Claude Code](https://claude.com/claude-code) on your computer in the background, so you can keep working. The sidebar shows which reviews are running, and **Cancel review** stops one part way.
 - **Claude reads the real code.** When the repository's local clone is linked, Claude reads the code at the pull request's exact commit (in a temporary worktree), not only the diff. Without a clone, it reviews from the diff.
 - **A thorough default review prompt** reads the changed files in full and checks correctness, security, performance, tests and maintainability, with clear severity levels.
 - **A customisable prompt.** Change it in Settings → PR review, with placeholders such as `{repository}`, `{number}`, `{title}`, `{author}`, `{head}`, `{base}` and `{url}`, or reset it to the default. Give a repository its own prompt from its page (**Review prompt**).

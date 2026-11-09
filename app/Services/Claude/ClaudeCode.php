@@ -6,7 +6,11 @@ use App\Enums\ClaudeAuthMode;
 use App\Services\AppSettings;
 use App\Services\CommandLocator;
 use App\Services\Github\GithubCli;
+use Closure;
+use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Sleep;
 
 /**
  * Runs the Claude Code CLI headlessly (`claude -p`) with read-only tools.
@@ -69,6 +73,22 @@ class ClaudeCode
         'Glob',
     ];
 
+    /**
+     * How often to read Claude's output while it works, when the caller can stop it. Each read only takes what fits in
+     * the pipe, so reading often keeps a long answer from trickling in.
+     */
+    public const POLL_MILLISECONDS = 100;
+
+    /**
+     * Ask whether Claude should keep going every this many reads: about once a second.
+     */
+    public const POLLS_PER_CHECK = 10;
+
+    /**
+     * SIGTERM, which the `pcntl` constant isn't always loaded for.
+     */
+    private const SIGTERM = 15;
+
     public function __construct(
         private readonly AppSettings $settings,
         private readonly CommandLocator $locator,
@@ -116,11 +136,16 @@ class ClaudeCode
     /**
      * Run a prompt and return Claude's structured answer.
      *
+     * Pass `$keepRunning` to be able to stop Claude part way: it's asked about once a second while Claude works, and
+     * Claude is stopped as soon as it returns false.
+     *
      * @param  array<string, mixed>  $jsonSchema
      * @param  list<string>  $allowedTools
      * @param  list<string>  $tools
+     * @param  (Closure(): bool)|null  $keepRunning
      *
      * @throws ClaudeException
+     * @throws ClaudeStoppedException when `$keepRunning` returned false
      */
     public function run(
         string $prompt,
@@ -131,6 +156,7 @@ class ClaudeCode
         array $allowedTools = self::READ_ONLY_COMMANDS,
         int $timeoutSeconds = 1500,
         array $tools = self::AVAILABLE_TOOLS,
+        ?Closure $keepRunning = null,
     ): ClaudeResult {
         $binary = $this->binary() ?? throw new ClaudeException('Claude Code was not found. Set its path in Settings → Claude.');
 
@@ -138,11 +164,15 @@ class ClaudeCode
             throw new ClaudeException('Connect Claude in Settings → Claude before running a review.');
         }
 
-        $result = Process::path($workingDirectory ?? $this->defaultWorkingDirectory())
+        $process = Process::path($workingDirectory ?? $this->defaultWorkingDirectory())
             ->env($this->environment($githubToken))
             ->input($prompt)
-            ->timeout($timeoutSeconds)
-            ->run($this->arguments($binary, $jsonSchema, $systemPrompt, $allowedTools, $tools));
+            ->timeout($timeoutSeconds);
+        $arguments = $this->arguments($binary, $jsonSchema, $systemPrompt, $allowedTools, $tools);
+
+        $result = $keepRunning === null
+            ? $process->run($arguments)
+            : $this->runWhile($process, $arguments, $keepRunning, $timeoutSeconds);
 
         if ($result->failed() && trim($result->output()) === '') {
             throw new ClaudeException(trim($result->errorOutput()) ?: "Claude Code exited with code {$result->exitCode()}.");
@@ -210,6 +240,38 @@ class ClaudeCode
             ClaudeAuthMode::OauthToken => [...$environment, 'CLAUDE_CODE_OAUTH_TOKEN' => (string) $credential, 'ANTHROPIC_API_KEY' => false],
             default => $environment,
         };
+    }
+
+    /**
+     * Start Claude and wait for it, stopping it as soon as `$keepRunning` returns false or it runs out of time.
+     *
+     * @param  list<string>  $arguments
+     * @param  Closure(): bool  $keepRunning
+     *
+     * @throws ClaudeException
+     * @throws ClaudeStoppedException
+     */
+    private function runWhile(PendingProcess $pending, array $arguments, Closure $keepRunning, int $timeoutSeconds): ProcessResult
+    {
+        $process = $pending->start($arguments);
+        $deadline = now()->addSeconds($timeoutSeconds);
+
+        for ($polls = 0; $process->running(); $polls++) {
+            $stopped = $polls % self::POLLS_PER_CHECK === 0 && ! $keepRunning();
+
+            if ($stopped || now()->greaterThan($deadline)) {
+                // Symfony kills the process outright if it's still running once nothing refers to it any more.
+                rescue(fn () => $process->signal(self::SIGTERM), report: false);
+
+                throw $stopped
+                    ? new ClaudeStoppedException('Claude was stopped before it finished.')
+                    : new ClaudeException('Claude Code did not finish within '.intdiv($timeoutSeconds, 60).' minutes.');
+            }
+
+            Sleep::for(self::POLL_MILLISECONDS)->milliseconds();
+        }
+
+        return $process->wait();
     }
 
     private function defaultWorkingDirectory(): string
