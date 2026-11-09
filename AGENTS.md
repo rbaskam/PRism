@@ -43,13 +43,26 @@ This applies to every file, test, fixture and doc, every commit message, pull re
 - Never edit released version sections, never bump versions by hand, and never create tags: the release workflow does all of that when the pull request is merged.
 - A pull request without user-facing changes (CI, refactors, tests) is labelled `skip-changelog` instead.
 
+## Every change has tests, and coverage stays at 80% or more
+
+- Every behaviour change or new feature comes with tests in the same pull request: Pest feature tests for backend code, unit tests for pure logic, and browser tests for pages. Only copy, styling and layout-only changes may go without, and their pull request is labelled `skip-tests`.
+- The "Tests included" check fails a pull request that changes `app`, `bootstrap`, `config`, `database`, `routes`, `resources/js` or `resources/views` without changing anything under `tests/`.
+- CI runs the unit and feature tests with `--coverage --min=80`: the PHP check fails if they cover less than 80% of the lines in `app/`. Never lower the threshold, and never exclude code from coverage to pass it; add tests instead. Measure it locally with PCOV or Xdebug: `php artisan test --testsuite=Unit,Feature --coverage --min=80`.
+
 ## Checks that must pass (CI runs them on every pull request)
 
 - `vendor/bin/pint --test` (run `vendor/bin/pint` to fix)
 - `vendor/bin/phpstan analyse --memory-limit=1G` (Larastan, level 6)
-- `php artisan test --compact --testsuite=Unit,Feature`
-- `npx eslint .`, `npx prettier --check resources/`, `npx vue-tsc --noEmit`, `npm run build`
+- `php artisan test --compact --testsuite=Unit,Feature` (CI adds `--coverage --min=80`)
+- `npx eslint .`, `npm run lint:design`, `npx prettier --check resources/`, `npx vue-tsc --noEmit`, `npm run build`
 - `vendor/bin/pest --testsuite=Browser --parallel` after `npm run build` (install the browser once with `npx playwright install chromium`). CI runs the browser tests in two time-balanced shards.
+- CI also checks that `CHANGELOG.md` changed (or the pull request is labelled `skip-changelog`) and that code changes come with tests (or it is labelled `skip-tests`).
+
+## Issues, pull requests and security reports
+
+- PRism is open source. Contributors use their own AI agents and credentials; CI never runs an AI model. [CONTRIBUTING.md](CONTRIBUTING.md) is the guide for people; these rules are the same for agents.
+- Issues use the templates in `.github/ISSUE_TEMPLATE` and start labelled `needs-triage`. Pull requests use `.github/pull_request_template.md`: fill in what changed, how it was tested, and the checklist.
+- Security problems are reported privately (see [SECURITY.md](SECURITY.md)), never in a public issue, pull request or commit message. If you find one while working, tell the user instead of describing it publicly.
 
 ## Browser tests
 
@@ -80,6 +93,7 @@ This applies to every file, test, fixture and doc, every commit message, pull re
 
 ## Design conventions: keep the app consistent
 
+- `npm run lint:design` (`.github/scripts/check-design-rules.mjs`, run in CI) checks the colour and focus rules below and in "Themes": no neutral palette, black or white on app chrome, `text-white` only on a meaningful fill, no `bg-foreground`/`text-background` selected states, `dark:` variants for pale tints and dark text, and no `outline-none` without another focus style. A deliberate exception goes in its `ALLOWED` list with the reason.
 - Every page must work at the desktop window's minimum width of 960px, which leaves about 700px beside the sidebar:
   - Flex children that hold text get `min-w-0`.
   - A title beside an action group gets a real basis (`grow basis-96`), so the actions wrap below it instead of squeezing it.
@@ -103,7 +117,7 @@ This applies to every file, test, fixture and doc, every commit message, pull re
 
 ## Foundational Context
 
-This application is a Laravel application running on PHP 8.3. Always use the APIs that match the installed major version of each package — do not assume a version.
+This application is a Laravel application running on PHP 8.5. Always use the APIs that match the installed major version of each package — do not assume a version.
 
 Before relying on a package's API, confirm its installed version:
 - PHP packages: run `composer show --direct` to list direct dependencies with versions, or `composer show <vendor/package>` for a single package.

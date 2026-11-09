@@ -11,7 +11,8 @@
 #    and branches can't be deleted or force-pushed. Repository admins can bypass.
 # 2. Creates a deploy key the release workflow uses to push its "chore(release)" commit and
 #    tag to the protected branch, and stores its private half as the RELEASE_DEPLOY_KEY secret.
-# 3. Creates the skip-changelog label.
+# 3. Creates the labels the checks and issue templates use (skip-changelog, skip-tests, needs-triage).
+# 4. Turns on private vulnerability reporting, so security problems are reported privately (see SECURITY.md).
 set -euo pipefail
 
 repo="${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
@@ -54,7 +55,8 @@ ruleset='{
           { "context": "Frontend (ESLint, Prettier, vue-tsc, build)" },
           { "context": "Browser tests (1/2)" },
           { "context": "Browser tests (2/2)" },
-          { "context": "Changelog" }
+          { "context": "Changelog" },
+          { "context": "Tests included" }
         ]
       }
     }
@@ -83,8 +85,14 @@ gh repo deploy-key add "${key_dir}/release_key.pub" --repo "$repo" --title "$key
 gh secret set RELEASE_DEPLOY_KEY --repo "$repo" < "${key_dir}/release_key"
 echo "✓ Added the release deploy key and the RELEASE_DEPLOY_KEY secret"
 
-# 3. Label for pull requests without user-facing changes
+# 3. Labels for the pull request checks and the issue templates
 gh label create skip-changelog --repo "$repo" --description "No user-facing change" --color ededed --force >/dev/null
-echo "✓ skip-changelog label is ready"
+gh label create skip-tests --repo "$repo" --description "Only copy, styling or layout: no tests needed" --color ededed --force >/dev/null
+gh label create needs-triage --repo "$repo" --description "New issue a maintainer hasn't looked at yet" --color fbca04 --force >/dev/null
+echo "✓ skip-changelog, skip-tests and needs-triage labels are ready"
+
+# 4. Private vulnerability reporting
+gh api -X PUT "repos/${repo}/private-vulnerability-reporting" >/dev/null
+echo "✓ Private vulnerability reporting is on"
 
 echo "Done. Pull requests into main now need passing CI, and merges release automatically."
