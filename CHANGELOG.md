@@ -23,6 +23,12 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 - Quitting PRism while Claude was reviewing no longer leaves the pull request showing "Claude is reviewing…" for half an hour. The review is marked as stopped within a few minutes, so you can run it again.
 - A pull request whose AI reviews all failed or were cancelled no longer says "Claude found nothing to flag".
 
+## [0.19.0] - 2026-11-09
+
+### Added
+
+- A new setting, **Keep pull requests awaiting my review until I approve or request changes** (Settings → PR review), keeps a pull request in **Awaiting your review** after you only comment on it. Without it, a comment counts as your review, as it does on GitHub.
+
 ## [0.18.0] - 2026-11-05
 
 ### Added

@@ -5,7 +5,9 @@ namespace App\Services\Github;
 use App\Enums\ReviewState;
 use App\Models\GithubAccount;
 use App\Models\PullRequest;
+use App\Services\AppSettings;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Turns a GitHub GraphQL pull request node into attributes for the PullRequest model,
@@ -13,6 +15,8 @@ use Illuminate\Support\Carbon;
  */
 class PullRequestMapper
 {
+    public function __construct(private readonly AppSettings $settings) {}
+
     /**
      * @param  array<string, mixed>  $node
      * @return array<string, mixed>
@@ -24,7 +28,7 @@ class PullRequestMapper
         $requestedReviewers = $this->withoutRequestsAnsweredByMe($this->requestedReviewers($node), $node, $account);
         // GitHub doesn't let you review your own pull request, so a request sent to one of your teams (e.g. by
         // CODEOWNERS) isn't one for you.
-        $requestsForMe = $isAuthoredByMe ? [] : $requestedReviewers;
+        $requestsForMe = $isAuthoredByMe ? [] : [...$requestedReviewers, ...$this->requestsAnsweredOnlyByComments($node, $account, $requestedReviewers)];
         $myTeams = collect($requestsForMe)
             ->where('type', 'team')
             ->filter(fn (array $reviewer): bool => $this->isMe($reviewer, $account))
@@ -85,6 +89,23 @@ class PullRequestMapper
     }
 
     /**
+     * Whether GitHub itself lists an unanswered review request for the user or one of their teams. A new one of these
+     * is what starts an automatic review; requests kept awaiting after a comment (see requestsAnsweredOnlyByComments())
+     * don't count, since the user has already seen them.
+     *
+     * @param  array<string, mixed>  $node
+     */
+    public function isRequestedOnGithub(array $node, GithubAccount $account): bool
+    {
+        if ($node['state'] !== 'OPEN' || strcasecmp($node['author']['login'] ?? '', $account->login) === 0) {
+            return false;
+        }
+
+        return collect($this->withoutRequestsAnsweredByMe($this->requestedReviewers($node), $node, $account))
+            ->contains(fn (array $reviewer): bool => $this->isMe($reviewer, $account));
+    }
+
+    /**
      * @param  array<string, mixed>  $node
      * @return list<array{type: string, login?: string, organization?: string, slug?: string, name?: string}>
      */
@@ -118,7 +139,7 @@ class PullRequestMapper
     }
 
     /**
-     * Leave out requests for the user, or one of their teams, made before the user's latest review. GitHub drops a
+     * Leave out requests for the user, or one of their teams, made before the user last answered one. GitHub drops a
      * request once it is answered, but keeps listing it for a few seconds afterwards, which would put a pull request
      * the user has just approved back in their queue. A request made after the review is a re-request and stays.
      *
@@ -128,30 +149,90 @@ class PullRequestMapper
      */
     private function withoutRequestsAnsweredByMe(array $requestedReviewers, array $node, GithubAccount $account): array
     {
-        $myLastReviewedAt = collect([...$this->nodes($node, 'latestOpinionatedReviews'), ...$this->nodes($node, 'latestReviews')])
-            ->filter(fn (array $review): bool => strcasecmp($review['author']['login'] ?? '', $account->login) === 0
-                && ReviewState::tryFrom($review['state']) !== ReviewState::Pending
-                && isset($review['submittedAt']))
-            ->map(fn (array $review): Carbon => Carbon::parse($review['submittedAt']))
-            ->sort()
-            ->last();
+        $myLastAnswerAt = $this->lastAnswerAt($node, fn (string $login): bool => strcasecmp($login, $account->login) === 0);
 
-        if ($myLastReviewedAt === null) {
+        if ($myLastAnswerAt === null) {
             return $requestedReviewers;
         }
 
-        $lastRequestedAt = collect($this->nodes($node, 'reviewRequestedEvents'))
-            ->filter(fn (array $event): bool => isset($event['createdAt'], $event['requestedReviewer']))
-            ->map(fn (array $event): array => ['reviewer' => $this->reviewer($event['requestedReviewer']), 'at' => Carbon::parse($event['createdAt'])])
-            ->filter(fn (array $event): bool => $event['reviewer'] !== null)
-            ->sortBy('at')
-            ->mapWithKeys(fn (array $event): array => [$this->reviewerKey($event['reviewer']) => $event['at']]);
+        $lastRequestedAt = $this->latestEventPerReviewer($node, 'reviewRequestedEvents')->map(fn (array $event): Carbon => $event['at']);
 
         return array_values(array_filter($requestedReviewers, fn (array $reviewer): bool => ! (
             $this->isMe($reviewer, $account)
             && $lastRequestedAt->has($this->reviewerKey($reviewer))
-            && $lastRequestedAt->get($this->reviewerKey($reviewer))->lt($myLastReviewedAt)
+            && $lastRequestedAt->get($this->reviewerKey($reviewer))->lt($myLastAnswerAt)
         )));
+    }
+
+    /**
+     * With "keep awaiting until I approve or request changes" on, the requests for the user or their teams that
+     * GitHub dropped after a comment: they still wait on an approval or a change request. The user's own verdict
+     * answers any of them, anyone's answers a team's, and a request the author took back stays dropped.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  list<array{type: string, login?: string, organization?: string, slug?: string, name?: string}>  $listedRequests
+     * @return list<array{type: string, login?: string, organization?: string, slug?: string, name?: string}>
+     */
+    private function requestsAnsweredOnlyByComments(array $node, GithubAccount $account, array $listedRequests): array
+    {
+        if (! $this->settings->keepsAwaitingAfterComments() || $node['state'] !== 'OPEN') {
+            return [];
+        }
+
+        $listed = collect($listedRequests)->map($this->reviewerKey(...));
+        $lastRemovedAt = $this->latestEventPerReviewer($node, 'reviewRequestRemovedEvents')->map(fn (array $event): Carbon => $event['at']);
+        $myLastVerdictAt = $this->lastAnswerAt($node, fn (string $login): bool => strcasecmp($login, $account->login) === 0);
+        $othersLastVerdictAt = $this->lastAnswerAt($node, fn (string $login): bool => strcasecmp($login, $account->login) !== 0);
+
+        return $this->latestEventPerReviewer($node, 'reviewRequestedEvents')
+            ->filter(fn (array $event, string $key): bool => $this->isMe($event['reviewer'], $account)
+                && ! $listed->contains($key)
+                && ! ($lastRemovedAt->get($key)?->gte($event['at']) ?? false)
+                && ! ($myLastVerdictAt?->gt($event['at']) ?? false)
+                && ! ($event['reviewer']['type'] === 'team' && ($othersLastVerdictAt?->gt($event['at']) ?? false)))
+            ->pluck('reviewer')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * When the latest review that answers a review request was submitted, among reviews by the logins given. With
+     * "keep awaiting until I approve or request changes" on, comments don't count.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  callable(string): bool  $byLogin
+     */
+    private function lastAnswerAt(array $node, callable $byLogin): ?Carbon
+    {
+        $countsComments = ! $this->settings->keepsAwaitingAfterComments();
+
+        return collect([...$this->nodes($node, 'latestOpinionatedReviews'), ...$this->nodes($node, 'latestReviews')])
+            ->filter(fn (array $review): bool => $byLogin($review['author']['login'] ?? '')
+                && isset($review['submittedAt'])
+                && match (ReviewState::tryFrom($review['state'])) {
+                    ReviewState::Pending, null => false,
+                    ReviewState::Commented => $countsComments,
+                    default => true,
+                })
+            ->map(fn (array $review): Carbon => Carbon::parse($review['submittedAt']))
+            ->sort()
+            ->last();
+    }
+
+    /**
+     * The latest review request event (requested or removed) for each reviewer, keyed by reviewerKey().
+     *
+     * @param  array<string, mixed>  $node
+     * @return Collection<string, array{reviewer: array{type: string, login?: string, organization?: string, slug?: string, name?: string}, at: Carbon}>
+     */
+    private function latestEventPerReviewer(array $node, string $connection): Collection
+    {
+        return collect($this->nodes($node, $connection))
+            ->filter(fn (array $event): bool => isset($event['createdAt'], $event['requestedReviewer']))
+            ->map(fn (array $event): array => ['reviewer' => $this->reviewer($event['requestedReviewer']), 'at' => Carbon::parse($event['createdAt'])])
+            ->filter(fn (array $event): bool => $event['reviewer'] !== null)
+            ->sortBy('at')
+            ->keyBy(fn (array $event): string => $this->reviewerKey($event['reviewer']));
     }
 
     /**
