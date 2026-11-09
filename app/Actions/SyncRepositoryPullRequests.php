@@ -44,7 +44,7 @@ class SyncRepositoryPullRequests
 
             $seenIds[] = $pullRequest->id;
 
-            if ($pullRequest->is_review_requested_from_me && ! $wasRequested->contains($pullRequest->number)) {
+            if ($pullRequest->is_review_requested_from_me && ! $wasRequested->contains($pullRequest->number) && $this->mapper->isRequestedOnGithub($node, $account)) {
                 $newlyRequested->push($pullRequest);
             }
 

@@ -5,6 +5,7 @@ use App\Enums\ReviewAttention;
 use App\Models\GithubAccount;
 use App\Models\PullRequest;
 use App\Models\Repository;
+use App\Services\AppSettings;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -109,6 +110,96 @@ it('keeps a review request made after the user\'s latest review', function () {
     expect($repository->pullRequests()->sole())
         ->is_review_requested_directly->toBeTrue()
         ->attention()->toBe(ReviewAttention::AwaitingMyReview);
+});
+
+/**
+ * Node fields for a pull request whose review was requested from octocat or the acme/reviewers team on 1 October,
+ * which GitHub stopped listing when octocat commented on 2 October.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function commentedOnRequestNode(string $requestedFrom, array $overrides = []): array
+{
+    $reviewer = $requestedFrom === 'team'
+        ? ['__typename' => 'Team', 'slug' => 'reviewers', 'name' => 'Reviewers', 'organization' => ['login' => 'acme']]
+        : ['__typename' => 'User', 'login' => 'octocat'];
+
+    return githubPullRequestNode([
+        'reviewRequestedEvents' => ['nodes' => [['createdAt' => '2026-10-01T10:00:00Z', 'requestedReviewer' => $reviewer]]],
+        'latestReviews' => ['nodes' => [
+            ['author' => ['login' => 'octocat'], 'state' => 'COMMENTED', 'submittedAt' => '2026-10-02T09:00:00Z', 'commit' => ['oid' => 'headsha']],
+        ]],
+        ...$overrides,
+    ]);
+}
+
+it('counts a comment as the user\'s review, as GitHub does', function () {
+    $account = GithubAccount::factory()->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([commentedOnRequestNode('user')]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole())
+        ->is_review_requested_from_me->toBeFalse()
+        ->attention()->toBe(ReviewAttention::Commented);
+});
+
+it('keeps a pull request awaiting the user\'s review after they comment, when they choose to', function (string $requestedFrom, array $overrides, bool $isDirect, array $viaTeams) {
+    app(AppSettings::class)->set(AppSettings::KEEP_AWAITING_AFTER_COMMENTS, true);
+    $account = GithubAccount::factory()->inTeam('acme', 'reviewers')->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([commentedOnRequestNode($requestedFrom, $overrides)]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole())
+        ->is_review_requested_from_me->toBeTrue()
+        ->is_review_requested_directly->toBe($isDirect)
+        ->requested_via_teams->toBe($viaTeams)
+        ->requested_reviewers->toBe([])
+        ->attention()->toBe(ReviewAttention::AwaitingMyReview);
+})->with([
+    'requested directly' => ['user', [], true, []],
+    'requested through a team' => ['team', [], false, ['acme/reviewers']],
+    'requested directly, approved by someone else' => ['user', ['latestOpinionatedReviews' => ['nodes' => [
+        ['author' => ['login' => 'hubot'], 'state' => 'APPROVED', 'submittedAt' => '2026-10-03T09:00:00Z', 'commit' => ['oid' => 'headsha']],
+    ]]], true, []],
+]);
+
+it('still ends a request the user only commented on when it is approved or taken back', function (string $requestedFrom, array $overrides) {
+    app(AppSettings::class)->set(AppSettings::KEEP_AWAITING_AFTER_COMMENTS, true);
+    $account = GithubAccount::factory()->inTeam('acme', 'reviewers')->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([commentedOnRequestNode($requestedFrom, $overrides)]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole()->is_review_requested_from_me)->toBeFalse();
+})->with([
+    'the user approved it' => ['user', ['latestOpinionatedReviews' => ['nodes' => [
+        ['author' => ['login' => 'octocat'], 'state' => 'APPROVED', 'submittedAt' => '2026-10-01T12:00:00Z', 'commit' => ['oid' => 'headsha']],
+    ]]]],
+    'a teammate requested changes' => ['team', ['latestOpinionatedReviews' => ['nodes' => [
+        ['author' => ['login' => 'hubot'], 'state' => 'CHANGES_REQUESTED', 'submittedAt' => '2026-10-03T09:00:00Z', 'commit' => ['oid' => 'headsha']],
+    ]]]],
+    'the author took the request back' => ['user', ['reviewRequestRemovedEvents' => ['nodes' => [
+        ['createdAt' => '2026-10-01T11:00:00Z', 'requestedReviewer' => ['__typename' => 'User', 'login' => 'octocat']],
+    ]]]],
+    'the pull request was merged' => ['user', ['state' => 'MERGED', 'closedAt' => '2026-10-03T09:00:00Z', 'mergedAt' => '2026-10-03T09:00:00Z']],
+]);
+
+it('does not treat a pull request kept awaiting after a comment as a new review request', function () {
+    app(AppSettings::class)->set(AppSettings::KEEP_AWAITING_AFTER_COMMENTS, true);
+    $account = GithubAccount::factory()->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([commentedOnRequestNode('user')]))]);
+
+    $result = app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($result['newly_requested'])->toBeEmpty()
+        ->and($repository->pullRequests()->sole()->is_review_requested_from_me)->toBeTrue();
 });
 
 it('wakes a snoozed pull request when new commits are pushed to it', function () {

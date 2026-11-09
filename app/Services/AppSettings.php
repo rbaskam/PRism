@@ -21,6 +21,8 @@ class AppSettings
 
     public const AUTO_REVIEW_ON_REQUEST = 'review.auto_review_on_request';
 
+    public const KEEP_AWAITING_AFTER_COMMENTS = 'review.keep_awaiting_after_comments';
+
     public const CLAUDE_AUTH_MODE = 'claude.auth_mode';
 
     public const CLAUDE_CREDENTIAL = 'claude.credential';
@@ -172,6 +174,15 @@ class AppSettings
     public function reviewsAutomaticallyWhenRequested(): bool
     {
         return (bool) $this->get(self::AUTO_REVIEW_ON_REQUEST, false);
+    }
+
+    /**
+     * Whether a pull request stays awaiting the user's review until they approve or request changes. When off, a
+     * comment answers the review request too, as it does on GitHub.
+     */
+    public function keepsAwaitingAfterComments(): bool
+    {
+        return (bool) $this->get(self::KEEP_AWAITING_AFTER_COMMENTS, false);
     }
 
     public function claudeAuthMode(): ?ClaudeAuthMode

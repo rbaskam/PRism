@@ -52,6 +52,18 @@ final class GraphqlQueries
               }
             }
           }
+          reviewRequestRemovedEvents: timelineItems(last: 20, itemTypes: [REVIEW_REQUEST_REMOVED_EVENT]) {
+            nodes {
+              ... on ReviewRequestRemovedEvent {
+                createdAt
+                requestedReviewer {
+                  __typename
+                  ... on User { login }
+                  ... on Team { slug name organization { login } }
+                }
+              }
+            }
+          }
           latestOpinionatedReviews(first: 50) { nodes { author { login } state submittedAt commit { oid } } }
           latestReviews(first: 50) { nodes { author { login } state submittedAt commit { oid } } }
           commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }

@@ -21,6 +21,7 @@ const props = defineProps<{
         allow_posting_findings: boolean;
         allow_replying_to_comments: boolean;
         auto_review_on_request: boolean;
+        keep_awaiting_after_comments: boolean;
         allow_code_changes: boolean;
         allow_pushing: boolean;
     };
@@ -43,7 +44,13 @@ const promptTextarea = ref<InstanceType<typeof Textarea> | null>(null);
 
 const isDefaultPrompt = computed(() => form.prompt.trim() === props.defaultPrompt.trim());
 
-type ToggleKey = 'allow_posting_findings' | 'allow_replying_to_comments' | 'auto_review_on_request' | 'allow_code_changes' | 'allow_pushing';
+type ToggleKey =
+    | 'allow_posting_findings'
+    | 'allow_replying_to_comments'
+    | 'auto_review_on_request'
+    | 'keep_awaiting_after_comments'
+    | 'allow_code_changes'
+    | 'allow_pushing';
 
 interface Toggle {
     key: ToggleKey;
@@ -82,6 +89,15 @@ const permissionToggles: Toggle[] = [
     },
 ];
 
+const reviewQueueToggles: Toggle[] = [
+    {
+        key: 'keep_awaiting_after_comments',
+        label: 'Keep pull requests awaiting my review until I approve or request changes',
+        description:
+            'On GitHub a comment counts as your review, so it takes the pull request out of Awaiting your review. With this on, it stays there until you approve or request changes. A request sent to one of your teams also ends when someone else approves or requests changes.',
+    },
+];
+
 const codeChangeToggles: Toggle[] = [
     {
         key: 'allow_code_changes',
@@ -104,6 +120,11 @@ const sections: ToggleSection[] = [
         title: 'Permissions and automation',
         description: 'All off by default. Even when allowed, nothing is written to GitHub until you click a button.',
         toggles: permissionToggles,
+    },
+    {
+        title: 'Your review queue',
+        description: 'What takes a pull request out of Awaiting your review.',
+        toggles: reviewQueueToggles,
     },
     {
         title: 'Code changes (Fix with Claude)',
