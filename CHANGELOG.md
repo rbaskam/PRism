@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-09
+
 ### Added
 
 - A new setting, **Keep pull requests awaiting my review until I approve or request changes** (Settings → PR review), keeps a pull request in **Awaiting your review** after you only comment on it. Without it, a comment counts as your review, as it does on GitHub.
