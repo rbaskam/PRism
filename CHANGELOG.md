@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-10
+
 ### Changed
 
 - **Fix with Claude** on a pull request from a fork pushes to the fork, and only when its author lets maintainers edit it. Otherwise pushing and opening a new pull request are turned off, and the dialog says why.
