@@ -6,6 +6,8 @@ use App\Jobs\AnswerCodeQuestion;
 use App\Models\CodeQuestion;
 use App\Models\GithubAccount;
 use App\Services\AppSettings;
+use App\Services\Claude\ClaudeCode;
+use App\Services\Git\Git;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
 
@@ -46,4 +48,11 @@ it('includes the earlier questions and answers when asking a follow-up', functio
 
     Process::assertRan(fn (PendingProcess $process): bool => str_contains($process->input, "Q: What does this do?\nA: It sums prices.")
         && str_contains($process->input, 'Their question: Is it slow?'));
+});
+
+it('leaves time to prepare and remove the worktree around the longest answer', function () {
+    $job = new AnswerCodeQuestion(CodeQuestion::factory()->queued()->make());
+
+    expect(Git::PREPARE_WORKTREE_TIMEOUT + ClaudeCode::MINIMUM_TIMEOUT_SECONDS + Git::REMOVE_WORKTREE_TIMEOUT + AnswerCodeQuestion::SAVING_SECONDS)
+        ->toBeLessThanOrEqual($job->timeout);
 });

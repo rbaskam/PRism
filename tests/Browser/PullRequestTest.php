@@ -420,3 +420,21 @@ it('marks the file at the top viewed with v', function () {
     $page->assertSee('File viewed')->assertNoJavaScriptErrors();
     expect(PullRequestFileView::where('path', 'app/Http/Middleware/RateLimit.php')->exists())->toBeTrue();
 });
+
+it('renders Markdown from Claude that is crafted to be slow without freezing the page', function () {
+    $pullRequest = PullRequest::firstWhere('number', 101);
+    ReviewRun::factory()->create([
+        'pull_request_id' => $pullRequest->id,
+        'summary' => implode("\n\n", [
+            '# Slow heading'.str_repeat(' ', 3000).'x',
+            str_repeat('>', 5000).' deeply quoted',
+            str_repeat('[', 5000),
+            'The rest of the summary still shows.',
+        ]),
+    ]);
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->assertSee('The rest of the summary still shows.')
+        ->assertSee('deeply quoted')
+        ->assertNoJavaScriptErrors();
+});

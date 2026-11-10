@@ -2,32 +2,32 @@
 
 use App\Enums\ClaudeAuthMode;
 use App\Enums\CodeChangeStatus;
-use App\Enums\CodeChangeTarget;
 use App\Jobs\MakeCodeChanges;
-use App\Jobs\PushCodeChange;
 use App\Models\CodeChange;
 use App\Models\GithubAccount;
+use App\Models\PullRequest;
 use App\Services\AppSettings;
-use Illuminate\Http\Client\Request;
+use App\Services\Claude\ClaudeCode;
+use App\Services\Git\Git;
+use App\Services\Git\GitException;
 use Illuminate\Process\PendingProcess;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 
 beforeEach(function () {
-    GithubAccount::factory()->create(['login' => 'octocat', 'token' => 'gho_secret']);
+    GithubAccount::factory()->create(['login' => 'octocat', 'token' => 'ghp_test']);
     app(AppSettings::class)->set(AppSettings::CLAUDE_AUTH_MODE, ClaudeAuthMode::CliLogin->value);
     app(AppSettings::class)->set(AppSettings::CLAUDE_BINARY_PATH, PHP_BINARY);
 });
 
-function fakeGitAndClaude(string $log): void
+function fakeGitAndClaude(string $log, string $head = 'basesha', string $diff = "diff --git a/app/Foo.php b/app/Foo.php\n+fixed"): void
 {
     Process::fake([
-        '*rev-parse*FETCH_HEAD*' => Process::result('basesha'),
+        '*rev-parse*refs/prism/pr-*' => Process::result($head),
         '*rev-parse*HEAD*' => Process::result('headsha'),
         '*status*--porcelain*' => Process::result(''),
         '*log*--reverse*' => Process::result($log),
         '*diff*--shortstat*' => Process::result(' 2 files changed, 10 insertions(+), 3 deletions(-)'),
-        '*diff*--no-color*' => Process::result("diff --git a/app/Foo.php b/app/Foo.php\n+fixed"),
+        '*diff*--no-color*' => Process::result($diff),
         '*--output-format*' => Process::result(json_encode([
             'type' => 'result', 'subtype' => 'success', 'is_error' => false, 'result' => '',
             'structured_output' => ['summary' => 'Added the missing null check.', 'commit_message' => 'fix: null check'],
@@ -37,9 +37,19 @@ function fakeGitAndClaude(string $log): void
     ]);
 }
 
+/**
+ * A change for a pull request whose synced head is the commit fakeGitAndClaude() fetches.
+ */
+function queuedCodeChange(): CodeChange
+{
+    return CodeChange::factory()->queued()
+        ->for(PullRequest::factory()->state(['head_sha' => 'basesha']))
+        ->create(['finding_ids' => []]);
+}
+
 it('lets Claude commit changes in a worktree and keeps them for review without pushing', function () {
     fakeGitAndClaude("abc123\x1ffix: add null check");
-    $change = CodeChange::factory()->queued()->create(['finding_ids' => []]);
+    $change = queuedCodeChange();
 
     MakeCodeChanges::dispatchSync($change);
 
@@ -51,6 +61,7 @@ it('lets Claude commit changes in a worktree and keeps them for review without p
         ->files_changed->toBe(2)
         ->additions->toBe(10)
         ->deletions->toBe(3)
+        ->diff_truncated->toBeFalse()
         ->summary->toBe('Added the missing null check.');
     Process::assertRan(fn (PendingProcess $process): bool => in_array('worktree', $process->command, true) && in_array('add', $process->command, true));
     Process::assertRan(fn (PendingProcess $process): bool => in_array('--tools', $process->command, true)
@@ -58,20 +69,68 @@ it('lets Claude commit changes in a worktree and keeps them for review without p
     Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('push', $process->command, true));
 });
 
+it('lets Claude edit files only inside the worktree', function () {
+    fakeGitAndClaude("abc123\x1ffix: add null check");
+    $change = queuedCodeChange();
+
+    MakeCodeChanges::dispatchSync($change);
+
+    $worktree = $change->fresh()->worktree_path;
+    Process::assertRan(function (PendingProcess $process) use ($worktree): bool {
+        $command = $process->command;
+
+        if (! in_array('--allowedTools', $command, true)) {
+            return false;
+        }
+
+        $allowed = array_slice($command, array_search('--allowedTools', $command) + 1, array_search('--disallowedTools', $command) - array_search('--allowedTools', $command) - 1);
+
+        return $process->path === $worktree
+            && in_array('Edit(./**)', $allowed, true)
+            && in_array('Read(./**)', $allowed, true)
+            && array_intersect(['Read', 'Edit', 'Write', 'Grep', 'Glob'], $allowed) === []
+            && json_decode($command[array_search('--settings', $command) + 1], true)['permissions']['blockWritesOutsideWorkingDirectories'] === true;
+    });
+});
+
 it('fetches with the GitHub token from the environment, never in the command', function () {
     fakeGitAndClaude('');
-    $change = CodeChange::factory()->queued()->create();
+    $change = queuedCodeChange();
 
     MakeCodeChanges::dispatchSync($change);
 
     Process::assertRan(fn (PendingProcess $process): bool => in_array('fetch', $process->command, true)
-        && $process->environment['PRISM_GIT_TOKEN'] === 'gho_secret'
-        && ! str_contains(implode(' ', $process->command), 'gho_secret'));
+        && $process->environment['PRISM_GIT_TOKEN'] === 'ghp_test'
+        && ! str_contains(implode(' ', $process->command), 'ghp_test'));
+});
+
+it('refuses to change a pull request that has moved on since PRism synced it', function () {
+    fakeGitAndClaude("abc123\x1ffix: add null check", head: 'newersha');
+    $change = queuedCodeChange();
+
+    expect(fn () => MakeCodeChanges::dispatchSync($change))->toThrow(GitException::class, 'has new commits since PRism last synced it');
+
+    expect($change->fresh())
+        ->status->toBe(CodeChangeStatus::Failed)
+        ->error->toContain('Refresh it and try again');
+    Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('--output-format', $process->command, true));
+});
+
+it('marks a change whose diff is too big to show in full, so it cannot be pushed', function () {
+    fakeGitAndClaude("abc123\x1ffix: add null check", diff: str_repeat('+', MakeCodeChanges::MAX_STORED_DIFF_BYTES + 1));
+    $change = queuedCodeChange();
+
+    MakeCodeChanges::dispatchSync($change);
+
+    expect($change->fresh())
+        ->status->toBe(CodeChangeStatus::Ready)
+        ->diff_truncated->toBeTrue()
+        ->pushRefusal()->toContain('too big for PRism to show in full');
 });
 
 it('reports when Claude made no changes and removes the worktree', function () {
     fakeGitAndClaude('');
-    $change = CodeChange::factory()->queued()->create();
+    $change = queuedCodeChange();
 
     MakeCodeChanges::dispatchSync($change);
 
@@ -79,23 +138,8 @@ it('reports when Claude made no changes and removes the worktree', function () {
     Process::assertRan(fn (PendingProcess $process): bool => in_array('worktree', $process->command, true) && in_array('prune', $process->command, true));
 });
 
-it('pushes to a new branch and opens a pull request into the original branch', function () {
-    Http::preventStrayRequests();
-    Process::fake(['*' => Process::result('')]);
-    $change = CodeChange::factory()->create(['target' => CodeChangeTarget::NewPullRequest, 'status' => CodeChangeStatus::Pushing]);
-    $pullRequest = $change->pullRequest;
-    Http::fake([
-        "api.github.com/repos/{$pullRequest->repository->full_name}/pulls" => Http::response(['html_url' => 'https://github.com/acme/app/pull/99'], 201),
-    ]);
+it('leaves Claude enough time to commit and clean up before the job runs out of time', function () {
+    $job = new MakeCodeChanges(CodeChange::factory()->queued()->make());
 
-    PushCodeChange::dispatchSync($change);
-
-    expect($change->fresh())
-        ->status->toBe(CodeChangeStatus::Pushed)
-        ->pushed_branch->toBe("prism/pr-{$pullRequest->number}-fixes-{$change->id}")
-        ->created_pull_request_url->toBe('https://github.com/acme/app/pull/99');
-    Http::assertSent(fn (Request $request): bool => $request['base'] === $pullRequest->head_ref
-        && $request['head'] === "prism/pr-{$pullRequest->number}-fixes-{$change->id}");
-    Process::assertRan(fn (PendingProcess $process): bool => in_array('push', $process->command, true)
-        && in_array("HEAD:refs/heads/prism/pr-{$pullRequest->number}-fixes-{$change->id}", $process->command, true));
+    expect(Git::PREPARE_WORKTREE_TIMEOUT + ClaudeCode::MINIMUM_TIMEOUT_SECONDS + MakeCodeChanges::FINISHING_SECONDS)->toBeLessThanOrEqual($job->timeout);
 });

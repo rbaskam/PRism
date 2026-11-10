@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Encryption\Encrypter;
+use RuntimeException;
 
 /**
  * The encryption key for this installation of the desktop app.
@@ -20,22 +21,27 @@ class InstallationKey
 
     /**
      * Read the key, creating it on first use.
+     *
+     * A file that doesn't hold a usable key (e.g. it was cut short when the computer lost power) is replaced with a new
+     * key. Whatever the lost key encrypted can't be read any more, so wasCreated() says so and the app asks the user to
+     * reconnect, instead of every request failing.
      */
     public function key(): string
     {
         if (is_file($this->path)) {
-            return trim((string) file_get_contents($this->path));
-        }
+            $contents = file_get_contents($this->path);
 
-        $directory = dirname($this->path);
+            if ($contents === false) {
+                throw new RuntimeException("Could not read the encryption key at {$this->path}.");
+            }
 
-        if (! is_dir($directory)) {
-            mkdir($directory, 0700, true);
+            if ($this->isUsable(trim($contents))) {
+                return trim($contents);
+            }
         }
 
         $key = 'base64:'.base64_encode(Encrypter::generateKey(config('app.cipher')));
-        file_put_contents($this->path, $key);
-        chmod($this->path, 0600);
+        $this->write($key);
         $this->wasCreated = true;
 
         return $key;
@@ -47,5 +53,59 @@ class InstallationKey
     public function wasCreated(): bool
     {
         return $this->wasCreated;
+    }
+
+    private function isUsable(string $key): bool
+    {
+        if (! str_starts_with($key, 'base64:')) {
+            return false;
+        }
+
+        $decoded = base64_decode(substr($key, strlen('base64:')), strict: true);
+
+        return $decoded !== false && Encrypter::supported($decoded, config('app.cipher'));
+    }
+
+    /**
+     * Write the key to a temporary file next to the real one, then move it into place, so the file is never left
+     * half-written.
+     */
+    private function write(#[\SensitiveParameter] string $key): void
+    {
+        $directory = dirname($this->path);
+
+        if (! is_dir($directory) && ! mkdir($directory, 0700, true) && ! is_dir($directory)) {
+            throw new RuntimeException("Could not create {$directory} for the encryption key.");
+        }
+
+        $temporaryPath = tempnam($directory, 'installation-key-');
+
+        if ($temporaryPath === false) {
+            throw new RuntimeException("Could not write the encryption key in {$directory}.");
+        }
+
+        chmod($temporaryPath, 0600);
+
+        if (! $this->writeToDisk($temporaryPath, $key) || ! rename($temporaryPath, $this->path)) {
+            @unlink($temporaryPath);
+
+            throw new RuntimeException("Could not write the encryption key to {$this->path}.");
+        }
+    }
+
+    /**
+     * Write the file and wait until it's on disk, so a crash straight afterwards can't leave an empty key behind.
+     */
+    private function writeToDisk(string $path, #[\SensitiveParameter] string $contents): bool
+    {
+        $handle = fopen($path, 'wb');
+
+        if ($handle === false) {
+            return false;
+        }
+
+        $written = fwrite($handle, $contents) === strlen($contents) && fflush($handle) && fsync($handle);
+
+        return fclose($handle) && $written;
     }
 }

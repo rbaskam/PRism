@@ -126,10 +126,49 @@ it('changes the PIN when the current PIN is right', function () {
         ->and(app(AppLock::class)->pinMatches('2468'))->toBeFalse();
 });
 
-it('saves the other lock options without asking for the PIN again', function () {
+it('saves options that make the lock stricter without asking for the PIN again', function () {
+    ($this->lockedWithPin)('2468');
+    app(AppSettings::class)->setMany([
+        AppSettings::APP_LOCK_USE_BIOMETRICS => true,
+        AppSettings::APP_LOCK_AUTO_LOCK_MINUTES => 0,
+        AppSettings::APP_LOCK_ON_LAUNCH => false,
+    ]);
+
+    $response = $this->put(route('settings.security.update'), ($this->securitySettings)([
+        'use_biometrics' => false,
+        'auto_lock_minutes' => 5,
+        'lock_on_launch' => true,
+    ]));
+
+    $response->assertSessionHasNoErrors()->assertSessionHas('success', 'App lock saved.');
+    $settings = app(AppSettings::class);
+    expect($settings->unlocksWithBiometrics())->toBeFalse()
+        ->and($settings->autoLockMinutes())->toBe(5)
+        ->and($settings->locksOnLaunch())->toBeTrue();
+});
+
+it('needs the current PIN to make the lock less strict', function (array $overrides) {
+    ($this->lockedWithPin)('2468');
+
+    $response = $this->put(route('settings.security.update'), ($this->securitySettings)($overrides));
+
+    $response->assertSessionHasErrors(['current_pin' => 'Enter your current PIN to save these changes.']);
+    $settings = app(AppSettings::class);
+    expect($settings->unlocksWithBiometrics())->toBeFalse()
+        ->and($settings->autoLockMinutes())->toBe(15)
+        ->and($settings->locksOnLaunch())->toBeTrue();
+})->with([
+    'never auto-locking' => [['auto_lock_minutes' => 0]],
+    'auto-locking later' => [['auto_lock_minutes' => 60]],
+    'not locking when the app starts' => [['lock_on_launch' => false]],
+    'unlocking with Touch ID' => [['use_biometrics' => true]],
+]);
+
+it('makes the lock less strict with the current PIN', function () {
     ($this->lockedWithPin)('2468');
 
     $response = $this->put(route('settings.security.update'), ($this->securitySettings)([
+        'current_pin' => '2468',
         'use_biometrics' => true,
         'auto_lock_minutes' => 0,
         'lock_on_launch' => false,
@@ -139,6 +178,17 @@ it('saves the other lock options without asking for the PIN again', function () 
     $settings = app(AppSettings::class);
     expect($settings->unlocksWithBiometrics())->toBeTrue()
         ->and($settings->autoLockMinutes())->toBe(0)
-        ->and($settings->locksOnLaunch())->toBeFalse()
-        ->and($settings->isAppLockEnabled())->toBeTrue();
+        ->and($settings->locksOnLaunch())->toBeFalse();
+});
+
+it('counts wrong current PINs towards the lock screen\'s lockout', function () {
+    ($this->lockedWithPin)('2468');
+
+    foreach (range(1, AppLock::PIN_ATTEMPTS_BEFORE_LOCKOUT) as $attempt) {
+        $this->put(route('settings.security.update'), ($this->securitySettings)(['lock_enabled' => false, 'current_pin' => '0000']));
+    }
+    $response = $this->put(route('settings.security.update'), ($this->securitySettings)(['lock_enabled' => false, 'current_pin' => '2468']));
+
+    $response->assertSessionHasErrors(['current_pin' => 'Too many attempts. Try again in 5 minutes.']);
+    expect(app(AppSettings::class)->isAppLockEnabled())->toBeTrue();
 });

@@ -7,7 +7,7 @@
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
         {{-- Apply the saved mode and accent (see useAppearance.ts) before the page paints, so dark mode doesn't flash white. --}}
-        <script>
+        <script nonce="{{ Vite::cspNonce() }}">
             (function () {
                 try {
                     var appearance = localStorage.getItem('appearance') || 'system';
@@ -30,9 +30,13 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
 
-        @routes
+        @routes(null, Vite::cspNonce())
         @vite(['resources/js/app.ts'])
         @inertiaHead
+
+        {{-- NativePHP adds an inline script for Livewire to every page unless this marker is here. PRism doesn't use
+             Livewire, and the Content Security Policy would block the script. --}}
+        <!--[NativePHP Livewire Dispatcher]-->
     </head>
     <body class="font-sans antialiased">
         @inertia

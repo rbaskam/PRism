@@ -90,4 +90,6 @@ it('rejects a folder to scan that is missing or not on this computer', function 
 })->with([
     'no folder' => [[], 'The folder field is required.'],
     'missing folder' => [['folder' => '/Users/octocat/Code/does-not-exist'], 'That folder does not exist on this computer.'],
+    'a list instead of a path' => [['folder' => ['/Users/octocat/Code']], 'The folder field must be a string.'],
+    'a relative path' => [['folder' => '.'], "Enter the folder's full path, like /Users/you/code."],
 ]);

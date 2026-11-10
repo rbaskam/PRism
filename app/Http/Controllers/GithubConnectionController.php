@@ -50,7 +50,7 @@ class GithubConnectionController extends Controller
     /**
      * Carry on to choosing repositories during onboarding, or go back to Settings → GitHub after reconnecting.
      */
-    private function connect(ConnectGithubAccount $connect, AppSettings $settings, string $token, GithubTokenSource $source, string $errorKey): RedirectResponse
+    private function connect(ConnectGithubAccount $connect, AppSettings $settings, #[\SensitiveParameter] string $token, GithubTokenSource $source, string $errorKey): RedirectResponse
     {
         try {
             $result = $connect->handle($token, $source);

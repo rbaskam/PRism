@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\GithubAccount;
 use App\Services\AppLock;
 use App\Services\AppSettings;
 use Tests\Browser\Support\FakeGithub;
@@ -60,7 +61,40 @@ it('still locks once you stop using the app', function () {
         ->assertNoJavaScriptErrors();
 });
 
+it('does not show earlier pages when going back after locking', function () {
+    $page = visit('/')
+        ->fill('#pin', '2468')
+        ->click('internal:role=button[name="Unlock"s]')
+        ->waitForText('My pull requests')
+        ->navigate('/settings/security')
+        ->click('internal:role=button[name="Lock now"i]')
+        ->waitForText('Enter your PIN to continue.')
+        ->back();
+
+    // The page in history can't be read any more, so it's reloaded from the server, which shows the lock screen.
+    $page->assertScript(<<<'JS'
+        function () {
+            return new Promise((resolve) => {
+                const started = performance.now();
+                const check = () => {
+                    if (location.pathname === '/lock' || performance.now() - started > 5000) {
+                        resolve(location.pathname);
+                    } else {
+                        setTimeout(check, 50);
+                    }
+                };
+
+                check();
+            });
+        }
+        JS, '/lock')
+        ->assertSee('Enter your PIN to continue.')
+        ->assertDontSee('App lock')
+        ->assertNoJavaScriptErrors();
+});
+
 it('removes a forgotten PIN with a token for the connected GitHub account', function () {
+    GithubAccount::current()->update(['github_id' => FakeGithub::USER_ID]);
     (new FakeGithub('octocat'))->fake();
 
     visit('/')

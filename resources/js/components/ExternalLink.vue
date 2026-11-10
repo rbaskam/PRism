@@ -9,7 +9,13 @@ const { openExternal } = useExternalLink();
 </script>
 
 <template>
-    <a :href="props.href ?? '#'" rel="noopener" target="_blank" @click.prevent.stop="openExternal(props.href)">
+    <a
+        :href="props.href ?? '#'"
+        rel="noopener"
+        target="_blank"
+        @click.prevent.stop="openExternal(props.href)"
+        @auxclick.middle.prevent.stop="openExternal(props.href)"
+    >
         <slot />
     </a>
 </template>

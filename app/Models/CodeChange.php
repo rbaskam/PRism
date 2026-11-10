@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CodeChangeStatus;
 use App\Enums\CodeChangeTarget;
 use Database\Factories\CodeChangeFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +29,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $summary
  * @property list<array{sha: string, message: string}>|null $commits
  * @property string|null $diff
+ * @property bool $diff_truncated
  * @property int $files_changed
  * @property int $additions
  * @property int $deletions
@@ -46,6 +48,11 @@ class CodeChange extends Model
 {
     /** @use HasFactory<CodeChangeFactory> */
     use HasFactory;
+
+    /**
+     * Claude never works on a change for longer than this, so one still running after it was interrupted.
+     */
+    public const INTERRUPTED_AFTER_MINUTES = 60;
 
     /**
      * The attributes that are mass assignable.
@@ -67,6 +74,7 @@ class CodeChange extends Model
         'summary',
         'commits',
         'diff',
+        'diff_truncated',
         'files_changed',
         'additions',
         'deletions',
@@ -93,6 +101,7 @@ class CodeChange extends Model
             'finding_ids' => 'array',
             'comments' => 'array',
             'commits' => 'array',
+            'diff_truncated' => 'boolean',
             'cost_usd' => 'float',
             'started_at' => 'datetime',
             'pushed_at' => 'datetime',
@@ -108,6 +117,22 @@ class CodeChange extends Model
     }
 
     /**
+     * Scope the query to changes whose worktree and branch must stay: ones waiting to be pushed or being pushed, and
+     * ones Claude is still working on. A change still "running" an hour after it last changed was interrupted (no job
+     * runs that long), so its worktree is left over.
+     *
+     * @param  Builder<CodeChange>  $query
+     */
+    public function scopeKeepingWorktree(Builder $query): void
+    {
+        $query->where(fn (Builder $query) => $query
+            ->whereIn('status', [CodeChangeStatus::Ready, CodeChangeStatus::Pushing])
+            ->orWhere(fn (Builder $query) => $query
+                ->whereIn('status', [CodeChangeStatus::Queued, CodeChangeStatus::Running])
+                ->where('updated_at', '>=', now()->subMinutes(self::INTERRUPTED_AFTER_MINUTES))));
+    }
+
+    /**
      * The branch the changes will be pushed to.
      */
     public function destinationBranch(): string
@@ -115,5 +140,34 @@ class CodeChange extends Model
         return $this->target === CodeChangeTarget::PullRequestBranch
             ? (string) $this->pullRequest->head_ref
             : "prism/pr-{$this->pullRequest->number}-fixes-{$this->id}";
+    }
+
+    /**
+     * The "owner/name" of the repository the changes will be pushed to: the fork a pull request comes from when they
+     * go onto its branch, otherwise the pull request's own repository.
+     */
+    public function destinationRepository(): string
+    {
+        $pullRequest = $this->pullRequest;
+
+        return $this->target === CodeChangeTarget::PullRequestBranch && $pullRequest->is_cross_repository && $pullRequest->head_repository !== null
+            ? $pullRequest->head_repository
+            : $pullRequest->repository->full_name;
+    }
+
+    /**
+     * Why these changes can't be pushed, or null when they can (pushing must also be allowed in settings).
+     */
+    public function pushRefusal(): ?string
+    {
+        if ($this->diff_truncated) {
+            return 'This change is too big for PRism to show in full, and only changes you\'ve seen can be pushed. Discard it and ask Claude for a smaller change.';
+        }
+
+        if ($this->head_sha === null) {
+            return 'PRism has no record of which commit to push. Discard these changes and ask Claude again.';
+        }
+
+        return $this->pullRequest->codeChangeRefusal($this->target);
     }
 }

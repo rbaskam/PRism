@@ -52,6 +52,10 @@ class PullRequestMapper
             'head_ref' => $node['headRefName'],
             'base_ref' => $node['baseRefName'],
             'head_sha' => $node['headRefOid'],
+            // Left unknown when GitHub didn't say: PRism then pushes nothing for the pull request (see codeChangeRefusal()).
+            'is_cross_repository' => isset($node['isCrossRepository']) ? (bool) $node['isCrossRepository'] : null,
+            'head_repository' => $node['headRepository']['nameWithOwner'] ?? null,
+            'maintainer_can_modify' => (bool) ($node['maintainerCanModify'] ?? false),
             'additions' => $node['additions'],
             'deletions' => $node['deletions'],
             'changed_files' => $node['changedFiles'],

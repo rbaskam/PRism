@@ -178,6 +178,12 @@ export interface PullRequest {
     head_ref: string | null;
     base_ref: string | null;
     head_sha: string | null;
+    /** The pull request comes from a fork; null until PRism has synced it. */
+    is_cross_repository: boolean | null;
+    /** The "owner/name" its branch lives in: a fork's for cross-repository pull requests. */
+    head_repository: string | null;
+    /** Why "Fix with Claude" can't send changes to each target (e.g. for a fork), or null when it can. */
+    code_change_refusals: Record<CodeChangeTarget, string | null>;
     additions: number;
     deletions: number;
     changed_files: number;
@@ -402,14 +408,22 @@ export interface ChangelogVersion {
 
 export type CodeChangeStatus = 'queued' | 'running' | 'ready' | 'no_changes' | 'pushing' | 'pushed' | 'discarded' | 'failed';
 
+/** pull_request_branch = push onto the PR's branch; new_pull_request = push a new branch and open a PR into the PR's branch. */
+export type CodeChangeTarget = 'pull_request_branch' | 'new_pull_request';
+
 /** Changes Claude made to a pull request's code in a worktree ("Fix with Claude"). */
 export interface CodeChange {
     id: number;
     status: CodeChangeStatus;
     is_active: boolean;
-    /** pull_request_branch = push onto the PR's branch; new_pull_request = push a new branch and open a PR into the PR's branch. */
-    target: 'pull_request_branch' | 'new_pull_request';
+    target: CodeChangeTarget;
     destination_branch: string;
+    /** The "owner/name" the changes are pushed to. */
+    destination_repository: string;
+    /** The changes go onto a fork's branch, not a branch of the pull request's repository. */
+    pushes_to_fork: boolean;
+    /** Why ready changes can't be pushed (too big to have been reviewed in full, a fork that refuses them), or null. */
+    push_refusal: string | null;
     instructions: string | null;
     finding_ids: number[];
     /** Review comments Claude was asked to address. */
@@ -419,6 +433,8 @@ export interface CodeChange {
     commits: { sha: string; message: string }[];
     /** Unified diff of all commits (git diff base..HEAD), possibly several files. */
     diff: string | null;
+    /** The diff was too big to keep in full, so the changes can't be pushed from PRism. */
+    diff_truncated: boolean;
     files_changed: number;
     additions: number;
     deletions: number;

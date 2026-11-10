@@ -29,7 +29,7 @@ class GithubClient
      */
     private const MAX_NODES_PER_QUERY = 100;
 
-    public function __construct(private readonly string $token) {}
+    public function __construct(#[\SensitiveParameter] private readonly string $token) {}
 
     /**
      * Get the authenticated user and the OAuth scopes granted to the token.

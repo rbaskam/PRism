@@ -105,9 +105,19 @@ return [
 
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | History
+    |--------------------------------------------------------------------------
+    |
+    | Pages are encrypted in the browser's history, and the key is thrown away
+    | when the app locks, so going back can't show a page from before the lock.
+    |
+    */
+
     'history' => [
 
-        'encrypt' => (bool) env('INERTIA_ENCRYPT_HISTORY', false),
+        'encrypt' => (bool) env('INERTIA_ENCRYPT_HISTORY', true),
 
     ],
 

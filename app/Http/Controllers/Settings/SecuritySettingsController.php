@@ -50,17 +50,20 @@ class SecuritySettingsController extends Controller
                 'confirmed',
             ],
             'current_pin' => [
-                Rule::requiredIf(fn (): bool => $wasEnabled && (! $request->boolean('lock_enabled') || filled($request->input('pin')))),
+                Rule::requiredIf(fn (): bool => $wasEnabled && $this->weakensLock($request, $settings)),
                 'nullable',
                 'string',
+                'max:12',
             ],
             'use_biometrics' => ['required', 'boolean'],
             'auto_lock_minutes' => ['required', 'integer', Rule::in(self::AUTO_LOCK_OPTIONS)],
             'lock_on_launch' => ['required', 'boolean'],
+        ], [
+            'current_pin.required' => 'Enter your current PIN to save these changes.',
         ]);
 
-        if (filled($validated['current_pin'] ?? null) && ! $appLock->pinMatches($validated['current_pin'])) {
-            throw ValidationException::withMessages(['current_pin' => 'Your current PIN is not right.']);
+        if (filled($validated['current_pin'] ?? null)) {
+            $this->checkCurrentPin($appLock, $validated['current_pin']);
         }
 
         if (filled($validated['pin'] ?? null)) {
@@ -79,5 +82,45 @@ class SecuritySettingsController extends Controller
         }
 
         return back()->with('success', $validated['lock_enabled'] ? 'App lock saved.' : 'App lock turned off.');
+    }
+
+    /**
+     * Whether the request makes the lock easier to get past: turning it off, changing the PIN, unlocking with a
+     * fingerprint (any finger enrolled on the Mac), locking later or never, or not locking when the app starts. Someone
+     * at an unlocked app has to know the PIN to do that.
+     */
+    private function weakensLock(Request $request, AppSettings $settings): bool
+    {
+        return ! $request->boolean('lock_enabled')
+            || filled($request->input('pin'))
+            || ($request->boolean('use_biometrics') && ! $settings->unlocksWithBiometrics())
+            || (! $request->boolean('lock_on_launch') && $settings->locksOnLaunch())
+            || $this->autoLocksAfter($request->integer('auto_lock_minutes')) > $this->autoLocksAfter($settings->autoLockMinutes());
+    }
+
+    /**
+     * Minutes of inactivity before the app locks itself, where the setting's 0 (never) is the longest.
+     */
+    private function autoLocksAfter(int $minutes): int
+    {
+        return $minutes === 0 ? PHP_INT_MAX : $minutes;
+    }
+
+    /**
+     * Wrong PINs here count towards the same lockout as on the lock screen, so this page can't be used to guess it.
+     *
+     * @throws ValidationException
+     */
+    private function checkCurrentPin(AppLock $appLock, #[\SensitiveParameter] string $pin): void
+    {
+        if ($appLock->pinLockoutSeconds() > 0) {
+            throw ValidationException::withMessages(['current_pin' => $appLock->pinLockoutMessage()]);
+        }
+
+        if (! $appLock->attemptPin($pin)) {
+            throw ValidationException::withMessages([
+                'current_pin' => $appLock->pinLockoutSeconds() > 0 ? $appLock->pinLockoutMessage() : 'Your current PIN is not right.',
+            ]);
+        }
     }
 }

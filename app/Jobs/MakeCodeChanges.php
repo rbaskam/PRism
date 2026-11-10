@@ -24,12 +24,27 @@ class MakeCodeChanges implements ShouldQueue
     use Queueable;
 
     /**
-     * Diffs larger than this are cut short in the database; the full change is still in the worktree.
+     * Diffs larger than this are cut short in the database, and the change can't be pushed: the user hasn't seen all
+     * of it. The full change is still in the worktree.
      */
-    private const MAX_STORED_DIFF_BYTES = 1_000_000;
+    public const MAX_STORED_DIFF_BYTES = 1_000_000;
+
+    /**
+     * Claude may change code for up to 28 minutes, if the job has that long left.
+     */
+    public const CLAUDE_TIMEOUT = 1700;
+
+    /**
+     * Kept back after Claude for committing what it left, reading the commits and the diff (8 git commands), removing
+     * the worktree when nothing changed, and saving the result.
+     */
+    public const FINISHING_SECONDS = 8 * Git::COMMAND_TIMEOUT + Git::REMOVE_WORKTREE_TIMEOUT + 60;
 
     public int $tries = 1;
 
+    /**
+     * Preparing the worktree, Claude's work and finishing up all fit in this: Claude gets what's left.
+     */
     public int $timeout = 1800;
 
     public function __construct(public CodeChange $codeChange)
@@ -44,9 +59,11 @@ class MakeCodeChanges implements ShouldQueue
         $repository = $pullRequest->repository->full_name;
         $account = GithubAccount::current() ?? throw new \RuntimeException('Connect GitHub before asking Claude to change code.');
 
+        $deadline = now()->addSeconds($this->timeout - self::FINISHING_SECONDS);
         $change->update(['status' => CodeChangeStatus::Running, 'started_at' => now(), 'error' => null]);
 
-        $base = $git->fetchPullRequestHead($change->checkout_path, $repository, $pullRequest->number, $account->token);
+        // Only change the commit the user saw: refuse when the pull request has moved on since PRism synced it.
+        $base = $git->fetchPullRequestHead($change->checkout_path, $repository, $pullRequest->number, $account->token, $pullRequest->head_sha);
         $branch = "prism/change-{$change->id}";
         $worktree = $git->worktreePath($repository, "pr-{$pullRequest->number}-change-{$change->id}");
         $git->addWorktree($change->checkout_path, $worktree, $base, $branch);
@@ -66,8 +83,9 @@ class MakeCodeChanges implements ShouldQueue
             workingDirectory: $worktree,
             githubToken: $account->token,
             allowedTools: ClaudeCode::EDITING_COMMANDS,
-            timeoutSeconds: 1700,
+            timeoutSeconds: ClaudeCode::timeoutBefore($deadline, self::CLAUDE_TIMEOUT),
             tools: ClaudeCode::EDITING_TOOLS,
+            repository: $repository,
         );
 
         if ($git->hasUncommittedChanges($worktree)) {
@@ -79,20 +97,24 @@ class MakeCodeChanges implements ShouldQueue
             );
         }
 
-        $commits = $git->commitsSince($worktree, $base);
+        // Everything below describes this exact commit, which is the one pushed if the user approves it.
+        $head = $git->head($worktree);
+        $commits = $git->commitsSince($worktree, $base, $head);
 
         if ($commits === []) {
             $git->removeWorktree($change->checkout_path, $worktree, $branch);
         }
 
-        $diff = $commits === [] ? ['diff' => '', 'files_changed' => 0, 'additions' => 0, 'deletions' => 0] : $git->diffSince($worktree, $base);
+        $diff = $commits === [] ? ['diff' => '', 'files_changed' => 0, 'additions' => 0, 'deletions' => 0] : $git->diffSince($worktree, $base, $head);
+        $storedDiff = Str::limit($diff['diff'], self::MAX_STORED_DIFF_BYTES, "\n… diff truncated …");
 
         $change->update([
             'status' => $commits === [] ? CodeChangeStatus::NoChanges : CodeChangeStatus::Ready,
-            'head_sha' => $commits === [] ? null : trim($git->run($worktree, ['rev-parse', 'HEAD'])->output()),
+            'head_sha' => $commits === [] ? null : $head,
             'summary' => $result->structuredOutput['summary'] ?? $result->text,
             'commits' => $commits,
-            'diff' => Str::limit($diff['diff'], self::MAX_STORED_DIFF_BYTES, "\n… diff truncated …"),
+            'diff' => $storedDiff,
+            'diff_truncated' => $storedDiff !== $diff['diff'],
             'files_changed' => $diff['files_changed'],
             'additions' => $diff['additions'],
             'deletions' => $diff['deletions'],
@@ -130,7 +152,7 @@ class MakeCodeChanges implements ShouldQueue
         $lines = [
             "You are working on pull request {$repository}#{$pullRequest->number} \"{$pullRequest->title}\" ({$pullRequest->head_ref} into {$pullRequest->base_ref}).",
             'The working directory is a git worktree at the head of the pull request.',
-            "Read it with `gh pr view {$pullRequest->number} --repo {$repository}` and `gh pr diff {$pullRequest->number} --repo {$repository}` if you need more context.",
+            "Read it with `gh pr view {$pullRequest->number}` and `gh pr diff {$pullRequest->number}` if you need more context (gh is already set up for {$repository}, so don't pass --repo).",
         ];
 
         if (filled($change->instructions)) {

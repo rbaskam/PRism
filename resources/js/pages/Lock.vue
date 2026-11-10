@@ -33,11 +33,13 @@ const secondsLeft = ref(0);
 const biometricsLabel = computed(() => props.biometrics.label ?? 'Touch ID');
 const isLockedOut = computed(() => secondsLeft.value > 0);
 const canSubmit = computed(() => form.pin.length >= MIN_PIN_LENGTH && !form.processing && !isLockedOut.value);
+/** m:ss, or h:mm:ss once repeated wrong PINs make the wait an hour or more. */
 const countdown = computed(() => {
-    const minutes = Math.floor(secondsLeft.value / 60);
-    const seconds = secondsLeft.value % 60;
+    const hours = Math.floor(secondsLeft.value / 3600);
+    const minutes = Math.floor((secondsLeft.value % 3600) / 60);
+    const seconds = String(secondsLeft.value % 60).padStart(2, '0');
 
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 });
 
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
@@ -238,6 +240,7 @@ onBeforeUnmount(() => clearInterval(countdownTimer));
                                 rel="noopener"
                                 class="font-medium text-foreground underline underline-offset-2 hover:no-underline"
                                 @click.prevent="openTokenPage"
+                                @auxclick.middle.prevent="openTokenPage"
                             >
                                 Create a personal access token<ExternalLinkIcon class="ml-0.5 inline size-3.5 align-[-2px]"
                             /></a>

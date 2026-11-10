@@ -4,6 +4,7 @@ use App\Enums\NotificationSound;
 use App\Models\GithubAccount;
 use App\Models\PullRequest;
 use App\Models\Repository;
+use App\Services\AppLock;
 use App\Services\AppSettings;
 use Tests\Browser\Support\FakeGithub;
 
@@ -135,6 +136,27 @@ it('turns on the app lock with a PIN', function () {
         ->assertNoJavaScriptErrors();
 
     expect(app(AppSettings::class)->isAppLockEnabled())->toBeTrue();
+});
+
+it('asks for the current PIN before the lock is made less strict', function () {
+    app(AppLock::class)->setPin('2468');
+    app(AppSettings::class)->set(AppSettings::APP_LOCK_ENABLED, true);
+    $page = visit('/')
+        ->fill('#pin', '2468')
+        ->click('internal:role=button[name="Unlock"s]')
+        ->waitForText('My pull requests')
+        ->navigate('/settings/security')
+        ->assertMissing('#current_pin')
+        ->select('#auto_lock_minutes', '0')
+        ->assertSee('Enter your current PIN to make the lock less strict.')
+        ->fill('#current_pin', '2468');
+    trackRequests($page);
+    $page->click('Save');
+    waitForRequests($page);
+
+    $page->assertMissing('#current_pin')
+        ->assertNoJavaScriptErrors();
+    expect(app(AppSettings::class)->autoLockMinutes())->toBe(0);
 });
 
 it('switches to dark mode and an accent colour, and keeps them on every page', function () {

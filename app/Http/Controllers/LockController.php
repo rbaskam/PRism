@@ -7,7 +7,6 @@ use App\Services\AppLock;
 use App\Services\AppSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,10 +16,6 @@ use Inertia\Response;
  */
 class LockController extends Controller
 {
-    public const PIN_THROTTLE_KEY = 'app-lock-pin';
-
-    private const MAX_PIN_ATTEMPTS = 5;
-
     public function __construct(private readonly AppLock $appLock) {}
 
     public function show(Request $request, AppSettings $settings): Response|RedirectResponse
@@ -34,7 +29,7 @@ class LockController extends Controller
                 'enabled' => $settings->unlocksWithBiometrics() && $this->appLock->biometricsAvailable(),
                 'label' => $this->appLock->biometricsLabel(),
             ],
-            'lockedOutSeconds' => RateLimiter::availableIn($this->throttleKey()) * (int) RateLimiter::tooManyAttempts($this->throttleKey(), self::MAX_PIN_ATTEMPTS),
+            'lockedOutSeconds' => $this->appLock->pinLockoutSeconds(),
             'recovery' => [
                 'login' => GithubAccount::current()?->login,
                 'token_url' => PinRecoveryController::tokenPageUrl(),
@@ -46,19 +41,16 @@ class LockController extends Controller
     {
         $validated = $request->validate(['pin' => ['required', 'string', 'max:12']]);
 
-        if (RateLimiter::tooManyAttempts($this->throttleKey(), self::MAX_PIN_ATTEMPTS)) {
+        if ($this->appLock->pinLockoutSeconds() > 0) {
+            throw ValidationException::withMessages(['pin' => $this->appLock->pinLockoutMessage()]);
+        }
+
+        if (! $this->appLock->attemptPin($validated['pin'])) {
             throw ValidationException::withMessages([
-                'pin' => 'Too many attempts. Try again in '.RateLimiter::availableIn($this->throttleKey()).' seconds.',
+                'pin' => $this->appLock->pinLockoutSeconds() > 0 ? $this->appLock->pinLockoutMessage() : 'That PIN is not right.',
             ]);
         }
 
-        if (! $this->appLock->pinMatches($validated['pin'])) {
-            RateLimiter::hit($this->throttleKey(), 300);
-
-            throw ValidationException::withMessages(['pin' => 'That PIN is not right.']);
-        }
-
-        RateLimiter::clear($this->throttleKey());
         $this->appLock->unlock($request->session());
 
         return redirect()->intended(route('dashboard'));
@@ -70,7 +62,7 @@ class LockController extends Controller
             return back()->with('error', 'Touch ID did not unlock the app. Use your PIN instead.');
         }
 
-        RateLimiter::clear($this->throttleKey());
+        $this->appLock->forgetFailedPinAttempts();
         $this->appLock->unlock($request->session());
 
         return redirect()->intended(route('dashboard'));
@@ -79,12 +71,8 @@ class LockController extends Controller
     public function lock(Request $request): RedirectResponse
     {
         $this->appLock->lock($request->session());
+        Inertia::clearHistory();
 
         return redirect()->route('lock.show');
-    }
-
-    private function throttleKey(): string
-    {
-        return self::PIN_THROTTLE_KEY;
     }
 }

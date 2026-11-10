@@ -22,6 +22,11 @@ class PostedFindingController extends Controller
             return back()->with('error', 'Posting findings is turned off in Settings → PR review.');
         }
 
+        // A second window, or a page from before it was posted, mustn't post it again.
+        if ($finding->posted_at !== null) {
+            return back()->with('error', 'This finding is already on the pull request.');
+        }
+
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:65000'],
         ]);

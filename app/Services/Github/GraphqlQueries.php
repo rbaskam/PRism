@@ -25,6 +25,9 @@ final class GraphqlQueries
           headRefName
           baseRefName
           headRefOid
+          isCrossRepository
+          headRepository { nameWithOwner }
+          maintainerCanModify
           mergeable
           reviewDecision
           author { login avatarUrl }
@@ -128,6 +131,19 @@ final class GraphqlQueries
         query ($ids: [ID!]!) {
           nodes(ids: $ids) {
             ... on PullRequest { id state closedAt mergedAt }
+          }
+        }
+        GRAPHQL;
+
+    /**
+     * Open pull requests from a branch, to find the one PRism opened before instead of opening another.
+     */
+    public const OPEN_PULL_REQUESTS_FROM_BRANCH = <<<'GRAPHQL'
+        query ($owner: String!, $name: String!, $branch: String!) {
+          repository(owner: $owner, name: $name) {
+            pullRequests(headRefName: $branch, states: OPEN, first: 10) {
+              nodes { url headRepository { nameWithOwner } }
+            }
           }
         }
         GRAPHQL;

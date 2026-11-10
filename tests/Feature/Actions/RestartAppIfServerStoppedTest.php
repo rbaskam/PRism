@@ -11,7 +11,7 @@ use Illuminate\Support\Sleep;
 beforeEach(function () {
     Http::preventStrayRequests();
     Sleep::fake();
-    config(['nativephp-internal.running' => true, 'nativephp-internal.api_url' => 'http://native.test/api/']);
+    config(['nativephp-internal.running' => true, 'nativephp-internal.api_url' => 'http://native.test/api/', 'nativephp-internal.secret' => 'native-test-secret']);
 });
 
 /**
@@ -85,4 +85,13 @@ it('isn\'t logged as a failed scheduled task while the server answers', function
 
     expect($check->exitCode)->toBe(0)
         ->and(relaunchWasRequested())->toBeFalse();
+});
+
+it('sends the app\'s secret when checking its server, so the server answers it', function () {
+    Http::fake([...nativeApiWithMainWindow(), '127.0.0.1:8100/up' => Http::response('Application up')]);
+
+    app(RestartAppIfServerStopped::class)->handle();
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://127.0.0.1:8100/up'
+        && $request->hasHeader('X-NativePHP-Secret', 'native-test-secret'));
 });

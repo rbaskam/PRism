@@ -3,12 +3,12 @@
 namespace App\Http\Middleware;
 
 use App\Actions\QueuePullRequestReview;
-use App\Enums\AiTaskStatus;
 use App\Models\Alert;
 use App\Models\GithubAccount;
 use App\Models\GithubNotification;
 use App\Models\PullRequest;
 use App\Models\ReviewRun;
+use App\Services\AppLock;
 use App\Services\AppSettings;
 use App\Services\Changelog;
 use App\Services\UpdateChecker;
@@ -51,7 +51,7 @@ class HandleInertiaRequests extends Middleware
             $request->session()->reflash();
         }
 
-        return [
+        $shared = [
             ...parent::share($request),
             'name' => config('app.name'),
             'isNative' => (bool) config('nativephp-internal.running'),
@@ -59,18 +59,27 @@ class HandleInertiaRequests extends Middleware
             // answering properly; while developing, Laravel's error pages are more useful.
             'recoversFromServerProblems' => config('nativephp-internal.running') && ! config('app.debug'),
             'isContainer' => (bool) config('prism.running_in_container'),
+            'appLock' => fn (): array => ['enabled' => app(AppSettings::class)->isAppLockEnabled()],
+            'flash' => fn (): array => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+            ],
+        ];
+
+        // The lock screen gets nothing about the user's account or pull requests.
+        if (app(AppLock::class)->isLocked($request->session())) {
+            return $shared;
+        }
+
+        return [
+            ...$shared,
             'github' => fn (): ?array => GithubAccount::current()?->only(['login', 'name', 'avatar_url']),
             'claude' => fn (): array => ['configured' => app(AppSettings::class)->isClaudeConfigured()],
-            'appLock' => fn (): array => ['enabled' => app(AppSettings::class)->isAppLockEnabled()],
             'appVersion' => fn (): string => app(UpdateChecker::class)->currentVersion(),
             'update' => fn (): ?array => app(UpdateChecker::class)->updateIsAvailable() ? app(UpdateChecker::class)->latestRelease() : null,
             'whatsNew' => fn (): ?array => $this->whatsNew(),
             'counts' => fn (): array => $this->counts(),
             'recentPullRequests' => fn (): array => $this->recentPullRequests(),
-            'flash' => fn (): array => [
-                'success' => $request->session()->get('success'),
-                'error' => $request->session()->get('error'),
-            ],
         ];
     }
 
@@ -82,8 +91,7 @@ class HandleInertiaRequests extends Middleware
     private function counts(): array
     {
         $reviewing = ReviewRun::query()
-            ->whereIn('status', [AiTaskStatus::Queued, AiTaskStatus::Running])
-            ->where('created_at', '>=', now()->subMinutes(QueuePullRequestReview::STALE_AFTER_MINUTES))
+            ->where(QueuePullRequestReview::whereActive(...))
             ->with('pullRequest.repository')
             ->oldest('id')
             ->get()

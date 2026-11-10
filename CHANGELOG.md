@@ -10,6 +10,37 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Changed
+
+- **Fix with Claude** on a pull request from a fork pushes to the fork, and only when its author lets maintainers edit it. Otherwise pushing and opening a new pull request are turned off, and the dialog says why.
+- Changes whose diff is too large to show in full can't be pushed.
+- Loosening the app lock now asks for your current PIN: turning it off, changing the PIN, turning on Touch ID, a longer auto-lock, or not locking on launch.
+- Developer tools are turned off in the released app.
+
+### Security
+
+- A pull request can no longer run commands on your computer through its own Claude Code settings (`.claude/settings.json`) or its git hooks when you review it, ask about it or fix it with Claude.
+- While reviewing, Claude can no longer read or change files outside the pull request's code, fetch from elsewhere, or use `gh` on other repositories or hosts.
+- Websites open in your browser can no longer reach PRism's local server and act through it.
+- Fixes for a pull request from a fork are no longer pushed to the base repository.
+- PRism pushes exactly the changes you approved, and checks it's working on the commit GitHub reports.
+- The lock screen no longer shows pull request titles or your GitHub account, and going back after locking no longer shows earlier pages.
+- Each run of wrong PINs locks PIN entry for longer, in Settings → Security too, and PIN recovery checks your GitHub account by its id rather than its login.
+- Links in pull requests can no longer open inside PRism's window. A middle click opens them in your browser.
+- Pages only run scripts that come with PRism.
+- Markdown written to be slow to show can no longer freeze the window.
+- Tokens no longer appear in error logs, and the programs PRism runs no longer receive its internal secrets.
+
+### Fixed
+
+- A finding can no longer be posted to GitHub twice, for example from two windows.
+- A review waiting behind others no longer counts as stuck, so a second review of the same pull request isn't started.
+- A push that worked is no longer reported as failed when opening the pull request afterwards fails, and an existing pull request for the branch is reused.
+- Worktrees and branches left behind by interrupted fixes are cleaned up every hour.
+- Draft replies no longer run Claude in your own checkout.
+- A damaged encryption key no longer breaks every page: PRism makes a new one and asks you to reconnect.
+- Invalid folder paths, including relative ones, get an error message instead of a server error.
+
 ## [0.20.0] - 2026-11-09
 
 ### Added

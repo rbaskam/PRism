@@ -34,6 +34,9 @@ class PullRequestFactory extends Factory
             'head_ref' => 'feature/'.fake()->slug(2),
             'base_ref' => 'main',
             'head_sha' => fake()->sha1(),
+            'is_cross_repository' => false,
+            'head_repository' => null,
+            'maintainer_can_modify' => false,
             'additions' => fake()->numberBetween(1, 500),
             'deletions' => fake()->numberBetween(0, 200),
             'changed_files' => fake()->numberBetween(1, 20),
@@ -43,6 +46,18 @@ class PullRequestFactory extends Factory
             'github_created_at' => now()->subDays(2),
             'github_updated_at' => now()->subHour(),
         ];
+    }
+
+    /**
+     * Indicate that the pull request comes from a fork, and whether its author lets maintainers push to its branch.
+     */
+    public function fromFork(string $headRepository = 'octo-fork/app', bool $maintainerCanModify = false): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_cross_repository' => true,
+            'head_repository' => $headRepository,
+            'maintainer_can_modify' => $maintainerCanModify,
+        ]);
     }
 
     /**

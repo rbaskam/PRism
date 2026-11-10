@@ -62,7 +62,10 @@ class RestartAppIfServerStopped
     private function hasStopped(string $origin): bool
     {
         try {
-            $response = Http::timeout(10)->get("{$origin}/up");
+            // The server only answers requests that carry the app's secret (see PreventRegularBrowserAccess).
+            $response = Http::timeout(10)
+                ->withHeaders(['X-NativePHP-Secret' => (string) config('nativephp-internal.secret')])
+                ->get("{$origin}/up");
         } catch (ConnectionException $exception) {
             return str_contains($exception->getMessage(), 'cURL error 7:');
         }

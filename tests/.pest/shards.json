@@ -1,6 +1,7 @@
 {
     "timings": {
         "Tests\\Browser\\AlertsTest": 2.8659,
+        "Tests\\Browser\\ContentSecurityPolicyTest": 2.3943,
         "Tests\\Browser\\DashboardTest": 7.7707,
         "Tests\\Browser\\InboxTest": 1.3392,
         "Tests\\Browser\\LockTest": 1.0434,
@@ -11,6 +12,6 @@
         "Tests\\Browser\\SettingsTest": 2.3676,
         "Tests\\Browser\\ThemeTest": 6.5105
     },
-    "checksum": "d02c0434405eaacf18a583175b93906f",
-    "updated_at": "2026-10-16T16:02:22+00:00"
+    "checksum": "0135fc3ee0f0f84eb765a086e1eecbe6",
+    "updated_at": "2026-11-10T03:35:33+00:00"
 }

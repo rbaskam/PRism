@@ -33,6 +33,7 @@ class CodeChangeFactory extends Factory
             'summary' => 'Added a null check.',
             'commits' => [['sha' => fake()->sha1(), 'message' => 'Add a null check']],
             'diff' => "diff --git a/app/Foo.php b/app/Foo.php\n--- a/app/Foo.php\n+++ b/app/Foo.php\n@@ -1 +1 @@\n-old\n+new",
+            'diff_truncated' => false,
             'files_changed' => 1,
             'additions' => 1,
             'deletions' => 1,

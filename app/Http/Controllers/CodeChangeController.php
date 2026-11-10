@@ -6,13 +6,14 @@ use App\Enums\CodeChangeStatus;
 use App\Enums\CodeChangeTarget;
 use App\Jobs\MakeCodeChanges;
 use App\Jobs\PushCodeChange;
+use App\Jobs\RemoveCodeChangeWorktree;
 use App\Models\CodeChange;
 use App\Models\PullRequest;
 use App\Services\AppSettings;
-use App\Services\Git\Git;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * "Fix with Claude": Claude changes the code in a worktree, the user reviews the diff, then pushes or discards it.
@@ -47,6 +48,11 @@ class CodeChangeController extends Controller
             'comments.*.line' => ['nullable', 'integer'],
         ]);
 
+        // A pull request from a fork never gets its code pushed to a branch of this repository.
+        if (($refusal = $pullRequest->codeChangeRefusal(CodeChangeTarget::from($validated['target']))) !== null) {
+            throw ValidationException::withMessages(['target' => $refusal]);
+        }
+
         $codeChange = $pullRequest->codeChanges()->create([
             ...$validated,
             'status' => CodeChangeStatus::Queued,
@@ -69,6 +75,10 @@ class CodeChangeController extends Controller
             return back()->with('error', 'Only changes that are ready can be pushed.');
         }
 
+        if (($refusal = $codeChange->pushRefusal()) !== null) {
+            return back()->with('error', $refusal);
+        }
+
         $codeChange->update(['status' => CodeChangeStatus::Pushing, 'error' => null]);
         PushCodeChange::dispatch($codeChange);
 
@@ -77,17 +87,18 @@ class CodeChangeController extends Controller
             : "Pushing to {$codeChange->destinationBranch()}…");
     }
 
-    public function destroy(CodeChange $codeChange, Git $git): RedirectResponse
+    public function destroy(CodeChange $codeChange): RedirectResponse
     {
         if ($codeChange->status->isActive()) {
             return back()->with('error', 'Wait for Claude to finish before discarding these changes.');
         }
 
-        if ($codeChange->worktree_path !== null) {
-            rescue(fn () => $git->removeWorktree($codeChange->checkout_path, $codeChange->worktree_path, $codeChange->branch), report: false);
-        }
-
         $codeChange->update(['status' => CodeChangeStatus::Discarded]);
+
+        // git runs in a queued job, never during a request: the app's server handles one request at a time.
+        if ($codeChange->worktree_path !== null) {
+            RemoveCodeChangeWorktree::dispatch($codeChange);
+        }
 
         return back()->with('success', 'Changes discarded.');
     }

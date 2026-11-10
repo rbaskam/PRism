@@ -43,7 +43,7 @@ class GithubDeviceFlow
      *
      * @return array{status: 'pending'|'slow_down'|'expired'|'denied'|'authorized'|'error', token?: string, message?: string}
      */
-    public function poll(string $deviceCode): array
+    public function poll(#[\SensitiveParameter] string $deviceCode): array
     {
         $response = Http::acceptJson()
             ->connectTimeout(5)
