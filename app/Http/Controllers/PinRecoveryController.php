@@ -70,7 +70,7 @@ class PinRecoveryController extends Controller
         }
 
         RateLimiter::clear(self::THROTTLE_KEY);
-        RateLimiter::clear(LockController::PIN_THROTTLE_KEY);
+        $this->appLock->forgetFailedPinAttempts();
         $this->appLock->removePin();
         $this->appLock->unlock($request->session());
 
@@ -96,12 +96,15 @@ class PinRecoveryController extends Controller
     /**
      * Ask GitHub who the token belongs to. Problems reaching GitHub are reported without counting as a failed attempt.
      *
+     * Accounts are compared by GitHub's user id, which never changes: a login can be renamed, and someone else can
+     * then sign up with the old one.
+     *
      * @throws ValidationException
      */
-    private function tokenBelongsTo(string $token, GithubAccount $account): bool
+    private function tokenBelongsTo(#[\SensitiveParameter] string $token, GithubAccount $account): bool
     {
         try {
-            $login = (new GithubClient($token))->authenticatedUser()['user']['login'] ?? null;
+            $githubId = (new GithubClient($token))->authenticatedUser()['user']['id'] ?? null;
         } catch (RequestException $exception) {
             if ($exception->response->unauthorized()) {
                 return false;
@@ -116,6 +119,6 @@ class PinRecoveryController extends Controller
             ]);
         }
 
-        return is_string($login) && strcasecmp($login, $account->login) === 0;
+        return is_int($githubId) && $githubId === (int) $account->github_id;
     }
 }

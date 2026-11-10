@@ -2,6 +2,7 @@
 
 namespace App\Services\Git;
 
+use App\Services\ChildProcessEnvironment;
 use App\Services\CommandLocator;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Process;
@@ -14,10 +15,38 @@ use Illuminate\Support\Str;
  * (and whatever branch they have checked out) is never touched. Remote operations use
  * HTTPS with the connected GitHub token, supplied through an inline credential helper
  * that reads it from the environment, so the token never appears in command arguments.
+ *
+ * A pull request controls the files in its worktree, so git never runs hooks (husky and
+ * the like point core.hooksPath into the worktree) and checks symlinks out as plain files.
  */
 class Git
 {
     private const TOKEN_VARIABLE = 'PRISM_GIT_TOKEN';
+
+    /**
+     * Seconds a fetch or push may take.
+     */
+    public const NETWORK_TIMEOUT = 300;
+
+    /**
+     * Seconds adding or removing a worktree may take: it checks out or deletes every file.
+     */
+    public const WORKTREE_TIMEOUT = 180;
+
+    /**
+     * Seconds any other git command may take. They all only touch the local repository.
+     */
+    public const COMMAND_TIMEOUT = 30;
+
+    /**
+     * The longest fetchPullRequestHead() and addWorktree() take together.
+     */
+    public const PREPARE_WORKTREE_TIMEOUT = self::NETWORK_TIMEOUT + self::COMMAND_TIMEOUT + self::WORKTREE_TIMEOUT;
+
+    /**
+     * The longest removeWorktree() takes.
+     */
+    public const REMOVE_WORKTREE_TIMEOUT = self::WORKTREE_TIMEOUT + 2 * self::COMMAND_TIMEOUT;
 
     public function __construct(private readonly CommandLocator $locator) {}
 
@@ -32,16 +61,17 @@ class Git
      * @param  list<string>  $arguments
      * @param  array<string, string>  $environment
      */
-    public function run(string $directory, array $arguments, array $environment = [], int $timeoutSeconds = 120): ProcessResult
+    public function run(string $directory, array $arguments, #[\SensitiveParameter] array $environment = [], int $timeoutSeconds = self::COMMAND_TIMEOUT): ProcessResult
     {
         $binary = $this->binary() ?? throw new GitException('git was not found on this computer.');
 
         $result = Process::path($directory)
-            ->env([
+            ->env(ChildProcessEnvironment::make([
                 'PATH' => $this->locator->searchPath([$binary]),
                 'GIT_TERMINAL_PROMPT' => '0',
+                ...self::safeEnvironment(),
                 ...$environment,
-            ])
+            ]))
             ->timeout($timeoutSeconds)
             ->run([$binary, ...$arguments]);
 
@@ -50,6 +80,40 @@ class Git
         }
 
         return $result;
+    }
+
+    /**
+     * Environment variables that keep git from running anything a pull request brings along, for every git process
+     * PRism starts and for Claude's: hooks come from an empty directory instead of the repository (core.hooksPath),
+     * symlinks are checked out as plain files so nothing in a worktree leads outside it, and Git LFS doesn't download
+     * from servers the repository names. Uses GIT_CONFIG_COUNT (git 2.31+) rather than /dev/null, which Windows lacks.
+     *
+     * @return array<string, string>
+     */
+    public static function safeEnvironment(): array
+    {
+        return [
+            'GIT_CONFIG_COUNT' => '2',
+            'GIT_CONFIG_KEY_0' => 'core.hooksPath',
+            'GIT_CONFIG_VALUE_0' => self::emptyHooksDirectory(),
+            'GIT_CONFIG_KEY_1' => 'core.symlinks',
+            'GIT_CONFIG_VALUE_1' => 'false',
+            'GIT_LFS_SKIP_SMUDGE' => '1',
+        ];
+    }
+
+    /**
+     * An empty directory PRism controls, used as git's hooks directory so no hook ever runs.
+     */
+    public static function emptyHooksDirectory(): string
+    {
+        $directory = storage_path('app/git-hooks');
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        return $directory;
     }
 
     /**
@@ -83,13 +147,43 @@ class Git
     }
 
     /**
-     * Fetch a pull request's head commit into a checkout and return its SHA.
+     * The ref a pull request's head is fetched into, so nothing else (like an editor fetching in the background, which
+     * rewrites FETCH_HEAD) can change what PRism reads back.
      */
-    public function fetchPullRequestHead(string $checkout, string $repository, int $number, string $token): string
+    public static function pullRequestRef(int $number): string
     {
-        $this->run($checkout, [...$this->authenticated(), 'fetch', '--no-tags', $this->httpsUrl($repository), "pull/{$number}/head"], $this->tokenEnvironment($token), 300);
+        return "refs/prism/pr-{$number}";
+    }
 
-        return trim($this->run($checkout, ['rev-parse', 'FETCH_HEAD'])->output());
+    /**
+     * Fetch a pull request's head commit into a checkout and return its SHA. With $expectedSha, refuse a head that
+     * isn't the commit PRism synced, e.g. because the author pushed since.
+     *
+     * @throws GitException
+     */
+    public function fetchPullRequestHead(string $checkout, string $repository, int $number, #[\SensitiveParameter] string $token, ?string $expectedSha = null): string
+    {
+        $ref = self::pullRequestRef($number);
+
+        $this->run(
+            $checkout,
+            [...$this->authenticated(), 'fetch', '--no-tags', '--no-write-fetch-head', $this->httpsUrl($repository), "+pull/{$number}/head:{$ref}"],
+            $this->tokenEnvironment($token),
+            self::NETWORK_TIMEOUT,
+        );
+
+        $commit = trim($this->run($checkout, ['rev-parse', '--verify', '--end-of-options', "{$ref}^{commit}"])->output());
+
+        if ($expectedSha !== null && strcasecmp($commit, $expectedSha) !== 0) {
+            throw new GitException(sprintf(
+                'Pull request #%d has new commits since PRism last synced it (GitHub has %s, PRism expected %s). Refresh it and try again.',
+                $number,
+                substr($commit, 0, 7),
+                substr($expectedSha, 0, 7),
+            ));
+        }
+
+        return $commit;
     }
 
     /**
@@ -101,28 +195,81 @@ class Git
             ? ['worktree', 'add', '--detach', $path, $commit]
             : ['worktree', 'add', '-b', $branch, $path, $commit];
 
-        $this->run($checkout, $arguments, timeoutSeconds: 300);
+        $this->run($checkout, $arguments, timeoutSeconds: self::WORKTREE_TIMEOUT);
     }
 
     public function removeWorktree(string $checkout, string $path, ?string $branch = null): void
     {
         if (is_dir($path)) {
-            $this->run($checkout, ['worktree', 'remove', '--force', $path]);
+            $this->run($checkout, ['worktree', 'remove', '--force', $path], timeoutSeconds: self::WORKTREE_TIMEOUT);
         }
 
-        $this->run($checkout, ['worktree', 'prune']);
+        $this->pruneWorktrees($checkout);
 
         if ($branch !== null) {
-            rescue(fn () => $this->run($checkout, ['branch', '-D', $branch]), report: false);
+            rescue(fn () => $this->deleteBranch($checkout, $branch), report: false);
         }
     }
 
     /**
-     * Push the worktree's HEAD to a branch on GitHub. Never forces.
+     * Forget worktrees whose directories are gone.
      */
-    public function push(string $worktree, string $repository, string $branch, string $token): void
+    public function pruneWorktrees(string $checkout): void
     {
-        $this->run($worktree, [...$this->authenticated(), 'push', $this->httpsUrl($repository), "HEAD:refs/heads/{$branch}"], $this->tokenEnvironment($token), 300);
+        $this->run($checkout, ['worktree', 'prune']);
+    }
+
+    /**
+     * The paths of a checkout's linked worktrees, as git records them.
+     *
+     * @return list<string>
+     */
+    public function worktrees(string $checkout): array
+    {
+        preg_match_all('/^worktree (.+)$/m', $this->run($checkout, ['worktree', 'list', '--porcelain'])->output(), $matches);
+
+        return array_map('trim', $matches[1]);
+    }
+
+    /**
+     * Full names of a checkout's refs under a prefix, e.g. "refs/heads/prism/".
+     *
+     * @return list<string>
+     */
+    public function refs(string $checkout, string $prefix): array
+    {
+        $output = trim($this->run($checkout, ['for-each-ref', '--format=%(refname)', $prefix])->output());
+
+        return $output === '' ? [] : array_values(array_filter(array_map('trim', explode("\n", $output))));
+    }
+
+    public function deleteRef(string $checkout, string $ref): void
+    {
+        $this->run($checkout, ['update-ref', '-d', $ref]);
+    }
+
+    public function deleteBranch(string $checkout, string $branch): void
+    {
+        $this->run($checkout, ['branch', '-D', $branch]);
+    }
+
+    /**
+     * Push a commit to a branch on GitHub: exactly that commit, whatever the worktree's HEAD is now. Never forces.
+     *
+     * @throws GitException
+     */
+    public function push(string $directory, string $repository, string $commit, string $branch, #[\SensitiveParameter] string $token): void
+    {
+        if (! preg_match('/^[0-9a-f]{40}([0-9a-f]{24})?$/i', $commit)) {
+            throw new GitException('PRism has no record of which commit you approved, so it did not push anything.');
+        }
+
+        $this->run(
+            $directory,
+            [...$this->authenticated(), 'push', '--no-verify', $this->httpsUrl($repository), "{$commit}:refs/heads/{$branch}"],
+            $this->tokenEnvironment($token),
+            self::NETWORK_TIMEOUT,
+        );
     }
 
     public function hasUncommittedChanges(string $worktree): bool
@@ -144,13 +291,21 @@ class Git
     }
 
     /**
-     * Commits made since a base commit, oldest first.
+     * The commit a worktree's HEAD points at.
+     */
+    public function head(string $worktree): string
+    {
+        return trim($this->run($worktree, ['rev-parse', 'HEAD'])->output());
+    }
+
+    /**
+     * Commits made since a base commit, up to $head, oldest first.
      *
      * @return list<array{sha: string, message: string}>
      */
-    public function commitsSince(string $worktree, string $base): array
+    public function commitsSince(string $worktree, string $base, string $head = 'HEAD'): array
     {
-        $output = trim($this->run($worktree, ['log', '--reverse', '--format=%H%x1f%s', "{$base}..HEAD"])->output());
+        $output = trim($this->run($worktree, ['log', '--reverse', '--format=%H%x1f%s', "{$base}..{$head}"])->output());
 
         return $output === '' ? [] : array_map(function (string $line): array {
             [$sha, $message] = explode("\x1f", $line, 2) + [1 => ''];
@@ -160,19 +315,19 @@ class Git
     }
 
     /**
-     * The diff and its size since a base commit.
+     * The diff and its size from a base commit to $head.
      *
      * @return array{diff: string, files_changed: int, additions: int, deletions: int}
      */
-    public function diffSince(string $worktree, string $base): array
+    public function diffSince(string $worktree, string $base, string $head = 'HEAD'): array
     {
-        $stat = $this->run($worktree, ['diff', '--shortstat', "{$base}..HEAD"])->output();
+        $stat = $this->run($worktree, ['diff', '--shortstat', "{$base}..{$head}"])->output();
         preg_match('/(\d+) files? changed/', $stat, $files);
         preg_match('/(\d+) insertions?/', $stat, $additions);
         preg_match('/(\d+) deletions?/', $stat, $deletions);
 
         return [
-            'diff' => $this->run($worktree, ['diff', '--no-color', "{$base}..HEAD"])->output(),
+            'diff' => $this->run($worktree, ['diff', '--no-color', "{$base}..{$head}"])->output(),
             'files_changed' => (int) ($files[1] ?? 0),
             'additions' => (int) ($additions[1] ?? 0),
             'deletions' => (int) ($deletions[1] ?? 0),
@@ -180,9 +335,9 @@ class Git
     }
 
     /**
-     * A fresh directory under storage for a worktree.
+     * The directory under storage that holds every worktree PRism creates.
      */
-    public function worktreePath(string $repository, string $label): string
+    public static function worktreesDirectory(): string
     {
         $directory = storage_path('app/worktrees');
 
@@ -190,7 +345,15 @@ class Git
             mkdir($directory, 0755, true);
         }
 
-        return $directory.DIRECTORY_SEPARATOR.Str::slug(str_replace('/', '-', $repository)."-{$label}").'-'.Str::lower(Str::random(6));
+        return $directory;
+    }
+
+    /**
+     * A fresh directory under storage for a worktree.
+     */
+    public function worktreePath(string $repository, string $label): string
+    {
+        return self::worktreesDirectory().DIRECTORY_SEPARATOR.Str::slug(str_replace('/', '-', $repository)."-{$label}").'-'.Str::lower(Str::random(6));
     }
 
     /**
@@ -207,7 +370,7 @@ class Git
     /**
      * @return array<string, string>
      */
-    private function tokenEnvironment(string $token): array
+    private function tokenEnvironment(#[\SensitiveParameter] string $token): array
     {
         return [self::TOKEN_VARIABLE => $token];
     }

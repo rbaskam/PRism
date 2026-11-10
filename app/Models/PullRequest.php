@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CodeChangeTarget;
 use App\Enums\FindingStatus;
 use App\Enums\ReviewAttention;
 use App\Enums\ReviewState;
@@ -29,6 +30,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $head_ref
  * @property string|null $base_ref
  * @property string|null $head_sha
+ * @property bool|null $is_cross_repository
+ * @property string|null $head_repository
+ * @property bool $maintainer_can_modify
  * @property int $additions
  * @property int $deletions
  * @property int $changed_files
@@ -99,6 +103,9 @@ class PullRequest extends Model
         'head_ref',
         'base_ref',
         'head_sha',
+        'is_cross_repository',
+        'head_repository',
+        'maintainer_can_modify',
         'additions',
         'deletions',
         'changed_files',
@@ -139,6 +146,8 @@ class PullRequest extends Model
     {
         return [
             'is_draft' => 'boolean',
+            'is_cross_repository' => 'boolean',
+            'maintainer_can_modify' => 'boolean',
             'my_review_state' => ReviewState::class,
             'my_review_submitted_at' => 'datetime',
             'is_review_requested_from_me' => 'boolean',
@@ -382,8 +391,32 @@ class PullRequest extends Model
     }
 
     /**
-     * Get the "owner/name#123" reference for the pull request.
+     * Why Claude's changes can't go to a target, or null when they can.
+     *
+     * A pull request from a fork brings code from someone who can't push to this repository, so PRism never pushes
+     * that code to a branch here: a fix goes onto the fork's own branch, and only when its author lets maintainers
+     * edit it.
      */
+    public function codeChangeRefusal(CodeChangeTarget $target): ?string
+    {
+        if ($this->is_cross_repository === null) {
+            return 'PRism needs to refresh this pull request from GitHub first. Try again in a moment.';
+        }
+
+        if (! $this->is_cross_repository) {
+            return null;
+        }
+
+        return match ($target) {
+            CodeChangeTarget::NewPullRequest => 'This pull request comes from a fork, so PRism won\'t push its code to a new branch in this repository.',
+            CodeChangeTarget::PullRequestBranch => match (true) {
+                $this->head_repository === null => 'The fork this pull request comes from no longer exists, so there is no branch to push to.',
+                ! $this->maintainer_can_modify => "This pull request comes from a fork ({$this->head_repository}) whose author doesn't allow edits from maintainers.",
+                default => null,
+            },
+        };
+    }
+
     /**
      * Remember that the user just opened the pull request, for the sidebar's "Recently viewed" list, and that they've
      * now seen any new AI findings. Its updated_at is left alone, since nothing about the pull request itself changed.
@@ -416,6 +449,9 @@ class PullRequest extends Model
         return $this->unseen_findings_at !== null;
     }
 
+    /**
+     * Get the "owner/name#123" reference for the pull request.
+     */
     public function reference(): string
     {
         return $this->repository->full_name.'#'.$this->number;

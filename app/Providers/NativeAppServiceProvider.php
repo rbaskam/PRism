@@ -37,7 +37,13 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             ->height(920)
             ->minWidth(960)
             ->minHeight(640)
-            ->rememberState();
+            ->rememberState()
+            // Links open in the system browser (see ExternalLink and GithubMarkdown). Never let one open a new app
+            // window or take this one to another site, where a page from a pull request could pose as PRism.
+            ->suppressNewWindows()
+            ->preventLeaveDomain()
+            // Developer tools would let anyone at the computer read pages from history, even while the app is locked.
+            ->webPreferences(['devTools' => ! app()->isProduction()]);
     }
 
     /**
@@ -50,6 +56,8 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         // The desktop app runs PHP's built-in server, which is the CLI SAPI, where OPcache is off by
         // default. Without it every request recompiles the whole framework.
         return [
+            // Keep function arguments, such as tokens, out of stack traces in logs and failed jobs.
+            'zend.exception_ignore_args' => '1',
             'opcache.enable_cli' => '1',
             'opcache.memory_consumption' => '192',
             'opcache.interned_strings_buffer' => '16',

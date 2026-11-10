@@ -26,7 +26,7 @@ class ConnectGithubAccount
      *
      * @return array{account: GithubAccount, switched_account: bool}
      */
-    public function handle(string $token, GithubTokenSource $source): array
+    public function handle(#[\SensitiveParameter] string $token, GithubTokenSource $source): array
     {
         $github = new GithubClient($token);
         $authenticated = $github->authenticatedUser();

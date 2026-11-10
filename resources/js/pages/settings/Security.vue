@@ -55,9 +55,25 @@ const needsNewPin = computed(() => form.lock_enabled && !props.settings.has_pin)
 const showPinFields = computed(() => form.lock_enabled && (needsNewPin.value || changingPin.value));
 const isTurningOff = computed(() => props.settings.lock_enabled && !form.lock_enabled);
 
-/** The server asks for the current PIN before the lock is turned off or the PIN is changed. */
+/** Minutes before the app locks itself, where 0 means never. */
+function autoLocksAfter(minutes: number): number {
+    return minutes === 0 ? Infinity : minutes;
+}
+
+/**
+ * The server asks for the current PIN before anything makes the lock easier to get past: turning it off, changing the
+ * PIN, turning on Touch ID, locking later (or never) or not locking when the app starts.
+ */
 const changingPinNeedsCurrentPin = computed(() => props.settings.lock_enabled && form.lock_enabled && changingPin.value);
-const showCurrentPin = computed(() => isTurningOff.value || changingPinNeedsCurrentPin.value);
+const loosensLock = computed(
+    () =>
+        props.settings.lock_enabled &&
+        form.lock_enabled &&
+        ((form.use_biometrics && !props.settings.use_biometrics) ||
+            (!form.lock_on_launch && props.settings.lock_on_launch) ||
+            autoLocksAfter(form.auto_lock_minutes) > autoLocksAfter(props.settings.auto_lock_minutes)),
+);
+const showCurrentPin = computed(() => isTurningOff.value || changingPinNeedsCurrentPin.value || loosensLock.value);
 
 const pinsDiffer = computed(() => form.pin_confirmation !== '' && form.pin !== form.pin_confirmation);
 const pinConfirmationError = computed(() => form.errors.pin_confirmation ?? (pinsDiffer.value ? "The PINs don't match." : undefined));
@@ -252,7 +268,7 @@ function lockNow(): void {
                                     <InputError :message="pinConfirmationError" />
                                 </div>
                             </div>
-                            <InputError v-else :message="form.errors.pin ?? form.errors.current_pin" />
+                            <InputError v-else :message="form.errors.pin ?? (showCurrentPin ? undefined : form.errors.current_pin)" />
                         </div>
 
                         <div class="flex items-start justify-between gap-4 p-4">
@@ -299,6 +315,21 @@ function lockNow(): void {
                                 <InputError :message="form.errors.lock_on_launch" />
                             </div>
                             <Switch id="lock_on_launch" v-model:checked="form.lock_on_launch" class="mt-0.5" />
+                        </div>
+
+                        <div v-if="loosensLock && !changingPinNeedsCurrentPin" class="space-y-2 p-4">
+                            <Label for="current_pin">Current PIN</Label>
+                            <p class="text-sm text-muted-foreground">Enter your current PIN to make the lock less strict.</p>
+                            <Input
+                                id="current_pin"
+                                v-model="form.current_pin"
+                                type="password"
+                                inputmode="numeric"
+                                autocomplete="off"
+                                :maxlength="MAX_PIN_LENGTH"
+                                class="font-mono tracking-widest sm:max-w-48"
+                            />
+                            <InputError :message="form.errors.current_pin" />
                         </div>
                     </template>
                 </div>

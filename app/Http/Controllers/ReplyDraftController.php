@@ -38,6 +38,10 @@ class ReplyDraftController extends Controller
             'diff_hunk' => ['nullable', 'string', 'max:20000'],
         ]);
 
+        if (! $this->isOnPullRequest($pullRequest, CommentKind::from($validated['comment_type']), $validated['comment_node_id'])) {
+            return back()->with('error', "That comment isn't on this pull request any more. Refresh the conversation and try again.");
+        }
+
         $draft = $pullRequest->replyDrafts()->create([
             'comment_node_id' => $validated['comment_node_id'],
             'comment_database_id' => $validated['comment_database_id'] ?? null,
@@ -49,5 +53,21 @@ class ReplyDraftController extends Controller
         DraftCommentReply::dispatch($draft, $validated['conversation'], $validated['path'] ?? null, $validated['diff_hunk'] ?? null);
 
         return back()->with('success', 'Claude is drafting a reply.');
+    }
+
+    /**
+     * Whether the comment is in this pull request's conversation, as last shown: in one of its review threads, or in
+     * the conversation itself.
+     */
+    private function isOnPullRequest(PullRequest $pullRequest, CommentKind $kind, string $commentNodeId): bool
+    {
+        $conversation = $pullRequest->conversation ?? ['threads' => [], 'comments' => [], 'reviews' => []];
+
+        $comments = match ($kind) {
+            CommentKind::ReviewThread => array_merge([], ...array_map(fn (array $thread): array => $thread['comments'] ?? [], $conversation['threads'])),
+            CommentKind::Conversation => [...$conversation['comments'], ...$conversation['reviews']],
+        };
+
+        return in_array($commentNodeId, array_column($comments, 'node_id'), true);
     }
 }

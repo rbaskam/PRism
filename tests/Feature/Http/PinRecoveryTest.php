@@ -15,13 +15,18 @@ beforeEach(function () {
 });
 
 /**
- * Answer GitHub's /user with this login, or with 401 Bad credentials when it is null.
+ * The GitHub user id of the connected account in these tests.
  */
-function fakeGithubUser(?string $login): void
+const CONNECTED_GITHUB_ID = 583231;
+
+/**
+ * Answer GitHub's /user with this login and user id, or with 401 Bad credentials when the login is null.
+ */
+function fakeGithubUser(?string $login, int $githubId = 1296269): void
 {
     Http::fake([GithubClient::BASE_URL.'/user' => $login === null
         ? Http::response(['message' => 'Bad credentials'], 401)
-        : Http::response(['id' => 583231, 'login' => $login], 200, ['X-OAuth-Scopes' => '']),
+        : Http::response(['id' => $githubId, 'login' => $login], 200, ['X-OAuth-Scopes' => '']),
     ]);
 }
 
@@ -36,8 +41,8 @@ it('shows which GitHub account a recovery token must belong to', function () {
 });
 
 it('removes the PIN, turns the lock off and unlocks with a token for the connected account', function () {
-    $account = onboardedAccount(['login' => 'Octocat', 'token' => 'ghp_connected']);
-    fakeGithubUser('octocat');
+    $account = onboardedAccount(['github_id' => CONNECTED_GITHUB_ID, 'login' => 'octocat', 'token' => 'ghp_connected']);
+    fakeGithubUser('octocat', CONNECTED_GITHUB_ID);
 
     $response = $this->post(route('lock.recovery'), ['token' => 'ghp_test']);
 
@@ -51,8 +56,30 @@ it('removes the PIN, turns the lock off and unlocks with a token for the connect
     $this->get(route('dashboard'))->assertOk();
 });
 
+it('recognises the connected account after it was renamed on GitHub', function () {
+    onboardedAccount(['github_id' => CONNECTED_GITHUB_ID, 'login' => 'octocat']);
+    fakeGithubUser('octocat-renamed', CONNECTED_GITHUB_ID);
+
+    $response = $this->post(route('lock.recovery'), ['token' => 'ghp_test']);
+
+    $response->assertRedirect(route('settings.security'));
+    expect(app(AppSettings::class)->isAppLockEnabled())->toBeFalse();
+});
+
+it('stays locked when someone else now has the connected account\'s old login', function () {
+    onboardedAccount(['github_id' => CONNECTED_GITHUB_ID, 'login' => 'octocat']);
+    fakeGithubUser('octocat', 1296269);
+
+    $response = $this->post(route('lock.recovery'), ['token' => 'ghp_test']);
+
+    expect(session('errors')->first('token'))->toStartWith("That isn't a working token for @octocat.");
+    expect(app(AppLock::class)->pinMatches('2468'))->toBeTrue()
+        ->and(app(AppSettings::class)->isAppLockEnabled())->toBeTrue();
+    $this->get(route('dashboard'))->assertRedirect(route('lock.show'));
+});
+
 it('stays locked when the token belongs to someone else', function () {
-    onboardedAccount(['login' => 'octocat']);
+    onboardedAccount(['github_id' => CONNECTED_GITHUB_ID, 'login' => 'octocat']);
     fakeGithubUser('hubot');
 
     $response = $this->post(route('lock.recovery'), ['token' => 'ghp_test']);
@@ -97,9 +124,9 @@ it('explains that the PIN cannot be recovered without a connected GitHub account
     Http::assertNothingSent();
 });
 
-it('never stores the token it was given', function (?string $githubLogin) {
-    $account = onboardedAccount(['login' => 'octocat', 'token' => 'ghp_connected']);
-    fakeGithubUser($githubLogin);
+it('never stores the token it was given', function (?string $githubLogin, int $githubId) {
+    $account = onboardedAccount(['github_id' => CONNECTED_GITHUB_ID, 'login' => 'octocat', 'token' => 'ghp_connected']);
+    fakeGithubUser($githubLogin, $githubId);
 
     $this->post(route('lock.recovery'), ['token' => 'ghp_test_recovery']);
 
@@ -108,7 +135,7 @@ it('never stores the token it was given', function (?string $githubLogin) {
         ->and(GithubAccount::query()->sole()->is($account))->toBeTrue()
         ->and($account->fresh()->token)->toBe('ghp_connected');
 })->with([
-    'accepted' => 'octocat',
-    'someone else' => 'hubot',
-    'rejected' => [null],
+    'accepted' => ['octocat', CONNECTED_GITHUB_ID],
+    'someone else' => ['hubot', 1296269],
+    'rejected' => [null, 0],
 ]);

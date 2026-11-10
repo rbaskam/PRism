@@ -3,6 +3,7 @@
 use App\Actions\FailInterruptedReviewRuns;
 use App\Actions\RestartAppIfServerStopped;
 use App\Jobs\CheckForUpdates;
+use App\Jobs\CleanUpWorktrees;
 use App\Jobs\PollNotifications;
 use App\Jobs\SyncGithub;
 use App\Models\Alert;
@@ -33,4 +34,6 @@ Schedule::call(function (): void {
 })
     ->everyMinute()
     ->name('fail-interrupted-review-runs');
+// Worktrees, branches and refs left behind when PRism quit while Claude was working. Runs git, so it's a queued job.
+Schedule::job(new CleanUpWorktrees)->hourly();
 Schedule::command('model:prune', ['--model' => [Alert::class]])->daily();

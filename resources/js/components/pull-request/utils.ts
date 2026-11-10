@@ -1,4 +1,13 @@
-import type { AiTaskStatus, CodeChangeStatus, PullRequestPermissions, ReviewFinding, ReviewRun, SharedData, SubmittedReview } from '@/types';
+import type {
+    AiTaskStatus,
+    CodeChangeStatus,
+    CodeChangeTarget,
+    PullRequestPermissions,
+    ReviewFinding,
+    ReviewRun,
+    SharedData,
+    SubmittedReview,
+} from '@/types';
 import type { Page, VisitOptions } from '@inertiajs/core';
 import { router } from '@inertiajs/vue3';
 
@@ -140,5 +149,5 @@ export function codeChangeBlockers(permissions: PullRequestPermissions): Setting
 export interface CodeChangeDraft {
     instructions?: string | null;
     findingIds?: number[];
-    target?: 'pull_request_branch' | 'new_pull_request';
+    target?: CodeChangeTarget;
 }

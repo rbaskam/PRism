@@ -12,6 +12,7 @@ import {
     GitBranch,
     GitCommitHorizontal,
     GitPullRequestArrow,
+    Info,
     Loader2,
     RotateCcw,
     Trash2,
@@ -46,7 +47,11 @@ const confirmingDiscard = ref(false);
 
 const isNewPullRequest = computed(() => props.change.target === 'new_pull_request');
 const status = computed(() => codeChangeStatusStyles[props.change.status]);
-const pushLabel = computed(() => (isNewPullRequest.value ? 'Push and open pull request' : `Push to ${props.change.destination_branch}`));
+/** The branch the changes go to, with the fork's name when they go onto a fork's branch. */
+const destination = computed(() =>
+    props.change.pushes_to_fork ? `${props.change.destination_repository}:${props.change.destination_branch}` : props.change.destination_branch,
+);
+const pushLabel = computed(() => (isNewPullRequest.value ? 'Push and open pull request' : `Push to ${destination.value}`));
 
 function push(): void {
     router.post(
@@ -88,7 +93,7 @@ function discard(): void {
                     new pull request into <code class="font-mono text-foreground">{{ headRef }}</code>
                 </template>
                 <template v-else>
-                    commits on <code class="font-mono text-foreground">{{ change.destination_branch }}</code>
+                    commits on <code class="font-mono text-foreground">{{ destination }}</code>
                 </template>
             </span>
             <span class="ml-auto text-xs text-muted-foreground" :title="formatDateTime(change.created_at)">{{ timeAgo(change.created_at) }}</span>
@@ -127,7 +132,7 @@ function discard(): void {
             >
                 <Loader2 class="size-4 shrink-0 animate-spin text-sky-500" />
                 <span class="font-medium">
-                    Pushing to <code class="font-mono">{{ change.destination_branch }}</code
+                    Pushing to <code class="font-mono">{{ destination }}</code
                     >{{ isNewPullRequest ? ' and opening a pull request' : '' }}…
                 </span>
             </div>
@@ -139,7 +144,8 @@ function discard(): void {
             >
                 <CheckCircle2 class="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <span class="font-medium">
-                    Pushed to <code class="font-mono">{{ change.pushed_branch ?? change.destination_branch }}</code>
+                    Pushed to
+                    <code class="font-mono">{{ change.pushes_to_fork ? destination : (change.pushed_branch ?? change.destination_branch) }}</code>
                     <span v-if="change.pushed_at" class="font-normal opacity-75" :title="formatDateTime(change.pushed_at)">
                         {{ timeAgo(change.pushed_at) }}
                     </span>
@@ -168,6 +174,15 @@ function discard(): void {
                 <AlertTriangle class="size-4 text-amber-500" />
                 Claude didn't change anything.
             </p>
+
+            <div
+                v-if="change.status === 'pushed' && change.error"
+                class="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+                role="alert"
+            >
+                <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+                <p class="min-w-0 flex-1 break-words">{{ change.error }}</p>
+            </div>
 
             <div
                 v-if="change.status === 'ready' && change.error"
@@ -214,7 +229,7 @@ function discard(): void {
                 <template v-if="change.status === 'ready'">
                     <Button
                         size="sm"
-                        :disabled="!permissions.can_push || pushing"
+                        :disabled="!permissions.can_push || change.push_refusal !== null || pushing"
                         class="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500"
                         @click="push"
                     >
@@ -222,7 +237,11 @@ function discard(): void {
                         <Upload v-else />
                         {{ pushLabel }}
                     </Button>
-                    <SettingsHint v-if="!permissions.can_push" message="Pushing is off" />
+                    <p v-if="change.push_refusal" class="flex min-w-0 basis-full items-start gap-1.5 text-xs text-muted-foreground xl:basis-auto">
+                        <Info class="mt-px size-3.5 shrink-0" />
+                        <span>{{ change.push_refusal }}</span>
+                    </p>
+                    <SettingsHint v-else-if="!permissions.can_push" message="Pushing is off" />
                 </template>
 
                 <Button size="sm" variant="outline" @click="emit('retry', change)">

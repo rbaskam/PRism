@@ -6,8 +6,8 @@ use App\Http\Resources\PullRequestResource;
 use App\Http\Resources\RepositoryResource;
 use App\Models\GithubAccount;
 use App\Models\Repository;
+use App\Rules\LocalFolder;
 use App\Services\AppSettings;
-use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -59,11 +59,7 @@ class RepositoryController extends Controller
     public function update(Request $request, Repository $repository, AppSettings $settings): RedirectResponse
     {
         $validated = $request->validate([
-            'local_path' => ['sometimes', 'nullable', 'string', 'max:1024', function (string $attribute, mixed $value, Closure $fail): void {
-                if (filled($value) && ! is_dir($value)) {
-                    $fail('That folder does not exist on this computer.');
-                }
-            }],
+            'local_path' => ['bail', 'sometimes', 'nullable', 'string', 'max:1024', new LocalFolder],
             'is_tracked' => ['sometimes', 'boolean'],
             'review_prompt' => ['sometimes', 'nullable', 'string', 'max:'.AppSettings::REVIEW_PROMPT_MAX_LENGTH],
         ]);

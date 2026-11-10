@@ -97,3 +97,20 @@ it('refuses to attach findings while posting findings is turned off', function (
     $response->assertSessionHas('error', 'Posting findings is turned off in Settings → PR review.');
     Http::assertNothingSent();
 });
+
+it('does not post findings that are already on the pull request with a review', function () {
+    onboardedAccount();
+    app(AppSettings::class)->set(AppSettings::ALLOW_POSTING_FINDINGS, true);
+    $posted = ReviewFinding::factory()->create(['path' => 'app/Foo.php', 'line' => 5, 'posted_at' => now()->subMinute()]);
+    $notPosted = ReviewFinding::factory()->for($posted->pullRequest)->create(['path' => 'app/Bar.php', 'line' => 7]);
+
+    $response = $this->post(route('pull-requests.reviews.store', $posted->pull_request_id), [
+        'event' => 'APPROVE',
+        'finding_ids' => [$posted->id, $notPosted->id],
+    ]);
+
+    $response->assertSessionHas('error', 'Some of the findings you chose are already on the pull request. Reload the page and choose again.');
+    expect($notPosted->fresh()->posted_at)->toBeNull()
+        ->and($posted->pullRequest->fresh()->my_review_state)->not->toBe(ReviewState::Approved);
+    Http::assertNothingSent();
+});

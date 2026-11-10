@@ -11,10 +11,25 @@ beforeEach(function () {
     Http::preventStrayRequests();
 });
 
+/**
+ * A pull request whose saved conversation has a review thread with this id.
+ */
+function pullRequestWithThread(string $threadId = 'PRRT_1'): PullRequest
+{
+    return PullRequest::factory()->create([
+        'conversation' => [
+            'threads' => [['id' => $threadId, 'is_resolved' => false, 'path' => 'app/Http/Kernel.php', 'comments' => []]],
+            'comments' => [],
+            'reviews' => [],
+        ],
+        'conversation_synced_at' => now(),
+    ]);
+}
+
 it('resolves the conversation on GitHub', function () {
     onboardedAccount(['login' => 'octocat', 'token' => 'ghp_test']);
     app(AppSettings::class)->set(AppSettings::ALLOW_REPLYING_TO_COMMENTS, true);
-    $pullRequest = PullRequest::factory()->create();
+    $pullRequest = pullRequestWithThread('PRRT_1');
     Http::fake([
         'api.github.com/graphql' => Http::response(['data' => ['resolveReviewThread' => ['thread' => ['id' => 'PRRT_1', 'isResolved' => true]]]]),
     ]);
@@ -51,7 +66,7 @@ it('requires the conversation to resolve', function () {
 it('shows why GitHub refused to resolve the conversation', function () {
     onboardedAccount();
     app(AppSettings::class)->set(AppSettings::ALLOW_REPLYING_TO_COMMENTS, true);
-    $pullRequest = PullRequest::factory()->create();
+    $pullRequest = pullRequestWithThread('PRRT_1');
     Http::fake([
         'api.github.com/graphql' => Http::response([
             'data' => ['resolveReviewThread' => null],
@@ -68,7 +83,7 @@ it('shows why GitHub refused to resolve the conversation', function () {
 it('shows the error GitHub returned when the request fails', function () {
     onboardedAccount();
     app(AppSettings::class)->set(AppSettings::ALLOW_REPLYING_TO_COMMENTS, true);
-    $pullRequest = PullRequest::factory()->create();
+    $pullRequest = pullRequestWithThread('PRRT_1');
     Http::fake(['api.github.com/graphql' => Http::response(['message' => 'Bad credentials'], 401)]);
 
     $response = $this->post(route('pull-requests.threads.resolve', $pullRequest), ['thread_id' => 'PRRT_1']);
@@ -81,11 +96,23 @@ it('tells the user when GitHub cannot be reached', function () {
     Sleep::fake();
     onboardedAccount();
     app(AppSettings::class)->set(AppSettings::ALLOW_REPLYING_TO_COMMENTS, true);
-    $pullRequest = PullRequest::factory()->create();
+    $pullRequest = pullRequestWithThread('PRRT_1');
     Http::fake(['api.github.com/graphql' => fn () => throw new ConnectionException('cURL error 6: Could not resolve host: api.github.com')]);
 
     $response = $this->post(route('pull-requests.threads.resolve', $pullRequest), ['thread_id' => 'PRRT_1']);
 
     $response->assertSessionHas('error', 'Could not reach GitHub. Check your internet connection.');
     $response->assertSessionMissing('success');
+});
+
+it('refuses to resolve a conversation from another pull request', function () {
+    onboardedAccount();
+    app(AppSettings::class)->set(AppSettings::ALLOW_REPLYING_TO_COMMENTS, true);
+    pullRequestWithThread('PRRT_other');
+    $pullRequest = pullRequestWithThread('PRRT_1');
+
+    $response = $this->post(route('pull-requests.threads.resolve', $pullRequest), ['thread_id' => 'PRRT_other']);
+
+    $response->assertSessionHas('error', "That conversation isn't on this pull request any more. Refresh the conversation and try again.");
+    Http::assertNothingSent();
 });

@@ -6,11 +6,13 @@ use App\Enums\ClaudeAuthMode;
 use App\Jobs\RunPullRequestReview;
 use App\Models\Alert;
 use App\Models\GithubAccount;
+use App\Models\PullRequest;
 use App\Models\ReviewFinding;
 use App\Models\ReviewRun;
 use App\Services\AppSettings;
 use App\Services\Claude\ClaudeCode;
 use App\Services\Claude\ClaudeException;
+use App\Services\Git\Git;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Facades\Process;
@@ -193,4 +195,52 @@ it('leaves a cancelled review alone when the queue gives up on its job', functio
 
     expect($run->fresh()->status)->toBe(AiTaskStatus::Cancelled);
     expect(Alert::count())->toBe(0);
+});
+
+it('reviews a worktree of the local checkout at the commit the review was queued for', function () {
+    GithubAccount::factory()->create(['token' => 'ghp_test']);
+    connectClaude();
+    $pullRequest = PullRequest::factory()->for(trackedRepository('acme/app', ['local_path' => sys_get_temp_dir()]))->create(['number' => 7]);
+    $run = ReviewRun::factory()->queued()->for($pullRequest)->create(['head_sha' => 'abc123']);
+    Process::fake([
+        '*rev-parse*refs/prism/pr-7*' => Process::result('abc123'),
+        '*--output-format*' => Process::result(claudeOutput(['summary' => 's', 'verdict' => 'approve', 'findings' => [], 'previous_findings' => []])),
+        '*' => Process::result(''),
+    ]);
+
+    RunPullRequestReview::dispatchSync($run);
+
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Completed);
+    Process::assertRan(fn (PendingProcess $process): bool => in_array('worktree', $process->command, true)
+        && in_array('add', $process->command, true)
+        && end($process->command) === 'abc123');
+    Process::assertRan(fn (PendingProcess $process): bool => in_array('--output-format', $process->command, true)
+        && str_starts_with($process->path, storage_path('app/worktrees'))
+        && $process->environment['GH_REPO'] === 'acme/app');
+});
+
+it('reviews from the diff alone when GitHub has a different head than the one queued', function () {
+    GithubAccount::factory()->create(['token' => 'ghp_test']);
+    connectClaude();
+    $pullRequest = PullRequest::factory()->for(trackedRepository('acme/app', ['local_path' => sys_get_temp_dir()]))->create(['number' => 7]);
+    $run = ReviewRun::factory()->queued()->for($pullRequest)->create(['head_sha' => 'abc123']);
+    Process::fake([
+        '*rev-parse*refs/prism/pr-7*' => Process::result('def456'),
+        '*--output-format*' => Process::result(claudeOutput(['summary' => 's', 'verdict' => 'approve', 'findings' => [], 'previous_findings' => []])),
+        '*' => Process::result(''),
+    ]);
+
+    RunPullRequestReview::dispatchSync($run);
+
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Completed);
+    Process::assertDidntRun(fn (PendingProcess $process): bool => in_array('worktree', $process->command, true) && in_array('add', $process->command, true));
+    Process::assertRan(fn (PendingProcess $process): bool => in_array('--output-format', $process->command, true)
+        && $process->path === storage_path('app/claude-workspace'));
+});
+
+it('leaves time to prepare and remove the worktree around the longest review', function () {
+    $job = new RunPullRequestReview(ReviewRun::factory()->queued()->make());
+
+    expect(Git::PREPARE_WORKTREE_TIMEOUT + ClaudeCode::MINIMUM_TIMEOUT_SECONDS + Git::REMOVE_WORKTREE_TIMEOUT + RunPullRequestReview::SAVING_SECONDS)
+        ->toBeLessThanOrEqual($job->timeout);
 });

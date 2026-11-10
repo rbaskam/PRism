@@ -14,7 +14,14 @@ const props = defineProps<{
 
 const { openExternal } = useExternalLink();
 
+/**
+ * Opens a link in the system browser, for a click or a middle click (which fires auxclick, not click).
+ */
 function handleClick(event: MouseEvent): void {
+    if (event.type === 'auxclick' && event.button !== 1) {
+        return;
+    }
+
     const anchor = (event.target as HTMLElement | null)?.closest('a');
     const href = anchor?.getAttribute('href');
 
@@ -28,7 +35,7 @@ function handleClick(event: MouseEvent): void {
 </script>
 
 <template>
-    <div :class="cn('github-markdown', props.class)" @click="handleClick" v-html="props.html" />
+    <div :class="cn('github-markdown', props.class)" @click="handleClick" @auxclick="handleClick" v-html="props.html" />
 </template>
 
 <style scoped>

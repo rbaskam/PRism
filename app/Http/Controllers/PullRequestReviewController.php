@@ -42,6 +42,11 @@ class PullRequestReviewController extends Controller
             return back()->with('error', 'Posting findings is turned off in Settings → PR review.');
         }
 
+        // A second window, or a page from before they were posted, mustn't post findings again.
+        if ($findingIds !== [] && $pullRequest->findings()->whereKey($findingIds)->whereNotNull('posted_at')->exists()) {
+            return back()->with('error', 'Some of the findings you chose are already on the pull request. Reload the page and choose again.');
+        }
+
         $pendingComments = $pullRequest->pendingReviewComments()->orderBy('id')->get();
 
         if ($pendingComments->isNotEmpty() && ! $settings->allowsReplyingToComments()) {

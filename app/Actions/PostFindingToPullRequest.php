@@ -14,8 +14,15 @@ class PostFindingToPullRequest
 {
     public function __construct(private readonly GithubClient $github) {}
 
+    /**
+     * A finding that is already on the pull request is left as it is, so it's never posted twice.
+     */
     public function handle(ReviewFinding $finding, string $body): ReviewFinding
     {
+        if ($finding->posted_at !== null) {
+            return $finding;
+        }
+
         $pullRequest = $finding->pullRequest;
         $repository = $pullRequest->repository->full_name;
         $comment = null;

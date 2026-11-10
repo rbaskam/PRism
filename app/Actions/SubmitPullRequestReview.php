@@ -32,6 +32,8 @@ class SubmitPullRequestReview
     public function handle(PullRequest $pullRequest, SubmitReviewEvent $event, ?string $body, Collection $findings, ?Collection $pendingComments = null): void
     {
         $pendingComments ??= new Collection;
+        // Never post a finding twice.
+        $findings = $findings->filter(fn (ReviewFinding $finding): bool => $finding->posted_at === null);
         $repository = $pullRequest->repository->full_name;
         $inline = $findings->filter(fn (ReviewFinding $finding): bool => $finding->path !== null && $finding->line !== null);
         $general = $findings->diff($inline);

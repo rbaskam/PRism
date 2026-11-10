@@ -12,6 +12,7 @@ use App\Services\Claude\ClaudeCode;
 use App\Services\Claude\ClaudeException;
 use App\Services\Claude\ClaudeStoppedException;
 use App\Services\Claude\PullRequestReviewPrompt;
+use App\Services\Git\Git;
 use App\Services\Git\PullRequestCheckout;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -27,8 +28,21 @@ class RunPullRequestReview implements ShouldQueue
 
     public const QUEUE = 'reviews';
 
+    /**
+     * Claude may review for up to 25 minutes.
+     */
+    public const CLAUDE_TIMEOUT = 1500;
+
+    /**
+     * Kept back at the end of the job for saving the findings.
+     */
+    public const SAVING_SECONDS = 60;
+
     public int $tries = 1;
 
+    /**
+     * Preparing the worktree, Claude's review and removing the worktree all fit in this: Claude gets what's left.
+     */
     public int $timeout = 1800;
 
     public function __construct(public ReviewRun $reviewRun)
@@ -52,6 +66,7 @@ class RunPullRequestReview implements ShouldQueue
 
         $pullRequest = $run->pullRequest->load('repository');
 
+        $deadline = now()->addSeconds($this->timeout - self::SAVING_SECONDS);
         $run->update(['status' => AiTaskStatus::Running, 'started_at' => now(), 'error' => null]);
 
         try {
@@ -61,8 +76,13 @@ class RunPullRequestReview implements ShouldQueue
                 systemPrompt: $prompt->systemPrompt($pullRequest, $pullRequest->findings()->whereNull('resolved_at')->get(), $worktree !== null),
                 workingDirectory: $worktree,
                 githubToken: GithubAccount::current()?->token,
+                timeoutSeconds: ClaudeCode::timeoutBefore(
+                    $worktree === null ? $deadline : $deadline->copy()->subSeconds(Git::REMOVE_WORKTREE_TIMEOUT),
+                    self::CLAUDE_TIMEOUT,
+                ),
                 keepRunning: fn (): bool => $this->keepRunning($run),
-            ));
+                repository: $pullRequest->repository->full_name,
+            ), $run->head_sha);
         } catch (ClaudeStoppedException) {
             return;
         }

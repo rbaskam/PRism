@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\AppLock;
 use Closure;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Support\Header;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -26,6 +27,7 @@ class EnsureAppIsUnlocked
         $session = $request->session();
 
         if ($this->appLock->isLocked($session)) {
+            $justLocked = $this->appLock->wasUnlocked($session);
             $this->appLock->lock($session);
 
             if ($request->expectsJson() && ! $request->header(Header::INERTIA)) {
@@ -34,6 +36,12 @@ class EnsureAppIsUnlocked
 
             if ($request->isMethod('GET') && ! $this->isBackgroundRequest($request)) {
                 $session->put('url.intended', $request->fullUrl());
+            }
+
+            // Pages the user saw before the lock stay in the window's history; this makes them unreadable, so going
+            // back reloads them from the server, which shows the lock screen.
+            if ($justLocked) {
+                Inertia::clearHistory();
             }
 
             return redirect()->route('lock.show');

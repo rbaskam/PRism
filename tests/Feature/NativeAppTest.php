@@ -28,3 +28,31 @@ it('waits for GitHub to be connected before syncing', function () {
 
     Queue::assertNotPushed(SyncGithub::class);
 });
+
+it('keeps links from opening new app windows or taking the window to another site', function () {
+    $window = new NativeWindow(NativeAppServiceProvider::MAIN_WINDOW);
+    Window::fake()->alwaysReturnWindows([$window]);
+
+    app(NativeAppServiceProvider::class)->boot();
+
+    expect($window->toArray())
+        ->suppressNewWindows->toBeTrue()
+        ->preventLeaveDomain->toBeTrue();
+});
+
+it('turns developer tools off in release builds', function (string $environment, bool $devTools) {
+    app()->detectEnvironment(fn (): string => $environment);
+    $window = new NativeWindow(NativeAppServiceProvider::MAIN_WINDOW);
+    Window::fake()->alwaysReturnWindows([$window]);
+
+    app(NativeAppServiceProvider::class)->boot();
+
+    expect($window->toArray()['webPreferences'])->toBe(['devTools' => $devTools]);
+})->with([
+    'release build' => ['production', false],
+    'running from source' => ['local', true],
+]);
+
+it('keeps function arguments such as tokens out of stack traces', function () {
+    expect(app(NativeAppServiceProvider::class)->phpIni())->toHaveKey('zend.exception_ignore_args', '1');
+});

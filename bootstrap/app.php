@@ -1,10 +1,14 @@
 <?php
 
+use App\Http\Middleware\AddContentSecurityPolicy;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PreventRegularBrowserAccess;
+use App\Http\Middleware\TrustHosts;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Middleware\TrustHosts as LaravelTrustHosts;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -15,7 +19,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // In the desktop app, only its own window may use the server.
+        $middleware->prepend(PreventRegularBrowserAccess::class);
+
+        // Refuse requests for any other hostname, e.g. a website that points its own name at 127.0.0.1.
+        $middleware->trustHosts(at: TrustHosts::LOOPBACK_HOSTS);
+        $middleware->replace(LaravelTrustHosts::class, TrustHosts::class);
+
         $middleware->web(append: [
+            AddContentSecurityPolicy::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

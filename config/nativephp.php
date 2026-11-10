@@ -156,7 +156,8 @@ return [
         'default' => [
             'queues' => ['default'],
             'memory_limit' => 128,
-            'timeout' => 60,
+            // Long enough for PushCodeChange (its $timeout), so a slow push isn't killed halfway through.
+            'timeout' => 600,
             'sleep' => 3,
         ],
         // Claude Code reviews and reply drafts run for minutes, so they get their own worker.

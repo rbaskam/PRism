@@ -9,6 +9,7 @@ use App\Models\GithubAccount;
 use App\Services\Alerts;
 use App\Services\Claude\ClaudeCode;
 use App\Services\Claude\ClaudeException;
+use App\Services\Git\Git;
 use App\Services\Git\PullRequestCheckout;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -21,9 +22,22 @@ class AnswerCodeQuestion implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Claude may answer for up to 14 minutes.
+     */
+    public const CLAUDE_TIMEOUT = 840;
+
+    /**
+     * Kept back at the end of the job for saving the answer.
+     */
+    public const SAVING_SECONDS = 60;
+
     public int $tries = 1;
 
-    public int $timeout = 900;
+    /**
+     * Preparing the worktree, Claude's answer and removing the worktree all fit in this: Claude gets what's left.
+     */
+    public int $timeout = 1200;
 
     public function __construct(public CodeQuestion $question)
     {
@@ -36,6 +50,7 @@ class AnswerCodeQuestion implements ShouldQueue
         $pullRequest = $question->pullRequest->load('repository');
         $account = GithubAccount::current();
         $startedAt = hrtime(true);
+        $deadline = now()->addSeconds($this->timeout - self::SAVING_SECONDS);
 
         $question->update(['status' => AiTaskStatus::Running, 'started_at' => now()]);
 
@@ -52,8 +67,12 @@ class AnswerCodeQuestion implements ShouldQueue
             systemPrompt: 'You answer questions about code in a GitHub pull request for a developer reviewing it. This is read-only: never comment on, approve, edit or push to the pull request or repository.',
             workingDirectory: $worktree,
             githubToken: $account?->token,
-            timeoutSeconds: 840,
-        ));
+            timeoutSeconds: ClaudeCode::timeoutBefore(
+                $worktree === null ? $deadline : $deadline->copy()->subSeconds(Git::REMOVE_WORKTREE_TIMEOUT),
+                self::CLAUDE_TIMEOUT,
+            ),
+            repository: $pullRequest->repository->full_name,
+        ), $question->head_sha);
 
         $answer = $result->structuredOutput['answer'] ?? throw new ClaudeException('Claude did not return an answer.');
 
@@ -112,7 +131,7 @@ class AnswerCodeQuestion implements ShouldQueue
             $lines,
             "\nTheir question: {$question->prompt}",
             '',
-            "For more context, read the pull request with `gh pr view {$pullRequest->number} --repo {$repository}` and `gh pr diff {$pullRequest->number} --repo {$repository}`, or the files in the working directory if it is a checkout of the pull request.",
+            "For more context, read the pull request with `gh pr view {$pullRequest->number}` and `gh pr diff {$pullRequest->number}` (gh is already set up for {$repository}, so don't pass --repo), or the files in the working directory if it is a checkout of the pull request.",
             'Answer concisely and specifically in GitHub markdown. If you recommend rewriting the highlighted lines, put the complete replacement code (no diff markers) in suggested_code; otherwise set it to null.',
         );
 

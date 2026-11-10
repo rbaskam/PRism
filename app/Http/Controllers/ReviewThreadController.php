@@ -24,6 +24,13 @@ class ReviewThreadController extends Controller
 
         $validated = $request->validate(['thread_id' => ['required', 'string', 'max:255']]);
 
+        // Thread ids are global on GitHub, so only resolve one this pull request's conversation (as last shown) has.
+        $threadIds = array_column($pullRequest->conversation['threads'] ?? [], 'id');
+
+        if (! in_array($validated['thread_id'], $threadIds, true)) {
+            return back()->with('error', "That conversation isn't on this pull request any more. Refresh the conversation and try again.");
+        }
+
         try {
             $github->resolveReviewThread($validated['thread_id']);
         } catch (RequestException|ConnectionException|GithubException $exception) {

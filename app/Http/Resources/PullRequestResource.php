@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\CodeChangeTarget;
 use App\Models\PullRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -37,6 +38,12 @@ class PullRequestResource extends JsonResource
             'head_ref' => $this->head_ref,
             'base_ref' => $this->base_ref,
             'head_sha' => $this->head_sha,
+            'is_cross_repository' => $this->is_cross_repository,
+            'head_repository' => $this->head_repository,
+            // Why "Fix with Claude" can't send changes to each target (e.g. for a fork), or null when it can.
+            'code_change_refusals' => collect(CodeChangeTarget::cases())
+                ->mapWithKeys(fn (CodeChangeTarget $target): array => [$target->value => $this->codeChangeRefusal($target)])
+                ->all(),
             'additions' => $this->additions,
             'deletions' => $this->deletions,
             'changed_files' => $this->changed_files,

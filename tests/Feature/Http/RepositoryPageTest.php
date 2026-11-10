@@ -156,6 +156,8 @@ it('rejects a local checkout that is not a folder on this computer', function (m
 })->with([
     'missing folder' => ['/Users/octocat/Code/does-not-exist', 'That folder does not exist on this computer.'],
     'too long' => ['/Users/octocat/'.str_repeat('a', 1024), 'The local path field must not be greater than 1024 characters.'],
+    'a list instead of a path' => [['/Users/octocat/Code/api'], 'The local path field must be a string.'],
+    'a relative path' => ['.', "Enter the folder's full path, like /Users/you/code."],
 ]);
 
 it('rejects a tracking choice that is not true or false', function () {

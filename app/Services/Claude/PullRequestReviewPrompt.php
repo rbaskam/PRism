@@ -55,7 +55,7 @@ class PullRequestReviewPrompt
             '',
             'Ground rules:',
             '- This review is read-only. Never comment on, approve, edit, push to or otherwise change the pull request or the repository. The developer decides what gets posted.',
-            "- Read the pull request with `gh pr view {$number} --repo {$repository}` and `gh pr diff {$number} --repo {$repository}`. Always pass `--repo {$repository}`.",
+            "- Read the pull request with `gh pr view {$number}` and `gh pr diff {$number}`. gh is already set up for {$repository}, so don't pass --repo.",
             $hasLocalCheckout
                 ? '- The working directory is a checkout of the pull request at its head commit. Read the changed files in full, grep for callers and use git log/show/diff for context.'
                 : '- There is no local checkout, so work from the diff and `gh pr view` output.',

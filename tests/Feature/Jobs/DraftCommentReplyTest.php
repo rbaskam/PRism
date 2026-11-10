@@ -52,8 +52,10 @@ it('gives Claude the discussion, the code it is about and how the user wants to 
         ['author' => 'reviewer', 'body' => 'The one in the loop.'],
     ], 'app/Services/Billing.php', "@@ -10,2 +10,3 @@\n+foreach (\$rows as \$row) {");
 
-    Process::assertRan(fn (PendingProcess $process): bool => $process->path === sys_get_temp_dir()
+    // Claude's own empty workspace, never the user's checkout.
+    Process::assertRan(fn (PendingProcess $process): bool => $process->path === storage_path('app/claude-workspace')
         && $process->environment['GH_TOKEN'] === 'ghp_test'
+        && $process->environment['GH_REPO'] === 'acme/api'
         && str_contains($process->input, 'Draft a reply from @octocat to the latest comment in this discussion on pull request acme/api#42.')
         && str_contains($process->input, "The discussion is about `app/Services/Billing.php`:\n```diff\n@@ -10,2 +10,3 @@\n+foreach (\$rows as \$row) {\n```")
         && str_contains($process->input, "@reviewer: This query runs once per row.\n@octocat: Which one?\n@reviewer: The one in the loop.")

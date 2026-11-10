@@ -48,9 +48,11 @@ class DraftCommentReply implements ShouldQueue
                 'required' => ['reply'],
             ],
             systemPrompt: 'You draft replies to GitHub pull request comments for a developer. This is read-only: never post, comment, approve or change anything. Return only the reply text in GitHub markdown.',
-            workingDirectory: $pullRequest->repository->localCheckoutPath(),
+            // Claude's own empty workspace: never the user's checkout, whose files and Claude settings PRism doesn't control.
+            workingDirectory: null,
             githubToken: $account?->token,
             timeoutSeconds: 540,
+            repository: $pullRequest->repository->full_name,
         );
 
         $reply = $result->structuredOutput['reply'] ?? throw new ClaudeException('Claude did not return a reply.');
@@ -70,7 +72,7 @@ class DraftCommentReply implements ShouldQueue
     {
         $lines = [
             "Draft a reply from @{$myLogin} to the latest comment in this discussion on pull request {$repository}#{$number}.",
-            "If you need more context, read the pull request with `gh pr view {$number} --repo {$repository}` and `gh pr diff {$number} --repo {$repository}`.",
+            "If you need more context, read the pull request with `gh pr view {$number}` and `gh pr diff {$number}` (gh is already set up for {$repository}, so don't pass --repo).",
         ];
 
         if ($this->path !== null) {

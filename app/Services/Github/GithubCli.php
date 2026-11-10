@@ -3,6 +3,7 @@
 namespace App\Services\Github;
 
 use App\Services\AppSettings;
+use App\Services\ChildProcessEnvironment;
 use App\Services\CommandLocator;
 use Illuminate\Support\Facades\Process;
 
@@ -37,7 +38,7 @@ class GithubCli
             return null;
         }
 
-        $result = Process::env(['PATH' => $this->locator->searchPath([$binary])])
+        $result = Process::env(ChildProcessEnvironment::make(['PATH' => $this->locator->searchPath([$binary])]))
             ->timeout(15)
             ->run([$binary, 'auth', 'token']);
 

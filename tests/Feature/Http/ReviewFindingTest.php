@@ -95,3 +95,18 @@ it('falls back to a conversation comment when the line is outside the diff', fun
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/issues/')
         && $request['body'] === "`app/Foo.php:999`\n\nEdited by me");
 });
+
+it('does not post a finding that is already on the pull request', function () {
+    onboardedAccount();
+    app(AppSettings::class)->set(AppSettings::ALLOW_POSTING_FINDINGS, true);
+    $postedAt = now()->subMinute()->startOfSecond();
+    $finding = ReviewFinding::factory()->create(['path' => 'app/Foo.php', 'line' => 10, 'posted_at' => $postedAt, 'github_comment_id' => 777]);
+
+    $response = $this->post(route('findings.post', $finding), ['body' => 'Posted again from a second window']);
+
+    $response->assertSessionHas('error', 'This finding is already on the pull request.');
+    expect($finding->fresh())
+        ->posted_at->toEqual($postedAt)
+        ->github_comment_id->toBe(777);
+    Http::assertNothingSent();
+});

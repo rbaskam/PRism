@@ -6,14 +6,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { PullRequest, PullRequestConversation, PullRequestPermissions, ReviewFinding } from '@/types';
+import type { CodeChangeTarget, PullRequest, PullRequestConversation, PullRequestPermissions, ReviewFinding } from '@/types';
 import { useForm } from '@inertiajs/vue3';
-import { GitBranch, GitPullRequestArrow, Loader2, ShieldCheck, Wand2 } from 'lucide-vue-next';
+import { GitBranch, GitPullRequestArrow, Info, Loader2, ShieldCheck, Wand2 } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 import SeverityBadge from './SeverityBadge.vue';
 import { failedWithFlash, findingLocation, pageVisit, type CodeChangeDraft } from './utils';
 
-type Target = 'pull_request_branch' | 'new_pull_request';
+type Target = CodeChangeTarget;
+
+const TARGETS: Target[] = ['pull_request_branch', 'new_pull_request'];
 
 /** The backend accepts at most this many review comments, each up to this long. */
 const MAX_COMMENTS = 50;
@@ -38,7 +40,25 @@ const emit = defineEmits<{
     started: [];
 }>();
 
-const defaultTarget = computed<Target>(() => (props.pullRequest.is_authored_by_me ? 'pull_request_branch' : 'new_pull_request'));
+/** Why changes can't go to a target (e.g. a fork that doesn't allow maintainer edits), or null when they can. */
+function refusal(target: Target): string | null {
+    return props.pullRequest.code_change_refusals?.[target] ?? null;
+}
+
+const allowedTargets = computed(() => TARGETS.filter((target) => refusal(target) === null));
+
+/** The pull request's own branch for the author, a new pull request for others, or whichever is allowed. */
+const defaultTarget = computed<Target>(() => {
+    const preferred: Target = props.pullRequest.is_authored_by_me ? 'pull_request_branch' : 'new_pull_request';
+
+    return refusal(preferred) === null ? preferred : (allowedTargets.value[0] ?? preferred);
+});
+
+function chooseTarget(target: Target): void {
+    if (refusal(target) === null) {
+        form.target = target;
+    }
+}
 
 const form = useForm<{ target: Target; instructions: string; finding_ids: number[]; thread_ids: string[] }>({
     target: defaultTarget.value,
@@ -67,7 +87,9 @@ const selectedComments = computed(() =>
 );
 
 const isInstructionsRequired = computed(() => form.finding_ids.length === 0 && selectedComments.value.length === 0);
-const canSubmit = computed(() => !form.processing && (!isInstructionsRequired.value || form.instructions.trim() !== ''));
+const canSubmit = computed(
+    () => !form.processing && refusal(form.target) === null && (!isInstructionsRequired.value || form.instructions.trim() !== ''),
+);
 const otherError = computed(() => Object.entries(form.errors).find(([field]) => field !== 'instructions')?.[1]);
 
 /** Start from the draft when it has content (a finding, a retry); otherwise keep what was typed last time. */
@@ -84,7 +106,8 @@ watch(open, (isOpen) => {
         form.thread_ids = [];
     }
 
-    form.target = props.draft.target ?? (hasDraft ? defaultTarget.value : form.target);
+    const target = props.draft.target ?? (hasDraft ? defaultTarget.value : form.target);
+    form.target = refusal(target) === null ? target : defaultTarget.value;
     form.thread_ids = form.thread_ids.filter((id) => unresolvedThreads.value.some((thread) => thread.id === id));
     form.clearErrors();
 });
@@ -252,48 +275,57 @@ function handleKeydown(event: KeyboardEvent): void {
                     <p class="text-sm font-medium">Where should the changes go?</p>
                     <div role="radiogroup" aria-label="Where the changes go" class="grid gap-2 sm:grid-cols-2">
                         <button
+                            v-for="target in TARGETS"
+                            :key="target"
                             type="button"
                             role="radio"
-                            :aria-checked="form.target === 'pull_request_branch'"
+                            :aria-checked="form.target === target"
+                            :aria-disabled="refusal(target) !== null"
+                            :aria-describedby="`fix-target-${target}-description`"
+                            :data-target="target"
                             :class="
                                 cn(
-                                    'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                    form.target === 'pull_request_branch' && 'border-primary bg-primary/5 ring-1 ring-primary',
+                                    'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                    refusal(target) === null ? 'hover:bg-muted/60' : 'cursor-not-allowed bg-muted/40',
+                                    form.target === target && refusal(target) === null && 'border-primary bg-primary/5 ring-1 ring-primary',
                                 )
                             "
-                            @click="form.target = 'pull_request_branch'"
+                            @click="chooseTarget(target)"
                         >
-                            <span class="flex items-center gap-1.5 text-sm font-medium">
-                                <GitBranch class="size-4 text-violet-500" />
-                                Commit to this pull request's branch
+                            <span :class="cn('flex items-center gap-1.5 text-sm font-medium', refusal(target) !== null && 'text-muted-foreground')">
+                                <component
+                                    :is="target === 'pull_request_branch' ? GitBranch : GitPullRequestArrow"
+                                    :class="cn('size-4', refusal(target) === null ? 'text-violet-500' : 'text-muted-foreground')"
+                                />
+                                {{ target === 'pull_request_branch' ? "Commit to this pull request's branch" : 'Open a new pull request' }}
                             </span>
-                            <span class="text-xs text-muted-foreground">
-                                Adds commits to <code class="rounded bg-muted px-1 font-mono">{{ pullRequest.head_ref }}</code
+                            <span
+                                v-if="refusal(target) !== null"
+                                :id="`fix-target-${target}-description`"
+                                class="flex items-start gap-1 text-xs text-muted-foreground"
+                            >
+                                <Info class="mt-px size-3.5 shrink-0" />
+                                <span>{{ refusal(target) }}</span>
+                            </span>
+                            <span
+                                v-else-if="target === 'pull_request_branch'"
+                                :id="`fix-target-${target}-description`"
+                                class="text-xs text-muted-foreground"
+                            >
+                                Adds commits to
+                                <code class="rounded bg-muted px-1 font-mono"
+                                    >{{ pullRequest.is_cross_repository ? `${pullRequest.head_repository}:` : '' }}{{ pullRequest.head_ref }}</code
                                 >.
                             </span>
-                        </button>
-                        <button
-                            type="button"
-                            role="radio"
-                            :aria-checked="form.target === 'new_pull_request'"
-                            :class="
-                                cn(
-                                    'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                    form.target === 'new_pull_request' && 'border-primary bg-primary/5 ring-1 ring-primary',
-                                )
-                            "
-                            @click="form.target = 'new_pull_request'"
-                        >
-                            <span class="flex items-center gap-1.5 text-sm font-medium">
-                                <GitPullRequestArrow class="size-4 text-violet-500" />
-                                Open a new pull request
-                            </span>
-                            <span class="text-xs text-muted-foreground">
+                            <span v-else :id="`fix-target-${target}-description`" class="text-xs text-muted-foreground">
                                 Into <code class="rounded bg-muted px-1 font-mono">{{ pullRequest.head_ref }}</code
                                 >, so the author can review it.
                             </span>
                         </button>
                     </div>
+                    <p v-if="allowedTargets.length === 0" class="text-xs text-muted-foreground" role="note">
+                        Claude can't make changes for this pull request: there's nowhere PRism may push them.
+                    </p>
                     <InputError :message="form.errors.target" />
                 </div>
 
