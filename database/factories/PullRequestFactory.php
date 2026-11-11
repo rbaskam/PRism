@@ -41,6 +41,7 @@ class PullRequestFactory extends Factory
             'deletions' => fake()->numberBetween(0, 200),
             'changed_files' => fake()->numberBetween(1, 20),
             'requested_via_teams' => [],
+            'answered_team_requests' => [],
             'requested_reviewers' => [],
             'labels' => [],
             'github_created_at' => now()->subDays(2),
@@ -80,6 +81,16 @@ class PullRequestFactory extends Factory
             'is_review_requested_from_me' => true,
             'is_review_requested_directly' => false,
             'requested_via_teams' => [$team],
+        ]);
+    }
+
+    /**
+     * Indicate that a team the connected user belongs to was asked to review the pull request, and a teammate did.
+     */
+    public function reviewedByTeammate(string $team = 'acme/reviewers'): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'answered_team_requests' => [$team],
         ]);
     }
 

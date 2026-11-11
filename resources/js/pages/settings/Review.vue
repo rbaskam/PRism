@@ -22,6 +22,7 @@ const props = defineProps<{
         allow_replying_to_comments: boolean;
         auto_review_on_request: boolean;
         keep_awaiting_after_comments: boolean;
+        keep_answered_team_requests: boolean;
         allow_code_changes: boolean;
         allow_pushing: boolean;
     };
@@ -49,6 +50,7 @@ type ToggleKey =
     | 'allow_replying_to_comments'
     | 'auto_review_on_request'
     | 'keep_awaiting_after_comments'
+    | 'keep_answered_team_requests'
     | 'allow_code_changes'
     | 'allow_pushing';
 
@@ -96,6 +98,12 @@ const reviewQueueToggles: Toggle[] = [
         description:
             'On GitHub a comment counts as your review, so it takes the pull request out of Awaiting your review. With this on, it stays there until you approve or request changes. A request sent to one of your teams also ends when someone else approves or requests changes.',
     },
+    {
+        key: 'keep_answered_team_requests',
+        label: 'Keep pull requests on My pull requests after a teammate reviews for my team',
+        description:
+            "When one of your teams is asked to review, GitHub drops the request as soon as any member reviews, and the pull request leaves My pull requests unless you're involved another way. With this on, it stays in the list, marked with the team. It doesn't count as awaiting your review.",
+    },
 ];
 
 const codeChangeToggles: Toggle[] = [
@@ -123,7 +131,7 @@ const sections: ToggleSection[] = [
     },
     {
         title: 'Your review queue',
-        description: 'What takes a pull request out of Awaiting your review.',
+        description: 'What takes a pull request out of Awaiting your review, and what stays on My pull requests.',
         toggles: reviewQueueToggles,
     },
     {

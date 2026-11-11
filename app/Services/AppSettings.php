@@ -23,6 +23,8 @@ class AppSettings
 
     public const KEEP_AWAITING_AFTER_COMMENTS = 'review.keep_awaiting_after_comments';
 
+    public const KEEP_ANSWERED_TEAM_REQUESTS = 'review.keep_answered_team_requests';
+
     public const CLAUDE_AUTH_MODE = 'claude.auth_mode';
 
     public const CLAUDE_CREDENTIAL = 'claude.credential';
@@ -183,6 +185,15 @@ class AppSettings
     public function keepsAwaitingAfterComments(): bool
     {
         return (bool) $this->get(self::KEEP_AWAITING_AFTER_COMMENTS, false);
+    }
+
+    /**
+     * Whether a pull request one of the user's teams was asked to review stays on My pull requests after a teammate
+     * reviews it. When off it leaves the list, as GitHub drops the team's request and nothing else involves the user.
+     */
+    public function keepsAnsweredTeamRequests(): bool
+    {
+        return (bool) $this->get(self::KEEP_ANSWERED_TEAM_REQUESTS, false);
     }
 
     public function claudeAuthMode(): ?ClaudeAuthMode

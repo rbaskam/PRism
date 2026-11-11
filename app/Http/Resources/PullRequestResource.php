@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Enums\CodeChangeTarget;
 use App\Models\PullRequest;
+use App\Services\AppSettings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -59,6 +60,8 @@ class PullRequestResource extends JsonResource
             'is_review_requested_from_me' => $this->is_review_requested_from_me,
             'is_review_requested_directly' => $this->is_review_requested_directly,
             'requested_via_teams' => $this->requested_via_teams ?? [],
+            // Only while the user keeps these pull requests on My pull requests, so nothing changes when they don't.
+            'answered_team_requests' => app(AppSettings::class)->keepsAnsweredTeamRequests() ? ($this->answered_team_requests ?? []) : [],
             'requested_reviewers' => $this->requested_reviewers ?? [],
             'labels' => $this->labels ?? [],
             'is_authored_by_me' => $this->is_authored_by_me,

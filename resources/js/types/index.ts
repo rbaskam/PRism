@@ -204,6 +204,11 @@ export interface PullRequest {
     is_review_requested_directly: boolean;
     /** Teams ("org/slug") the user belongs to that were asked to review. */
     requested_via_teams: string[];
+    /**
+     * Teams ("org/slug") the user belongs to that were asked to review, until someone answered for the team. Empty
+     * unless the user keeps these pull requests on My pull requests (Settings → PR review).
+     */
+    answered_team_requests: string[];
     requested_reviewers: RequestedReviewer[];
     labels: { name: string; color: string }[];
     is_authored_by_me: boolean;

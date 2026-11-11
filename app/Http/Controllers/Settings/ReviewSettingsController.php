@@ -22,6 +22,7 @@ class ReviewSettingsController extends Controller
                 'allow_replying_to_comments' => $settings->allowsReplyingToComments(),
                 'auto_review_on_request' => $settings->reviewsAutomaticallyWhenRequested(),
                 'keep_awaiting_after_comments' => $settings->keepsAwaitingAfterComments(),
+                'keep_answered_team_requests' => $settings->keepsAnsweredTeamRequests(),
                 'allow_code_changes' => $settings->allowsCodeChanges(),
                 'allow_pushing' => $settings->allowsPushing(),
             ],
@@ -45,6 +46,7 @@ class ReviewSettingsController extends Controller
             'allow_replying_to_comments' => ['required', 'boolean'],
             'auto_review_on_request' => ['required', 'boolean'],
             'keep_awaiting_after_comments' => ['sometimes', 'boolean'],
+            'keep_answered_team_requests' => ['sometimes', 'boolean'],
             'allow_code_changes' => ['sometimes', 'boolean'],
             'allow_pushing' => ['sometimes', 'boolean'],
         ]);
@@ -57,6 +59,7 @@ class ReviewSettingsController extends Controller
             AppSettings::ALLOW_REPLYING_TO_COMMENTS => $validated['allow_replying_to_comments'],
             AppSettings::AUTO_REVIEW_ON_REQUEST => $validated['auto_review_on_request'],
             AppSettings::KEEP_AWAITING_AFTER_COMMENTS => $validated['keep_awaiting_after_comments'] ?? $settings->keepsAwaitingAfterComments(),
+            AppSettings::KEEP_ANSWERED_TEAM_REQUESTS => $validated['keep_answered_team_requests'] ?? $settings->keepsAnsweredTeamRequests(),
             AppSettings::ALLOW_CODE_CHANGES => $validated['allow_code_changes'] ?? $settings->allowsCodeChanges(),
             AppSettings::ALLOW_PUSHING => $validated['allow_pushing'] ?? $settings->allowsPushing(),
         ]);
