@@ -46,6 +46,7 @@ use Illuminate\Support\Carbon;
  * @property bool $is_review_requested_from_me
  * @property bool $is_review_requested_directly
  * @property list<string>|null $requested_via_teams
+ * @property list<string>|null $answered_team_requests
  * @property list<array<string, string>>|null $requested_reviewers
  * @property list<array{name: string, color: string}>|null $labels
  * @property bool $is_authored_by_me
@@ -119,6 +120,7 @@ class PullRequest extends Model
         'is_review_requested_from_me',
         'is_review_requested_directly',
         'requested_via_teams',
+        'answered_team_requests',
         'requested_reviewers',
         'labels',
         'is_authored_by_me',
@@ -153,6 +155,7 @@ class PullRequest extends Model
             'is_review_requested_from_me' => 'boolean',
             'is_review_requested_directly' => 'boolean',
             'requested_via_teams' => 'array',
+            'answered_team_requests' => 'array',
             'requested_reviewers' => 'array',
             'labels' => 'array',
             'is_authored_by_me' => 'boolean',
@@ -314,17 +317,20 @@ class PullRequest extends Model
     }
 
     /**
-     * Scope the query to pull requests the connected user is involved in.
+     * Scope the query to pull requests the connected user is involved in. Ones a teammate reviewed for one of the
+     * user's teams count only when asked for: GitHub drops a team's request once any member reviews, which leaves
+     * nothing for the user to do.
      *
      * @param  Builder<PullRequest>  $query
      */
-    public function scopeInvolvingMe(Builder $query): void
+    public function scopeInvolvingMe(Builder $query, bool $withAnsweredTeamRequests = false): void
     {
         $query->where(fn (Builder $query) => $query
             ->where('is_authored_by_me', true)
             ->orWhere('is_review_requested_from_me', true)
             ->orWhere('is_assigned_to_me', true)
-            ->orWhereNotNull('my_review_state'));
+            ->orWhereNotNull('my_review_state')
+            ->when($withAnsweredTeamRequests, fn (Builder $query) => $query->orWhereJsonLength('answered_team_requests', '>', 0)));
     }
 
     /**

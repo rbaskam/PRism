@@ -100,6 +100,21 @@ it('syncs with GitHub when the user changes whether comments end a review reques
     Bus::assertDispatchedTimes(SyncGithub::class, 1);
 });
 
+it('saves whether pull requests a teammate reviewed for the user\'s team stay on My pull requests', function () {
+    onboardedAccount();
+
+    $response = $this->put(route('settings.review.update'), [
+        'prompt' => AppSettings::DEFAULT_REVIEW_PROMPT,
+        'allow_posting_findings' => false,
+        'allow_replying_to_comments' => false,
+        'auto_review_on_request' => false,
+        'keep_answered_team_requests' => true,
+    ]);
+
+    $response->assertSessionHas('success', 'Review settings saved.');
+    expect(app(AppSettings::class)->keepsAnsweredTeamRequests())->toBeTrue();
+});
+
 it('saves which desktop alerts the user wants', function () {
     onboardedAccount();
 

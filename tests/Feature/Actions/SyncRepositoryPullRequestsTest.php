@@ -239,6 +239,59 @@ it('does not count a review requested from the user\'s team on their own pull re
     expect(PullRequest::query()->awaitingMyReview()->count())->toBe(0);
 });
 
+/**
+ * A pull request node whose review was requested from the acme/reviewers team on 1 October and approved by one of its
+ * members the next day, which makes GitHub drop the team's request.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function reviewedForTeamNode(array $overrides = []): array
+{
+    return githubPullRequestNode([
+        'reviewRequestedEvents' => ['nodes' => [
+            ['createdAt' => '2026-10-01T10:00:00Z', 'requestedReviewer' => ['__typename' => 'Team', 'slug' => 'reviewers', 'name' => 'Reviewers', 'organization' => ['login' => 'acme']]],
+        ]],
+        'latestOpinionatedReviews' => ['nodes' => [
+            ['author' => ['login' => 'hubot'], 'state' => 'APPROVED', 'submittedAt' => '2026-10-02T09:00:00Z', 'commit' => ['oid' => 'headsha']],
+        ]],
+        ...$overrides,
+    ]);
+}
+
+it('records which of the user\'s teams had its review request answered by a teammate', function () {
+    $account = GithubAccount::factory()->inTeam('acme', 'reviewers')->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([reviewedForTeamNode()]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole())
+        ->answered_team_requests->toBe(['acme/reviewers'])
+        ->is_review_requested_from_me->toBeFalse()
+        ->requested_via_teams->toBe([])
+        ->attention()->toBe(ReviewAttention::None);
+});
+
+it('does not record a team\'s review request as answered', function (string $userTeam, array $overrides) {
+    $account = GithubAccount::factory()->inTeam('acme', $userTeam)->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([reviewedForTeamNode($overrides)]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole()->answered_team_requests)->toBe([]);
+})->with([
+    'while GitHub still lists it' => ['reviewers', ['reviewRequests' => ['nodes' => [
+        ['requestedReviewer' => ['__typename' => 'Team', 'slug' => 'reviewers', 'name' => 'Reviewers', 'organization' => ['login' => 'acme']]],
+    ]]]],
+    'after the author took it back' => ['reviewers', ['reviewRequestRemovedEvents' => ['nodes' => [
+        ['createdAt' => '2026-10-01T11:00:00Z', 'requestedReviewer' => ['__typename' => 'Team', 'slug' => 'reviewers', 'name' => 'Reviewers', 'organization' => ['login' => 'acme']]],
+    ]]]],
+    'when the user is not in the team' => ['designers', []],
+    'on the user\'s own pull request' => ['reviewers', ['author' => ['login' => 'octocat', 'avatarUrl' => null]]],
+]);
+
 it('closes pull requests that are no longer open on GitHub, noting which were merged', function () {
     $account = GithubAccount::factory()->create();
     $repository = Repository::factory()->create();

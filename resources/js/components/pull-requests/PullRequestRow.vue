@@ -108,6 +108,7 @@ const hasStatusBadges = computed(
         props.pullRequest.snoozed_until !== null ||
         props.pullRequest.is_review_requested_directly ||
         props.pullRequest.requested_via_teams.length > 0 ||
+        props.pullRequest.answered_team_requests.length > 0 ||
         props.pullRequest.has_commits_since_my_review ||
         props.pullRequest.is_assigned_to_me ||
         openFindings.value > 0 ||
@@ -206,6 +207,18 @@ const hasStatusBadges = computed(
                         <Users />
                         via @{{ team }}
                     </Badge>
+                    <!-- With no review of the user's own, whoever answered the team's request was a teammate. -->
+                    <template v-if="pullRequest.attention === 'none'">
+                        <Badge
+                            v-for="team in pullRequest.answered_team_requests"
+                            :key="`answered:${team}`"
+                            variant="muted"
+                            :title="`Review was requested from the @${team} team, which you are a member of, and a teammate has reviewed it`"
+                        >
+                            <Users />
+                            via @{{ team }} · reviewed by a teammate
+                        </Badge>
+                    </template>
                     <Badge v-if="pullRequest.is_assigned_to_me" variant="outline">
                         <UserCheck />
                         Assigned to you

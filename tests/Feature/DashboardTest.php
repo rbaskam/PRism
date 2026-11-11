@@ -2,6 +2,7 @@
 
 use App\Models\PullRequest;
 use App\Models\Repository;
+use App\Services\AppSettings;
 use Inertia\Testing\AssertableInertia as Assert;
 
 it('lists open pull requests involving the user in tracked repositories, most recently updated first', function () {
@@ -34,4 +35,41 @@ it('keeps pull requests closed in the last two weeks so their AI reviews stay re
         ->has('pullRequests', 1)
         ->where('pullRequests.0.id', $closed->id)
         ->where('pullRequests.0.state', 'closed'));
+});
+
+it('leaves out a pull request a teammate reviewed for one of the user\'s teams', function () {
+    onboardedAccount();
+    PullRequest::factory()->reviewedByTeammate('acme/reviewers')->create();
+
+    $response = $this->get(route('dashboard'));
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page->has('pullRequests', 0));
+});
+
+it('lists a pull request a teammate reviewed for one of the user\'s teams when the user keeps them', function () {
+    onboardedAccount();
+    app(AppSettings::class)->set(AppSettings::KEEP_ANSWERED_TEAM_REQUESTS, true);
+    $reviewedForTeam = PullRequest::factory()->reviewedByTeammate('acme/reviewers')->create();
+    PullRequest::factory()->create();
+    PullRequest::factory()->create(['answered_team_requests' => null]);
+
+    $response = $this->get(route('dashboard'));
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->has('pullRequests', 1)
+        ->where('pullRequests.0.id', $reviewedForTeam->id)
+        ->where('pullRequests.0.attention', 'none')
+        ->where('pullRequests.0.answered_team_requests', ['acme/reviewers']));
+});
+
+it('does not say a teammate reviewed a pull request for the user\'s team while the user does not keep them', function () {
+    onboardedAccount();
+    $assigned = PullRequest::factory()->reviewedByTeammate('acme/reviewers')->create(['is_assigned_to_me' => true]);
+
+    $response = $this->get(route('dashboard'));
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->has('pullRequests', 1)
+        ->where('pullRequests.0.id', $assigned->id)
+        ->where('pullRequests.0.answered_team_requests', []));
 });

@@ -4,6 +4,7 @@ use App\Actions\RecordReviewResult;
 use App\Models\PullRequest;
 use App\Models\Repository;
 use App\Models\ReviewRun;
+use App\Services\AppSettings;
 use Tests\Browser\Support\FakeGithub;
 
 /**
@@ -65,6 +66,28 @@ it('shows the pull requests from GitHub that involve you, with a count for each 
         ->assertSeeIn('button[title="Show only: your pull requests"]', '1')
         ->assertSeeIn('button[title="Show only: via teams"]', '1')
         ->assertSeeIn('[data-sidebar="menu-badge"]', '3')
+        ->assertNoJavaScriptErrors();
+});
+
+it('keeps a pull request a teammate reviewed for your team in the list when you choose to, without counting it as awaiting', function () {
+    app(AppSettings::class)->set(AppSettings::KEEP_ANSWERED_TEAM_REQUESTS, true);
+    (new FakeGithub)
+        ->withTeam('acme', 'reviewers')
+        ->withPullRequests('acme/api', [
+            FakeGithub::pullRequest(105, 'Cache the feed', [
+                ...FakeGithub::requestedFromTeam('acme', 'reviewers'),
+                ...FakeGithub::reviewedBy('hubot', 'APPROVED'),
+                'reviewRequests' => ['nodes' => []],
+            ]),
+        ])
+        ->fake();
+    syncFromGithub();
+
+    $page = visit('/');
+
+    $page->assertSee('Cache the feed')
+        ->assertSee('via @acme/reviewers · reviewed by a teammate')
+        ->assertSeeIn('button[title="Show only: awaiting your review"]', '0')
         ->assertNoJavaScriptErrors();
 });
 

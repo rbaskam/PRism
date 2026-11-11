@@ -70,6 +70,7 @@ class PullRequestMapper
             'is_review_requested_from_me' => $isOpen && ($isRequestedDirectly || $myTeams !== []),
             'is_review_requested_directly' => $isOpen && $isRequestedDirectly,
             'requested_via_teams' => $myTeams,
+            'answered_team_requests' => $isAuthoredByMe ? [] : $this->answeredTeamRequests($node, $account, $requestsForMe),
             'requested_reviewers' => $requestedReviewers,
             'labels' => collect($this->nodes($node, 'labels'))->map(fn (array $label): array => [
                 'name' => $label['name'],
@@ -195,6 +196,29 @@ class PullRequestMapper
                 && ! ($myLastVerdictAt?->gt($event['at']) ?? false)
                 && ! ($event['reviewer']['type'] === 'team' && ($othersLastVerdictAt?->gt($event['at']) ?? false)))
             ->pluck('reviewer')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The user's teams ("org/slug") that were asked to review and no longer are, because someone answered: GitHub
+     * drops a team's request as soon as any member reviews. A request the author took back doesn't count.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  list<array{type: string, login?: string, organization?: string, slug?: string, name?: string}>  $openRequests
+     * @return list<string>
+     */
+    private function answeredTeamRequests(array $node, GithubAccount $account, array $openRequests): array
+    {
+        $open = collect($openRequests)->map($this->reviewerKey(...));
+        $lastRemovedAt = $this->latestEventPerReviewer($node, 'reviewRequestRemovedEvents')->map(fn (array $event): Carbon => $event['at']);
+
+        return $this->latestEventPerReviewer($node, 'reviewRequestedEvents')
+            ->filter(fn (array $event, string $key): bool => $event['reviewer']['type'] === 'team'
+                && $this->isMe($event['reviewer'], $account)
+                && ! $open->contains($key)
+                && ! ($lastRemovedAt->get($key)?->gte($event['at']) ?? false))
+            ->map(fn (array $event): string => "{$event['reviewer']['organization']}/{$event['reviewer']['slug']}")
             ->values()
             ->all();
     }

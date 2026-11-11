@@ -6,6 +6,7 @@ use App\Http\Resources\PullRequestResource;
 use App\Models\GithubAccount;
 use App\Models\PullRequest;
 use App\Models\Repository;
+use App\Services\AppSettings;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -14,13 +15,13 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(AppSettings $settings): Response
     {
         $account = GithubAccount::current();
 
         $pullRequests = PullRequest::query()
             ->openOrRecentlyClosed()
-            ->involvingMe()
+            ->involvingMe(withAnsweredTeamRequests: $settings->keepsAnsweredTeamRequests())
             ->whereRelation('repository', 'is_tracked', true)
             ->with(['repository', 'latestReviewRun'])
             ->withFindingCounts()
