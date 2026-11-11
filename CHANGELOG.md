@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-11
+
 ### Added
 
 - **Keep pull requests on My pull requests after a teammate reviews for my team**, a setting under Settings → PR review. When one of your teams is asked to review, GitHub drops the request as soon as any member reviews, and the pull request used to leave the list. With the setting on it stays, marked with the team, and doesn't count as awaiting your review.
