@@ -93,8 +93,12 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('package-lock.json') }}
 
+      # No --with-deps: the runner image already has the libraries Chromium needs, and the only packages that
+      # flag added were fallback fonts the tests don't use. Fetching them made the job depend on Ubuntu's package
+      # mirrors, so a mirror outage failed every pull request. If a new runner image ever lacks a library,
+      # Chromium says which one when it starts.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Prepare environment
         run: |
