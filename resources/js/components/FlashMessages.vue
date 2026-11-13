@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MemeReaction from '@/components/MemeReaction.vue';
 import type { SharedData } from '@/types';
 import { usePage } from '@inertiajs/vue3';
 import { CheckCircle2, X, XCircle } from 'lucide-vue-next';
@@ -49,6 +50,7 @@ watch(
 
 <template>
     <div class="pointer-events-none fixed bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2">
+        <MemeReaction />
         <TransitionGroup
             enter-active-class="transition duration-200 ease-out"
             enter-from-class="translate-y-2 opacity-0"

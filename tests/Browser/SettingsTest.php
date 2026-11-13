@@ -173,6 +173,22 @@ it('switches to dark mode and an accent colour, and keeps them on every page', f
         ->assertNoJavaScriptErrors();
 });
 
+it('turns meme reactions on, remembers it and shows one', function () {
+    visit('/settings/appearance')
+        ->assertAttribute('#meme-reactions', 'aria-checked', 'false')
+        ->assertDontSee('Show me one')
+        ->click('#meme-reactions')
+        ->click('Show me one')
+        ->assertPresent('[data-meme-reaction] figcaption')
+        ->navigate('/settings/appearance')
+        ->assertScript('localStorage.getItem("prism.meme-reactions")', 'true')
+        ->assertAttribute('#meme-reactions', 'aria-checked', 'true')
+        ->click('#meme-reactions')
+        ->assertScript('localStorage.getItem("prism.meme-reactions")', 'false')
+        ->assertDontSee('Show me one')
+        ->assertNoJavaScriptErrors();
+});
+
 it('shows the version and the changelog', function () {
     config(['prism.version' => '1.2.3']);
 

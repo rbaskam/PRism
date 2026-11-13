@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useMemeReactions } from '@/composables/useMemeReactions';
 import { cn } from '@/lib/utils';
 import type { CodeChangeTarget, PullRequest, PullRequestConversation, PullRequestPermissions, ReviewFinding } from '@/types';
 import { useForm } from '@inertiajs/vue3';
@@ -39,6 +40,8 @@ const open = defineModel<boolean>('open', { required: true });
 const emit = defineEmits<{
     started: [];
 }>();
+
+const { celebrate } = useMemeReactions();
 
 /** Why changes can't go to a target (e.g. a fork that doesn't allow maintainer edits), or null when they can. */
 function refusal(target: Target): string | null {
@@ -142,6 +145,7 @@ function submit(): void {
                     return;
                 }
 
+                celebrate('FIX_WITH_CLAUDE');
                 form.reset();
                 form.target = defaultTarget.value;
                 open.value = false;

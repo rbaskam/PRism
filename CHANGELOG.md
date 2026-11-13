@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- **Meme reactions**, a switch under Settings → Appearance. Turn it on and approving, requesting changes, commenting or starting Fix with Claude shows a meme with a funny line, such as Brent Rambo's thumbs up or Michael Scott biting his lip. It's off by default, and the GIFs load from Giphy.
+
 ## [0.22.0] - 2026-11-11
 
 ### Added
