@@ -53,7 +53,9 @@ jobs:
 
   browser:
     name: Browser tests (${{ matrix.shard }}/2)
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: Playwright is pinned to the version pest-plugin-browser supports, and that version refuses
+    # to install Chromium on newer Ubuntu releases. Move this on together with Playwright.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
