@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-13
+
 ### Added
 
 - **Meme reactions**, a switch under Settings → Appearance. Turn it on and approving, requesting changes, commenting or starting Fix with Claude shows a small meme and a coding joke in the corner, such as Brent Rambo's thumbs up, Michael Scott biting his lip or Gandalf's "You shall not pass". It fades away after a few seconds, and clicks go straight through it. It's off by default, and the GIFs load from Giphy.
