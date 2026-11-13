@@ -4,6 +4,11 @@ import { Head } from '@inertiajs/vue3';
 import AccentPicker from '@/components/AccentPicker.vue';
 import AppearanceTabs from '@/components/AppearanceTabs.vue';
 import HeadingSmall from '@/components/HeadingSmall.vue';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { useMemeReactions } from '@/composables/useMemeReactions';
+import { memeMoments } from '@/lib/memes';
 import { type BreadcrumbItem } from '@/types';
 
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -15,6 +20,12 @@ const breadcrumbItems: BreadcrumbItem[] = [
         href: '/settings/appearance',
     },
 ];
+
+const { enabled: memeReactionsEnabled, celebrate } = useMemeReactions();
+
+function previewMeme(): void {
+    celebrate(memeMoments[Math.floor(Math.random() * memeMoments.length)]);
+}
 </script>
 
 <template>
@@ -36,6 +47,19 @@ const breadcrumbItems: BreadcrumbItem[] = [
                         <p class="text-sm text-muted-foreground">Used for buttons, switches, focus rings and the selected item in the sidebar.</p>
                     </div>
                     <AccentPicker />
+                </div>
+
+                <div class="flex items-start justify-between gap-4 rounded-lg border p-4">
+                    <div class="min-w-0 space-y-1">
+                        <Label for="meme-reactions" class="cursor-pointer">Meme reactions</Label>
+                        <p class="text-sm text-muted-foreground">
+                            A meme and a funny line when you approve, request changes, comment or start Fix with Claude. The GIFs load from Giphy.
+                        </p>
+                        <Button v-if="memeReactionsEnabled" type="button" variant="link" class="h-auto p-0" @click="previewMeme">
+                            Show me one
+                        </Button>
+                    </div>
+                    <Switch id="meme-reactions" v-model:checked="memeReactionsEnabled" class="mt-0.5" />
                 </div>
             </div>
         </SettingsLayout>

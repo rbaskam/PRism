@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useMemeReactions } from '@/composables/useMemeReactions';
 import { cn } from '@/lib/utils';
 import type { PendingReviewComment, PullRequest, PullRequestPermissions, ReviewFinding, SubmitReviewEvent } from '@/types';
 import { useForm } from '@inertiajs/vue3';
@@ -28,6 +29,8 @@ const props = defineProps<{
 }>();
 
 const open = defineModel<boolean>('open', { required: true });
+
+const { celebrate } = useMemeReactions();
 
 interface EventOption {
     value: SubmitReviewEvent;
@@ -136,6 +139,7 @@ function submit(): void {
                     return;
                 }
 
+                celebrate(form.event);
                 form.reset();
                 open.value = false;
                 refreshConversation();

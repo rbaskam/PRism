@@ -1,14 +1,17 @@
 <?php
 
 use App\Enums\AiTaskStatus;
+use App\Enums\ClaudeAuthMode;
 use App\Enums\FindingSeverity;
 use App\Enums\FindingStatus;
+use App\Jobs\MakeCodeChanges;
 use App\Models\PendingReviewComment;
 use App\Models\PullRequest;
 use App\Models\PullRequestFileView;
 use App\Models\ReviewFinding;
 use App\Models\ReviewRun;
 use App\Services\AppSettings;
+use Illuminate\Support\Facades\Queue;
 use Native\Desktop\Facades\Shell;
 use Tests\Browser\Support\FakeGithub;
 
@@ -58,6 +61,33 @@ function elementAppears(string $selector): string
                         resolve(false);
                     } else {
                         setTimeout(check, 50);
+                    }
+                };
+
+                check();
+            });
+        }
+        JS;
+}
+
+/**
+ * JavaScript that waits up to eight seconds for an element to go away, e.g. a meme reaction hiding itself.
+ */
+function elementDisappears(string $selector): string
+{
+    $selector = json_encode($selector);
+
+    return <<<JS
+        function () {
+            return new Promise((resolve) => {
+                const started = performance.now();
+                const check = () => {
+                    if (!document.querySelector({$selector})) {
+                        resolve(true);
+                    } else if (performance.now() - started > 8000) {
+                        resolve(false);
+                    } else {
+                        setTimeout(check, 100);
                     }
                 };
 
@@ -164,6 +194,7 @@ it('approves the pull request on GitHub and takes it out of your queue', functio
         ->assertSee('Submit your review')
         ->click('[role="dialog"] button[type="submit"]')
         ->waitForText('Approved by you')
+        ->assertMissing('[data-meme-reaction]')
         ->assertNoJavaScriptErrors();
 
     expect($this->github->sent('POST', '/repos/acme/api/pulls/101/reviews'))->toHaveCount(1)
@@ -173,6 +204,48 @@ it('approves the pull request on GitHub and takes it out of your queue', functio
         ->assertSeeIn('button[title="Show only: awaiting your review"]', '0')
         ->assertSeeIn('button[title="Show only: approved by you"]', '1')
         ->assertNoJavaScriptErrors();
+});
+
+it('reacts with a meme when you approve with meme reactions on', function () {
+    $pullRequest = PullRequest::firstWhere('number', 101);
+
+    $page = visit('/settings/appearance')
+        ->click('#meme-reactions')
+        ->assertScript('localStorage.getItem("prism.meme-reactions")', 'true')
+        ->navigate("/pull-requests/{$pullRequest->id}");
+    // Pick the first GIF, then one of the shared phrases rather than a line written for that GIF: the first one.
+    $page->script('() => { const values = [0, 0.9, 0]; let call = 0; Math.random = () => values[call++ % values.length]; }');
+
+    $page->click('internal:role=button[name="Approve"s]')
+        ->click('[role="dialog"] button[type="submit"]')
+        ->waitForText("LGTM: Let's Get This Merged.")
+        ->assertSee('Approved by you')
+        // It never gets in the way: clicks go through it, and it goes away on its own.
+        ->assertScript('getComputedStyle(document.querySelector("[data-meme-reaction]")).pointerEvents', 'none')
+        ->assertScript(elementDisappears('[data-meme-reaction]'), true)
+        ->assertNoJavaScriptErrors();
+});
+
+it('reacts with a meme when Claude starts fixing the pull request', function () {
+    Queue::fake([MakeCodeChanges::class]);
+    $settings = app(AppSettings::class);
+    $settings->set(AppSettings::ALLOW_CODE_CHANGES, true);
+    $settings->set(AppSettings::CLAUDE_AUTH_MODE, ClaudeAuthMode::CliLogin->value);
+    $pullRequest = PullRequest::firstWhere('number', 101);
+    $pullRequest->repository->update(['local_path' => sys_get_temp_dir()]);
+
+    $page = visit('/settings/appearance')
+        ->click('#meme-reactions')
+        ->navigate("/pull-requests/{$pullRequest->id}");
+    $page->script('() => { Math.random = () => 0; }');
+
+    $page->click('internal:role=button[name="Fix with Claude"s]')
+        ->fill('#fix-instructions', 'Make the limit configurable.')
+        ->click('[role="dialog"] button[type="submit"]')
+        ->waitForText('Fine. Claude will do it itself.')
+        ->assertNoJavaScriptErrors();
+
+    Queue::assertPushed(MakeCodeChanges::class);
 });
 
 it('keeps the viewed progress in sight and moves on to the next file when you mark one viewed', function () {
