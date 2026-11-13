@@ -1,11 +1,10 @@
-import { pickMeme, type Meme, type MemeMoment } from '@/lib/memes';
+import { pickReaction, type MemeMoment, type MemeReaction } from '@/lib/memes';
 import { useStorage } from '@vueuse/core';
 import { ref } from 'vue';
 
-interface ShownMeme {
+interface ShownReaction extends MemeReaction {
     /** Changes every time a reaction is shown, so the same meme twice in a row still restarts its timer. */
     id: number;
-    meme: Meme;
 }
 
 /**
@@ -15,7 +14,7 @@ interface ShownMeme {
 const enabled = useStorage('prism.meme-reactions', false);
 
 /** Shared by every component, so a reaction survives the page reloading its props after a review is submitted. */
-const current = ref<ShownMeme | null>(null);
+const current = ref<ShownReaction | null>(null);
 
 let nextId = 1;
 
@@ -30,7 +29,7 @@ export function useMemeReactions() {
             return;
         }
 
-        current.value = { id: nextId++, meme: pickMeme(moment) };
+        current.value = { id: nextId++, ...pickReaction(moment) };
     }
 
     function dismiss(): void {

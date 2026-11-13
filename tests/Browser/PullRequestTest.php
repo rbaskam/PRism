@@ -71,6 +71,33 @@ function elementAppears(string $selector): string
 }
 
 /**
+ * JavaScript that waits up to eight seconds for an element to go away, e.g. a meme reaction hiding itself.
+ */
+function elementDisappears(string $selector): string
+{
+    $selector = json_encode($selector);
+
+    return <<<JS
+        function () {
+            return new Promise((resolve) => {
+                const started = performance.now();
+                const check = () => {
+                    if (!document.querySelector({$selector})) {
+                        resolve(true);
+                    } else if (performance.now() - started > 8000) {
+                        resolve(false);
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+
+                check();
+            });
+        }
+        JS;
+}
+
+/**
  * A file of 12 lines where only lines 2 and 11 changed, so lines 4 to 8 are hidden between its two hunks.
  */
 function withConfigFileChangedInTwoPlaces(FakeGithub $github): void
@@ -186,15 +213,16 @@ it('reacts with a meme when you approve with meme reactions on', function () {
         ->click('#meme-reactions')
         ->assertScript('localStorage.getItem("prism.meme-reactions")', 'true')
         ->navigate("/pull-requests/{$pullRequest->id}");
-    // Always pick the first meme, so the test knows which one to expect.
-    $page->script('() => { Math.random = () => 0; }');
+    // Pick the first GIF, then one of the shared phrases rather than a line written for that GIF: the first one.
+    $page->script('() => { const values = [0, 0.9, 0]; let call = 0; Math.random = () => values[call++ % values.length]; }');
 
     $page->click('internal:role=button[name="Approve"s]')
         ->click('[role="dialog"] button[type="submit"]')
-        ->waitForText('Brent Rambo approves. Ship it.')
+        ->waitForText("LGTM: Let's Get This Merged.")
         ->assertSee('Approved by you')
-        ->click('internal:role=button[name="Dismiss meme"s]')
-        ->assertMissing('[data-meme-reaction]')
+        // It never gets in the way: clicks go through it, and it goes away on its own.
+        ->assertScript('getComputedStyle(document.querySelector("[data-meme-reaction]")).pointerEvents', 'none')
+        ->assertScript(elementDisappears('[data-meme-reaction]'), true)
         ->assertNoJavaScriptErrors();
 });
 
