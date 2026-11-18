@@ -29,14 +29,12 @@ it('lists alerts under the bell and opens one where it happened', function () {
         'url' => "/pull-requests/{$pullRequest->id}?tab=conversation",
     ]);
 
-    $page = visit('/')
-        ->assertPresent('button[aria-label="Notifications, 1 unread"]')
-        ->click('button[aria-label="Notifications, 1 unread"]')
+    $page = visit('/')->assertPresent('button[aria-label="Notifications, 1 unread"]');
+    clickOnce($page, 'button[aria-label="Notifications, 1 unread"]')
         ->waitForText('New activity on your pull request')
         ->assertSee('acme/api: Add rate limiting');
-    clickOnce($page, '[role="dialog"] li:has-text("New activity on your pull request") button');
-
-    $page->waitForText('Should the limit be configurable?')
+    clickOnce($page, '[role="dialog"] li:has-text("New activity on your pull request") button')
+        ->waitForText('Should the limit be configurable?')
         ->assertPathIs("/pull-requests/{$pullRequest->id}")
         ->assertPresent('[role="tab"][data-state="active"]:has-text("Conversation")')
         ->assertPresent('button[aria-label="Notifications"]')
@@ -50,7 +48,7 @@ it('marks every alert as read', function () {
 
     $page = visit('/');
     trackRequests($page);
-    $page->click('button[aria-label="Notifications, 2 unread"]');
+    clickOnce($page, 'button[aria-label="Notifications, 2 unread"]');
     clickOnce($page, 'internal:role=button[name="Mark all as read"i]');
     waitForRequests($page);
 
@@ -66,8 +64,7 @@ it('shows a new pull request found by a sync under the bell', function () {
     $this->github->withPullRequests('acme/api', [FakeGithub::pullRequest(102, 'Fix login redirect')]);
     syncFromGithub();
 
-    visit('/')
-        ->click('button[aria-label="Notifications, 1 unread"]')
+    clickOnce(visit('/'), 'button[aria-label="Notifications, 1 unread"]')
         ->waitForText('New pull request')
         ->assertSee('acme/api#102: Fix login redirect')
         ->assertNoJavaScriptErrors();

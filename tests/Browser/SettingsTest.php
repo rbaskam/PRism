@@ -37,10 +37,10 @@ it('tracks a repository picked from your GitHub repositories and syncs its pull 
 
     $page = visit('/settings/github');
     trackRequests($page);
-    $page->click('Add or remove repositories')
-        ->waitForText('Tracked')
-        ->click('label:has-text("acme/web")')
-        ->click('internal:role=button[name="Save (2)"s]');
+    clickOnce($page, 'Add or remove repositories')
+        ->waitForText('Tracked');
+    clickOnce($page, 'label:has-text("acme/web")');
+    clickOnce($page, 'internal:role=button[name="Save (2)"s]');
     waitForRequests($page);
 
     $page->navigate('/settings/github')
@@ -56,19 +56,19 @@ it('reconnects GitHub and comes back to the settings without going through setup
     trackedRepository('acme/api');
     (new FakeGithub)->fake();
 
-    visit('/settings/github')
-        ->click('Reconnect')
+    $page = visit('/settings/github');
+    clickOnce($page, 'Reconnect')
         ->waitForText('Reconnect GitHub')
         ->assertPathIs('/onboarding/github')
         ->assertMissing('[aria-label="Setup steps"]')
-        ->assertSee('Connected as @octocat')
-        ->click('Back to Settings')
+        ->assertSee('Connected as @octocat');
+    clickOnce($page, 'Back to Settings')
         ->waitForText('Tracked repositories')
-        ->assertPathIs('/settings/github')
-        ->click('Reconnect')
+        ->assertPathIs('/settings/github');
+    clickOnce($page, 'Reconnect')
         ->waitForText('Reconnect GitHub')
-        ->fill('#github-token', 'ghp_test')
-        ->click('internal:role=button[name="Connect"s]')
+        ->fill('#github-token', 'ghp_test');
+    clickOnce($page, 'internal:role=button[name="Connect"s]')
         ->waitForText('Reconnected to GitHub as @octocat.')
         ->assertPathIs('/settings/github')
         ->assertSee('Tracked repositories')
@@ -87,11 +87,11 @@ it('saves the review prompt and what Claude may do', function () {
     (new FakeGithub)->fake();
     $page = visit('/settings/review');
     trackRequests($page);
-    $page->fill('#review-prompt', 'Review {repository}#{number} for security problems only.')
-        ->click('#allow_posting_findings')
-        ->click('#keep_awaiting_after_comments')
-        ->click('#keep_answered_team_requests')
-        ->click('Save');
+    $page->fill('#review-prompt', 'Review {repository}#{number} for security problems only.');
+    clickOnce($page, '#allow_posting_findings');
+    clickOnce($page, '#keep_awaiting_after_comments');
+    clickOnce($page, '#keep_answered_team_requests');
+    clickOnce($page, 'Save');
     waitForRequests($page);
 
     $page->navigate('/settings/review')
@@ -109,11 +109,11 @@ it('saves the review prompt and what Claude may do', function () {
 it('saves which desktop alerts you get and their sound', function () {
     $page = visit('/settings/notifications');
     trackRequests($page);
-    $page->click('#mentions')
-        ->click('label[for="sound"]')
+    clickOnce($page, '#mentions');
+    clickOnce($page, 'label[for="sound"]')
         ->assertScript('document.activeElement?.id', 'sound')
-        ->select('#sound', 'none')
-        ->click('Save');
+        ->select('#sound', 'none');
+    clickOnce($page, 'Save');
     waitForRequests($page);
 
     $page->navigate('/settings/notifications')
@@ -128,10 +128,10 @@ it('saves which desktop alerts you get and their sound', function () {
 it('turns on the app lock with a PIN', function () {
     $page = visit('/settings/security');
     trackRequests($page);
-    $page->click('#lock_enabled')
+    clickOnce($page, '#lock_enabled')
         ->fill('#pin', '2468')
-        ->fill('#pin_confirmation', '2468')
-        ->click('Save');
+        ->fill('#pin_confirmation', '2468');
+    clickOnce($page, 'Save');
     waitForRequests($page);
 
     $page->navigate('/settings/security')
@@ -144,8 +144,8 @@ it('asks for the current PIN before the lock is made less strict', function () {
     app(AppLock::class)->setPin('2468');
     app(AppSettings::class)->set(AppSettings::APP_LOCK_ENABLED, true);
     $page = visit('/')
-        ->fill('#pin', '2468')
-        ->click('internal:role=button[name="Unlock"s]')
+        ->fill('#pin', '2468');
+    clickOnce($page, 'internal:role=button[name="Unlock"s]')
         ->waitForText('My pull requests')
         ->navigate('/settings/security')
         ->assertMissing('#current_pin')
@@ -153,7 +153,7 @@ it('asks for the current PIN before the lock is made less strict', function () {
         ->assertSee('Enter your current PIN to make the lock less strict.')
         ->fill('#current_pin', '2468');
     trackRequests($page);
-    $page->click('Save');
+    clickOnce($page, 'Save');
     waitForRequests($page);
 
     $page->assertMissing('#current_pin')
@@ -174,16 +174,16 @@ it('switches to dark mode and an accent colour, and keeps them on every page', f
 });
 
 it('turns meme reactions on, remembers it and shows one', function () {
-    visit('/settings/appearance')
+    $page = visit('/settings/appearance')
         ->assertAttribute('#meme-reactions', 'aria-checked', 'false')
-        ->assertDontSee('Show me one')
-        ->click('#meme-reactions')
-        ->click('Show me one')
+        ->assertDontSee('Show me one');
+    clickOnce($page, '#meme-reactions');
+    clickOnce($page, 'Show me one')
         ->assertPresent('[data-meme-reaction] figcaption')
         ->navigate('/settings/appearance')
         ->assertScript('localStorage.getItem("prism.meme-reactions")', 'true')
-        ->assertAttribute('#meme-reactions', 'aria-checked', 'true')
-        ->click('#meme-reactions')
+        ->assertAttribute('#meme-reactions', 'aria-checked', 'true');
+    clickOnce($page, '#meme-reactions')
         ->assertScript('localStorage.getItem("prism.meme-reactions")', 'false')
         ->assertDontSee('Show me one')
         ->assertNoJavaScriptErrors();
@@ -210,15 +210,15 @@ it('asks before leaving a settings page with unsaved changes', function () {
     $page = visit('/settings/notifications');
     $page->script('function () { window.__confirmations = []; window.confirm = (message) => { window.__confirmations.push(message); return false; }; }');
 
-    $page->click('#mentions')
-        ->click('[data-sidebar="menu-button"][href$="/repositories"]')
+    clickOnce($page, '#mentions');
+    clickOnce($page, '[data-sidebar="menu-button"][href$="/repositories"]')
         ->assertPathIs('/settings/notifications')
         ->assertScript('document.querySelector("#mentions").getAttribute("aria-checked")', 'false');
 
     expect($page->script('window.__confirmations'))->toBe(['You have unsaved changes. Leave without saving?']);
 
     $page->script('function () { window.confirm = () => true; }');
-    $page->click('[data-sidebar="menu-button"][href$="/repositories"]')
+    clickOnce($page, '[data-sidebar="menu-button"][href$="/repositories"]')
         ->waitForText('Manage repositories')
         ->assertPathIs('/repositories')
         ->assertNoJavaScriptErrors();
@@ -231,11 +231,11 @@ it('leaves a settings page without asking once the changes are saved', function 
     $page->script('function () { window.__confirmations = []; window.confirm = (message) => { window.__confirmations.push(message); return false; }; }');
 
     trackRequests($page);
-    $page->click('#allow_posting_findings')
-        ->click('Save');
+    clickOnce($page, '#allow_posting_findings');
+    clickOnce($page, 'Save');
     waitForRequests($page);
 
-    $page->click('[data-sidebar="menu-button"][href$="/repositories"]')
+    clickOnce($page, '[data-sidebar="menu-button"][href$="/repositories"]')
         ->waitForText('Manage repositories')
         ->assertPathIs('/repositories')
         ->assertNoJavaScriptErrors();

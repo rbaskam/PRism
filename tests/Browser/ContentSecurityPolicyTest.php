@@ -52,8 +52,8 @@ it('runs the lock screen within the policy', function () {
 
     $page = visit('/')
         ->assertPathIs('/lock')
-        ->fill('#pin', '2468')
-        ->click('internal:role=button[name="Unlock"s]')
+        ->fill('#pin', '2468');
+    clickOnce($page, 'internal:role=button[name="Unlock"s]')
         ->waitForText('My pull requests')
         ->assertNoJavaScriptErrors();
 

@@ -23,10 +23,10 @@ it('explains that the server stopped and restarts the app', function () {
     $page = visit('/');
     trackRequests($page);
 
-    $page->click('Sync with GitHub')
+    clickOnce($page, 'Sync with GitHub')
         ->waitForText('PRism stopped responding')
-        ->assertDontSee('Method Not Allowed')
-        ->click('internal:role=button[name="Restart PRism"i]')
+        ->assertDontSee('Method Not Allowed');
+    clickOnce($page, 'internal:role=button[name="Restart PRism"i]')
         ->waitForText('Restarting…');
     waitForRequests($page);
 
@@ -36,10 +36,10 @@ it('explains that the server stopped and restarts the app', function () {
 it('says the app will restart by itself when the server cannot take the restart either', function () {
     Route::post('app/restart', fn () => response('Method Not Allowed', 405, ['Content-Type' => 'text/plain']));
 
-    visit('/')
-        ->click('Sync with GitHub')
-        ->waitForText('PRism stopped responding')
-        ->click('internal:role=button[name="Restart PRism"i]')
+    $page = visit('/');
+    clickOnce($page, 'Sync with GitHub')
+        ->waitForText('PRism stopped responding');
+    clickOnce($page, 'internal:role=button[name="Restart PRism"i]')
         ->waitForText('will restart by itself within a minute')
         ->assertNoJavaScriptErrors();
 });

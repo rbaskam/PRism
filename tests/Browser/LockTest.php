@@ -12,19 +12,19 @@ beforeEach(function () {
 });
 
 it('asks for the PIN before showing anything', function () {
-    visit('/')
+    $page = visit('/')
         ->assertPathIs('/lock')
-        ->fill('#pin', '2468')
-        ->click('internal:role=button[name="Unlock"s]')
+        ->fill('#pin', '2468');
+    clickOnce($page, 'internal:role=button[name="Unlock"s]')
         ->waitForText('My pull requests')
         ->assertPathIs('/')
         ->assertNoJavaScriptErrors();
 });
 
 it('stays locked when the PIN is wrong', function () {
-    visit('/')
-        ->fill('#pin', '1357')
-        ->click('internal:role=button[name="Unlock"s]')
+    $page = visit('/')
+        ->fill('#pin', '1357');
+    clickOnce($page, 'internal:role=button[name="Unlock"s]')
         ->waitForText('That PIN is not right.')
         ->assertPathIs('/lock')
         ->assertNoJavaScriptErrors();
@@ -33,8 +33,8 @@ it('stays locked when the PIN is wrong', function () {
 it('stays unlocked while you type, even with no page loads', function () {
     app(AppSettings::class)->set(AppSettings::APP_LOCK_AUTO_LOCK_MINUTES, 5);
     $page = visit('/')
-        ->fill('#pin', '2468')
-        ->click('internal:role=button[name="Unlock"s]')
+        ->fill('#pin', '2468');
+    clickOnce($page, 'internal:role=button[name="Unlock"s]')
         ->waitForText('My pull requests');
     $this->travel(4)->minutes();
 
@@ -51,8 +51,8 @@ it('stays unlocked while you type, even with no page loads', function () {
 it('still locks once you stop using the app', function () {
     app(AppSettings::class)->set(AppSettings::APP_LOCK_AUTO_LOCK_MINUTES, 5);
     $page = visit('/')
-        ->fill('#pin', '2468')
-        ->click('internal:role=button[name="Unlock"s]')
+        ->fill('#pin', '2468');
+    clickOnce($page, 'internal:role=button[name="Unlock"s]')
         ->waitForText('My pull requests');
     $this->travel(6)->minutes();
 
@@ -63,11 +63,11 @@ it('still locks once you stop using the app', function () {
 
 it('does not show earlier pages when going back after locking', function () {
     $page = visit('/')
-        ->fill('#pin', '2468')
-        ->click('internal:role=button[name="Unlock"s]')
+        ->fill('#pin', '2468');
+    clickOnce($page, 'internal:role=button[name="Unlock"s]')
         ->waitForText('My pull requests')
-        ->navigate('/settings/security')
-        ->click('internal:role=button[name="Lock now"i]')
+        ->navigate('/settings/security');
+    clickOnce($page, 'internal:role=button[name="Lock now"i]')
         ->waitForText('Enter your PIN to continue.')
         ->back();
 
@@ -97,11 +97,11 @@ it('removes a forgotten PIN with a token for the connected GitHub account', func
     GithubAccount::current()->update(['github_id' => FakeGithub::USER_ID]);
     (new FakeGithub('octocat'))->fake();
 
-    visit('/')
-        ->click('Forgot your PIN?')
+    $page = visit('/');
+    clickOnce($page, 'Forgot your PIN?')
         ->assertSee('Personal access token for @octocat')
-        ->fill('#recovery-token', 'ghp_test')
-        ->click('internal:role=button[name="Remove PIN and unlock"s]')
+        ->fill('#recovery-token', 'ghp_test');
+    clickOnce($page, 'internal:role=button[name="Remove PIN and unlock"s]')
         ->waitForText('Your PIN was removed and the app lock is off.')
         ->assertPathIs('/settings/security')
         ->assertNoJavaScriptErrors();
@@ -112,15 +112,15 @@ it('removes a forgotten PIN with a token for the connected GitHub account', func
 it('stays locked when the token belongs to another GitHub account', function () {
     (new FakeGithub('hubot'))->fake();
 
-    visit('/')
-        ->click('Forgot your PIN?')
-        ->fill('#recovery-token', 'ghp_test')
-        ->click('internal:role=button[name="Remove PIN and unlock"s]')
+    $page = visit('/');
+    clickOnce($page, 'Forgot your PIN?')
+        ->fill('#recovery-token', 'ghp_test');
+    clickOnce($page, 'internal:role=button[name="Remove PIN and unlock"s]')
         ->waitForText("That isn't a working token for @octocat.")
         ->assertPathIs('/lock')
         ->assertValue('#recovery-token', '')
-        ->assertScript('document.activeElement.id', 'recovery-token')
-        ->click('internal:role=button[name="Back to PIN entry"s]')
+        ->assertScript('document.activeElement.id', 'recovery-token');
+    clickOnce($page, 'internal:role=button[name="Back to PIN entry"s]')
         ->assertScript('document.activeElement.id', 'pin')
         ->assertNoJavaScriptErrors();
 
