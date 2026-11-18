@@ -186,3 +186,15 @@ function waitForRequests(PendingAwaitablePage|AwaitableWebpage $page): void
 {
     $page->script('function () { return new Promise((resolve) => { const check = () => (window.__pendingRequests === 0 ? resolve(true) : setTimeout(check, 25)); check(); }); }');
 }
+
+/**
+ * Click the element matching the selector exactly once. Use it for a click that removes, disables or replaces what
+ * it clicked, e.g. one that closes a sheet and navigates. The page's own click() retries with a one-second limit per
+ * try, so on a slow machine a click that lands just after that limit is sent again, and the retry fails because its
+ * target is gone, although the first click worked. Playwright still waits for the element and only clicks again
+ * when nothing received the first click.
+ */
+function clickOnce(PendingAwaitablePage|AwaitableWebpage $page, string $selector): void
+{
+    $page->page()->locator($selector)->click();
+}
