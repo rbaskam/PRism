@@ -51,6 +51,9 @@ use Illuminate\Support\Carbon;
  * @property list<array{name: string, color: string}>|null $labels
  * @property bool $is_authored_by_me
  * @property bool $is_assigned_to_me
+ * @property bool $is_mentioned
+ * @property bool $has_my_comments
+ * @property bool $has_my_pending_review
  * @property Carbon|null $github_created_at
  * @property Carbon|null $github_updated_at
  * @property Carbon|null $closed_at
@@ -125,6 +128,9 @@ class PullRequest extends Model
         'labels',
         'is_authored_by_me',
         'is_assigned_to_me',
+        'is_mentioned',
+        'has_my_comments',
+        'has_my_pending_review',
         'github_created_at',
         'github_updated_at',
         'closed_at',
@@ -160,6 +166,9 @@ class PullRequest extends Model
             'labels' => 'array',
             'is_authored_by_me' => 'boolean',
             'is_assigned_to_me' => 'boolean',
+            'is_mentioned' => 'boolean',
+            'has_my_comments' => 'boolean',
+            'has_my_pending_review' => 'boolean',
             'github_created_at' => 'datetime',
             'github_updated_at' => 'datetime',
             'closed_at' => 'datetime',
@@ -306,14 +315,30 @@ class PullRequest extends Model
     }
 
     /**
-     * Scope the query to open pull requests waiting on the user's review, leaving out snoozed ones. This is what the
+     * Scope the query to open pull requests waiting on the user's review, leaving out snoozed ones: ones they're asked
+     * to review, and someone else's they started a review of in PRism without submitting it. This is what the
      * sidebar, the Dock badge and the repository cards count.
      *
      * @param  Builder<PullRequest>  $query
      */
     public function scopeAwaitingMyReview(Builder $query): void
     {
-        $query->open()->where('is_review_requested_from_me', true)->notSnoozed();
+        $query->open()
+            ->where(fn (Builder $query) => $query
+                ->where('is_review_requested_from_me', true)
+                ->orWhere(fn (Builder $query) => $query->where('is_authored_by_me', false)->has('pendingReviewComments')))
+            ->notSnoozed();
+    }
+
+    /**
+     * Load whether each pull request has review comments the user drafted in PRism, for attention() and
+     * hasUnsubmittedReview(), without a query per pull request.
+     *
+     * @param  Builder<PullRequest>  $query
+     */
+    public function scopeWithDraftReviewComments(Builder $query): void
+    {
+        $query->withExists('pendingReviewComments');
     }
 
     /**
@@ -330,6 +355,9 @@ class PullRequest extends Model
             ->orWhere('is_review_requested_from_me', true)
             ->orWhere('is_assigned_to_me', true)
             ->orWhereNotNull('my_review_state')
+            ->orWhere('has_my_comments', true)
+            ->orWhere('is_mentioned', true)
+            ->orHas('pendingReviewComments')
             ->when($withAnsweredTeamRequests, fn (Builder $query) => $query->orWhereJsonLength('answered_team_requests', '>', 0)));
     }
 
@@ -364,7 +392,7 @@ class PullRequest extends Model
             return ReviewAttention::Authored;
         }
 
-        if ($this->is_review_requested_from_me) {
+        if ($this->is_review_requested_from_me || $this->hasDraftReviewComments()) {
             return ReviewAttention::AwaitingMyReview;
         }
 
@@ -372,8 +400,35 @@ class PullRequest extends Model
             ReviewState::Approved => ReviewAttention::Approved,
             ReviewState::ChangesRequested => ReviewAttention::ChangesRequested,
             ReviewState::Commented => ReviewAttention::Commented,
-            default => ReviewAttention::None,
+            default => match (true) {
+                $this->is_assigned_to_me => ReviewAttention::Assigned,
+                $this->has_my_comments => ReviewAttention::Commented,
+                $this->is_mentioned => ReviewAttention::Mentioned,
+                default => ReviewAttention::None,
+            },
         };
+    }
+
+    /**
+     * Whether the user started a review they haven't submitted yet: comments drafted in PRism, or a pending review
+     * on GitHub.
+     */
+    public function hasUnsubmittedReview(): bool
+    {
+        return ($this->state === self::STATE_OPEN && $this->has_my_pending_review) || $this->hasDraftReviewComments();
+    }
+
+    /**
+     * Whether the user drafted review comments in PRism on this open pull request and hasn't submitted them yet. Uses
+     * the value loaded by withDraftReviewComments() when there is one.
+     */
+    private function hasDraftReviewComments(): bool
+    {
+        if ($this->state !== self::STATE_OPEN || $this->is_authored_by_me) {
+            return false;
+        }
+
+        return (bool) ($this->attributes['pending_review_comments_exists'] ?? $this->pendingReviewComments()->exists());
     }
 
     /**

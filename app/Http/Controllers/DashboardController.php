@@ -25,6 +25,7 @@ class DashboardController extends Controller
             ->whereRelation('repository', 'is_tracked', true)
             ->with(['repository', 'latestReviewRun'])
             ->withFindingCounts()
+            ->withDraftReviewComments()
             ->orderByDesc('github_updated_at')
             ->orderByDesc('id')
             ->get();

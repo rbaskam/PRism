@@ -127,6 +127,36 @@ class PullRequestFactory extends Factory
     }
 
     /**
+     * Indicate that the pull request is assigned to the connected user.
+     */
+    public function assignedToMe(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_assigned_to_me' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the pull request @mentions the connected user.
+     */
+    public function mentioningMe(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_mentioned' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the connected user commented in the pull request's conversation.
+     */
+    public function commentedOnByMe(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'has_my_comments' => true,
+        ]);
+    }
+
+    /**
      * Indicate that the pull request has been closed or merged.
      */
     public function closed(): static

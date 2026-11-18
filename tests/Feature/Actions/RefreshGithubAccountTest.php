@@ -3,6 +3,7 @@
 use App\Actions\RefreshGithubAccount;
 use App\Models\GithubAccount;
 use App\Models\Repository;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
@@ -47,4 +48,41 @@ it('finds no teams but still finds review requests when the token cannot read or
     $account->refresh();
     expect($account->teams)->toBe([])
         ->and($account->untracked_review_requests)->toBe(['acme/mobile']);
+});
+
+it('finds the open pull requests that mention the user and the ones they commented on', function () {
+    $account = GithubAccount::factory()->create(['login' => 'octocat']);
+    Http::fake([
+        'api.github.com/user/teams*' => Http::response([]),
+        'api.github.com/search/issues*' => fn (Request $request) => Http::response(['items' => match (true) {
+            str_contains($request['q'], 'mentions:@me') => [['html_url' => 'https://github.com/acme/api/pull/1']],
+            str_contains($request['q'], 'commenter:@me') => [['html_url' => 'https://github.com/acme/web/pull/2']],
+            default => [],
+        }]),
+    ]);
+
+    app(RefreshGithubAccount::class)->handle($account);
+
+    expect($account->refresh())
+        ->mentioned_in->toBe(['https://github.com/acme/api/pull/1'])
+        ->commented_in->toBe(['https://github.com/acme/web/pull/2']);
+});
+
+it('counts the user as a member of the teams above their nested teams', function () {
+    $account = GithubAccount::factory()->create(['login' => 'octocat', 'teams' => []]);
+    Http::fake([
+        'api.github.com/user/teams*' => Http::response([
+            ['slug' => 'backend', 'name' => 'Backend', 'organization' => ['login' => 'acme'], 'parent' => ['slug' => 'engineering', 'name' => 'Engineering']],
+            ['slug' => 'payments', 'name' => 'Payments', 'organization' => ['login' => 'acme'], 'parent' => ['slug' => 'squads', 'name' => 'Squads']],
+        ]),
+        'api.github.com/orgs/acme/teams/engineering' => Http::response(['slug' => 'engineering', 'name' => 'Engineering', 'parent' => ['slug' => 'everyone', 'name' => 'Everyone']]),
+        'api.github.com/orgs/acme/teams/everyone' => Http::response(['slug' => 'everyone', 'name' => 'Everyone', 'parent' => null]),
+        'api.github.com/orgs/acme/teams/squads' => Http::response(['message' => 'Not Found'], 404),
+        'api.github.com/search/issues*' => Http::response(['items' => []]),
+    ]);
+
+    app(RefreshGithubAccount::class)->handle($account);
+
+    expect(collect($account->refresh()->teams)->pluck('slug')->all())
+        ->toBe(['backend', 'engineering', 'everyone', 'payments', 'squads']);
 });

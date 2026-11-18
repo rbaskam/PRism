@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\PendingReviewComment;
 use App\Models\PullRequest;
 use App\Models\Repository;
 use App\Services\AppSettings;
@@ -23,6 +24,49 @@ it('lists open pull requests involving the user in tracked repositories, most re
         ->where('pullRequests.0.requested_via_teams', ['acme/reviewers'])
         ->where('pullRequests.1.id', $approved->id)
         ->where('pullRequests.1.attention', 'approved'));
+});
+
+it('lists pull requests assigned to the user, mentioning them or that they commented on, without counting them as awaiting', function () {
+    onboardedAccount();
+    $assigned = PullRequest::factory()->assignedToMe()->create(['github_updated_at' => now()->subMinutes(1)]);
+    $mentioning = PullRequest::factory()->mentioningMe()->create(['github_updated_at' => now()->subMinutes(2)]);
+    $commented = PullRequest::factory()->commentedOnByMe()->create(['github_updated_at' => now()->subMinutes(3)]);
+    PullRequest::factory()->create();
+
+    $response = $this->get(route('dashboard'));
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->has('pullRequests', 3)
+        ->where('pullRequests.0.id', $assigned->id)
+        ->where('pullRequests.0.attention', 'assigned')
+        ->where('pullRequests.1.id', $mentioning->id)
+        ->where('pullRequests.1.attention', 'mentioned')
+        ->where('pullRequests.2.id', $commented->id)
+        ->where('pullRequests.2.attention', 'commented'));
+    expect(PullRequest::query()->awaitingMyReview()->exists())->toBeFalse();
+});
+
+it('counts someone else\'s open pull request with review comments drafted in PRism as awaiting until they are submitted', function () {
+    onboardedAccount();
+    $drafted = PullRequest::factory()->create(['github_updated_at' => now()->subMinutes(1)]);
+    $mine = PullRequest::factory()->authoredByMe()->create(['github_updated_at' => now()->subMinutes(2)]);
+    $closed = PullRequest::factory()->approvedByMe()->closed()->create(['github_updated_at' => now()->subMinutes(3)]);
+    foreach ([$drafted, $mine, $closed] as $pullRequest) {
+        PendingReviewComment::factory()->for($pullRequest)->create();
+    }
+
+    $response = $this->get(route('dashboard'));
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->has('pullRequests', 3)
+        ->where('pullRequests.0.id', $drafted->id)
+        ->where('pullRequests.0.attention', 'awaiting')
+        ->where('pullRequests.0.has_unsubmitted_review', true)
+        ->where('pullRequests.1.attention', 'authored')
+        ->where('pullRequests.1.has_unsubmitted_review', false)
+        ->where('pullRequests.2.attention', 'approved')
+        ->where('pullRequests.2.has_unsubmitted_review', false));
+    expect(PullRequest::query()->awaitingMyReview()->pluck('id')->all())->toBe([$drafted->id]);
 });
 
 it('keeps pull requests closed in the last two weeks so their AI reviews stay reachable', function () {

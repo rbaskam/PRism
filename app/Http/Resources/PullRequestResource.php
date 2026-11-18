@@ -56,6 +56,7 @@ class PullRequestResource extends JsonResource
             'my_review_state' => $this->my_review_state?->value,
             'my_review_submitted_at' => $this->my_review_submitted_at?->toIso8601String(),
             'has_commits_since_my_review' => $this->hasCommitsSinceMyReview(),
+            'has_unsubmitted_review' => $this->hasUnsubmittedReview(),
             'snoozed_until' => $this->isSnoozed() ? $this->snoozed_until?->toIso8601String() : null,
             'is_review_requested_from_me' => $this->is_review_requested_from_me,
             'is_review_requested_directly' => $this->is_review_requested_directly,

@@ -4,7 +4,7 @@ import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
+import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, ownReviewDecision, timeAgo } from '@/lib/pull-requests';
 import type { PullRequest, PullRequestPermissions, SharedData, SubmitReviewEvent } from '@/types';
 import { usePage } from '@inertiajs/vue3';
 import {
@@ -44,6 +44,7 @@ const emit = defineEmits<{
 const page = usePage<SharedData>();
 
 const attention = computed(() => attentionStyles[props.pullRequest.attention]);
+const reviewDecision = computed(() => ownReviewDecision(props.pullRequest));
 const checks = computed(() => checksLabel(props.pullRequest.checks_state));
 const closedState = computed(() => closedStateLabel(props.pullRequest));
 const hasConflicts = computed(() => props.pullRequest.mergeable === 'CONFLICTING');
@@ -95,6 +96,10 @@ const requestedReviewers = computed<ReviewerChip[]>(() => {
                     <Badge :variant="attention.badge">
                         <span class="size-1.5 rounded-full" :class="attention.dot" />
                         {{ attention.label }}
+                    </Badge>
+                    <Badge v-if="reviewDecision" :variant="reviewDecision.badge" :title="reviewDecision.title">
+                        <component :is="reviewDecision.icon" />
+                        {{ reviewDecision.label }}
                     </Badge>
                     <Badge v-if="pullRequest.snoozed_until" variant="muted">
                         <AlarmClock />

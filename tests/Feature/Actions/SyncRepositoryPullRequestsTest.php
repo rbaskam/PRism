@@ -2,6 +2,7 @@
 
 use App\Actions\SyncRepositoryPullRequests;
 use App\Enums\ReviewAttention;
+use App\Enums\ReviewState;
 use App\Models\GithubAccount;
 use App\Models\PullRequest;
 use App\Models\Repository;
@@ -84,6 +85,66 @@ it('puts a pull request back in the user\'s queue when GitHub dismisses their re
         ->attention()->toBe(ReviewAttention::AwaitingMyReview);
     expect(PullRequest::query()->awaitingMyReview()->count())->toBe(1);
     expect($result['newly_requested'])->toBeEmpty();
+});
+
+it('keeps a pull request awaiting the user after their review was dismissed and they only commented, when they choose to', function (bool $keepsAwaiting, ReviewAttention $attention, ReviewState $myReviewState) {
+    app(AppSettings::class)->set(AppSettings::KEEP_AWAITING_AFTER_COMMENTS, $keepsAwaiting);
+    $account = GithubAccount::factory()->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([
+        githubPullRequestNode([
+            'reviewDismissedEvents' => ['nodes' => [
+                ['review' => ['author' => ['login' => 'octocat'], 'state' => 'DISMISSED', 'submittedAt' => '2026-10-02T09:00:00Z', 'commit' => ['oid' => 'oldsha']]],
+            ]],
+            'latestReviews' => ['nodes' => [
+                ['author' => ['login' => 'octocat'], 'state' => 'COMMENTED', 'submittedAt' => '2026-10-03T09:00:00Z', 'commit' => ['oid' => 'headsha']],
+            ]],
+        ]),
+    ]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole())
+        ->my_review_state->toBe($myReviewState)
+        ->attention()->toBe($attention);
+})->with([
+    'keeping it awaiting' => [true, ReviewAttention::AwaitingMyReview, ReviewState::Dismissed],
+    'a comment answers it' => [false, ReviewAttention::Commented, ReviewState::Commented],
+]);
+
+it('counts a review the user started on GitHub as awaiting until they submit it, without treating it as a new request', function () {
+    $account = GithubAccount::factory()->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([
+        githubPullRequestNode(['pendingReviews' => ['nodes' => [['author' => ['login' => 'octocat']]]]]),
+    ]))]);
+
+    $result = app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole())
+        ->has_my_pending_review->toBeTrue()
+        ->hasUnsubmittedReview()->toBeTrue()
+        ->attention()->toBe(ReviewAttention::AwaitingMyReview);
+    expect($result['newly_requested'])->toBeEmpty();
+});
+
+it('marks the pull requests GitHub\'s search found mentioning the user or with their comments', function () {
+    $account = GithubAccount::factory()->create([
+        'login' => 'octocat',
+        'mentioned_in' => ['https://github.com/acme/app/pull/1'],
+        'commented_in' => ['https://github.com/acme/app/pull/2'],
+    ]);
+    $repository = Repository::factory()->create(['owner' => 'acme', 'name' => 'app']);
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([
+        githubPullRequestNode(['number' => 1]),
+        githubPullRequestNode(['number' => 2]),
+        githubPullRequestNode(['number' => 3]),
+    ]))]);
+
+    app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->orderBy('number')->get()->map->attention()->all())
+        ->toBe([ReviewAttention::Mentioned, ReviewAttention::Commented, ReviewAttention::None]);
 });
 
 it('ignores a review request the user already answered that GitHub still lists', function () {

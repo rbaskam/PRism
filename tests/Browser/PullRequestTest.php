@@ -150,6 +150,19 @@ it('shows the pull request with its conversation loaded from GitHub', function (
         ->assertNoJavaScriptErrors();
 });
 
+it('shows on your own pull request whether reviewers approved it', function () {
+    $this->github->withPullRequests('acme/api', [
+        FakeGithub::pullRequest(102, 'Cache the feed', ['author' => ['login' => 'octocat', 'avatarUrl' => null], 'reviewDecision' => 'APPROVED']),
+    ]);
+    syncFromGithub();
+    $pullRequest = PullRequest::firstWhere('number', 102);
+
+    visit("/pull-requests/{$pullRequest->id}")
+        ->assertSee('Your pull request')
+        ->assertSeeIn('header [title="Reviewers approved your pull request"]', 'Approved')
+        ->assertNoJavaScriptErrors();
+});
+
 it('loads the changed files from GitHub when you open the tab', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
 

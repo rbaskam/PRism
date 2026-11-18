@@ -79,7 +79,7 @@ export interface SharedData {
 export type BreadcrumbItemType = BreadcrumbItem;
 
 /** Where a pull request stands from the connected user's point of view. */
-export type ReviewAttention = 'awaiting' | 'approved' | 'changes_requested' | 'commented' | 'authored' | 'none';
+export type ReviewAttention = 'awaiting' | 'approved' | 'changes_requested' | 'commented' | 'assigned' | 'mentioned' | 'authored' | 'none';
 
 /** Only AI reviews can be cancelled. */
 export type AiTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -201,6 +201,8 @@ export interface PullRequest {
     my_review_state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | null;
     my_review_submitted_at: string | null;
     has_commits_since_my_review: boolean;
+    /** The user started a review they haven't submitted: comments drafted in PRism, or a pending review on GitHub. */
+    has_unsubmitted_review: boolean;
     /** When a snooze ends; null when the pull request isn't snoozed (or the snooze has ended). */
     snoozed_until: string | null;
     is_review_requested_from_me: boolean;

@@ -67,6 +67,10 @@ final class GraphqlQueries
               }
             }
           }
+          reviewDismissedEvents: timelineItems(last: 20, itemTypes: [REVIEW_DISMISSED_EVENT]) {
+            nodes { ... on ReviewDismissedEvent { review { author { login } state submittedAt commit { oid } } } }
+          }
+          pendingReviews: reviews(states: [PENDING], first: 1) { nodes { author { login } } }
           latestOpinionatedReviews(first: 50) { nodes { author { login } state submittedAt commit { oid } } }
           latestReviews(first: 50) { nodes { author { login } state submittedAt commit { oid } } }
           commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }

@@ -109,6 +109,53 @@ it('counts a pull request whose approval GitHub dismissed as awaiting your revie
         ->assertNoJavaScriptErrors();
 });
 
+it('lists pull requests assigned to you, mentioning you or that you commented on, each with its own filter', function () {
+    (new FakeGithub)
+        ->withPullRequests('acme/api', [
+            FakeGithub::pullRequest(110, 'Tidy the logs', ['assignees' => ['nodes' => [['login' => 'octocat']]]]),
+            FakeGithub::pullRequest(111, 'Add an audit trail'),
+            FakeGithub::pullRequest(112, 'Bump the SDK'),
+            FakeGithub::pullRequest(113, 'Rename a column'),
+        ])
+        ->withMentionIn('acme/api', 111)
+        ->withCommentIn('acme/api', 112)
+        ->fake();
+    syncFromGithub();
+
+    $page = visit('/');
+
+    $page->assertSee('Tidy the logs')
+        ->assertSee('Add an audit trail')
+        ->assertSee('Bump the SDK')
+        ->assertDontSee('Rename a column')
+        ->assertSeeIn('[aria-label="Filter by status"] button[title="Assigned to you"]', '1')
+        ->assertSeeIn('[aria-label="Filter by status"] button[title="Mentioned you"]', '1')
+        ->assertSeeIn('[aria-label="Filter by status"] button[title="You commented"]', '1')
+        ->assertSeeIn('[aria-label="Filter by status"] button[title="Awaiting your review"]', '0');
+    clickOnce($page, '[aria-label="Filter by status"] button[title="Mentioned you"]')
+        ->assertSee('Add an audit trail')
+        ->assertDontSee('Tidy the logs')
+        ->assertDontSee('Bump the SDK')
+        ->assertNoJavaScriptErrors();
+});
+
+it('counts a review you started on GitHub and have not submitted as awaiting your review', function () {
+    (new FakeGithub)
+        ->withPullRequests('acme/api', [
+            FakeGithub::pullRequest(114, 'Speed up the import', FakeGithub::pendingReviewBy('octocat')),
+        ])
+        ->fake();
+    syncFromGithub();
+
+    $page = visit('/');
+
+    $page->assertSee('Speed up the import')
+        ->assertSeeIn('[title="You started a review but haven\'t submitted it yet"]', 'Review not submitted')
+        ->assertSeeIn('[aria-label="Filter by status"] button[title="Awaiting your review"]', '1')
+        ->assertSeeIn('[data-sidebar="menu-badge"]', '1')
+        ->assertNoJavaScriptErrors();
+});
+
 it('shows whether reviewers approved your pull requests or asked for changes', function () {
     $mine = ['author' => ['login' => 'octocat', 'avatarUrl' => null]];
     (new FakeGithub)
