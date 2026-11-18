@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-11-18
+
 ### Fixed
 
 - A pull request whose approval GitHub dismissed, for example after new commits were pushed, now counts as awaiting your review and says your review was dismissed. It used to drop out of your queue and show as not involving you.
