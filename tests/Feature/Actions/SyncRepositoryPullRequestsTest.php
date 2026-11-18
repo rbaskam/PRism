@@ -65,6 +65,27 @@ it('shows a pull request as approved when the user approved it, even after a lat
         ->and($pullRequest->hasCommitsSinceMyReview())->toBeTrue();
 });
 
+it('puts a pull request back in the user\'s queue when GitHub dismisses their review, without treating it as a new request', function () {
+    $account = GithubAccount::factory()->create(['login' => 'octocat']);
+    $repository = Repository::factory()->create();
+    $dismissedApproval = ['author' => ['login' => 'octocat'], 'state' => 'DISMISSED', 'submittedAt' => '2026-10-02T09:00:00Z', 'commit' => ['oid' => 'oldsha']];
+    Http::fake(['api.github.com/graphql' => Http::response(githubOpenPullRequestsResponse([
+        githubPullRequestNode([
+            'latestOpinionatedReviews' => ['nodes' => [$dismissedApproval]],
+            'latestReviews' => ['nodes' => [$dismissedApproval]],
+        ]),
+    ]))]);
+
+    $result = app(SyncRepositoryPullRequests::class)->handle($repository, $account);
+
+    expect($repository->pullRequests()->sole())
+        ->is_review_requested_from_me->toBeTrue()
+        ->is_review_requested_directly->toBeFalse()
+        ->attention()->toBe(ReviewAttention::AwaitingMyReview);
+    expect(PullRequest::query()->awaitingMyReview()->count())->toBe(1);
+    expect($result['newly_requested'])->toBeEmpty();
+});
+
 it('ignores a review request the user already answered that GitHub still lists', function () {
     $account = GithubAccount::factory()->inTeam('acme', 'reviewers')->create(['login' => 'octocat']);
     $repository = Repository::factory()->create();

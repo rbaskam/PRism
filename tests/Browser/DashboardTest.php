@@ -91,6 +91,24 @@ it('keeps a pull request a teammate reviewed for your team in the list when you 
         ->assertNoJavaScriptErrors();
 });
 
+it('counts a pull request whose approval GitHub dismissed as awaiting your review, and says why', function () {
+    (new FakeGithub)
+        ->withPullRequests('acme/api', [
+            FakeGithub::pullRequest(106, 'Paginate the audit log', FakeGithub::reviewedBy('octocat', 'DISMISSED', 'oldsha')),
+        ])
+        ->fake();
+    syncFromGithub();
+
+    $page = visit('/');
+
+    $page->assertSee('Paginate the audit log')
+        ->assertSee('Your review was dismissed')
+        ->assertSee('New commits since your review')
+        ->assertSeeIn('button[title="Show only: awaiting your review"]', '1')
+        ->assertSeeIn('[data-sidebar="menu-badge"]', '1')
+        ->assertNoJavaScriptErrors();
+});
+
 it('syncs with GitHub when you come back to the app, e.g. after approving a pull request there', function () {
     $github = githubWithPullRequestsForOctocat();
     syncFromGithub();

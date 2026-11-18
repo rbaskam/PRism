@@ -39,6 +39,9 @@ class PullRequestMapper
             ->contains(fn (array $reviewer): bool => $reviewer['type'] === 'user' && $this->isMe($reviewer, $account));
         $myReview = $this->myLatestReview($node, $myLogin);
         $isOpen = $node['state'] === 'OPEN';
+        // GitHub dismisses a review when new commits make it stale (or a maintainer dismisses it) without asking for a
+        // new one, so the pull request waits on the user again.
+        $isMyReviewDismissed = ReviewState::tryFrom($myReview['state'] ?? '') === ReviewState::Dismissed;
 
         $attributes = [
             'node_id' => $node['id'],
@@ -67,7 +70,7 @@ class PullRequestMapper
             'my_review_submitted_at' => isset($myReview['submittedAt']) ? Carbon::parse($myReview['submittedAt']) : null,
             'my_review_commit_sha' => $myReview['commit']['oid'] ?? null,
             // GitHub keeps review requests on closed pull requests, but they no longer need anyone.
-            'is_review_requested_from_me' => $isOpen && ($isRequestedDirectly || $myTeams !== []),
+            'is_review_requested_from_me' => $isOpen && ($isRequestedDirectly || $myTeams !== [] || $isMyReviewDismissed),
             'is_review_requested_directly' => $isOpen && $isRequestedDirectly,
             'requested_via_teams' => $myTeams,
             'answered_team_requests' => $isAuthoredByMe ? [] : $this->answeredTeamRequests($node, $account, $requestsForMe),
