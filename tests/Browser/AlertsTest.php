@@ -29,13 +29,14 @@ it('lists alerts under the bell and opens one where it happened', function () {
         'url' => "/pull-requests/{$pullRequest->id}?tab=conversation",
     ]);
 
-    visit('/')
+    $page = visit('/')
         ->assertPresent('button[aria-label="Notifications, 1 unread"]')
         ->click('button[aria-label="Notifications, 1 unread"]')
         ->waitForText('New activity on your pull request')
-        ->assertSee('acme/api: Add rate limiting')
-        ->click('[role="dialog"] li:has-text("New activity on your pull request") button')
-        ->waitForText('Should the limit be configurable?')
+        ->assertSee('acme/api: Add rate limiting');
+    clickOnce($page, '[role="dialog"] li:has-text("New activity on your pull request") button');
+
+    $page->waitForText('Should the limit be configurable?')
         ->assertPathIs("/pull-requests/{$pullRequest->id}")
         ->assertPresent('[role="tab"][data-state="active"]:has-text("Conversation")')
         ->assertPresent('button[aria-label="Notifications"]')
@@ -49,8 +50,8 @@ it('marks every alert as read', function () {
 
     $page = visit('/');
     trackRequests($page);
-    $page->click('button[aria-label="Notifications, 2 unread"]')
-        ->click('internal:role=button[name="Mark all as read"i]');
+    $page->click('button[aria-label="Notifications, 2 unread"]');
+    clickOnce($page, 'internal:role=button[name="Mark all as read"i]');
     waitForRequests($page);
 
     $page->navigate('/')
