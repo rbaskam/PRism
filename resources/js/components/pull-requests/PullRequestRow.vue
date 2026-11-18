@@ -21,6 +21,7 @@ import {
     GitMerge,
     LoaderCircle,
     MessageSquare,
+    RotateCcw,
     Sparkles,
     TriangleAlert,
     UserCheck,
@@ -197,6 +198,14 @@ const hasStatusBadges = computed(
                     <Badge v-if="pullRequest.is_review_requested_directly" variant="outline" title="Your review was requested by name">
                         <UserRound />
                         Requested from you
+                    </Badge>
+                    <Badge
+                        v-if="pullRequest.attention === 'awaiting' && pullRequest.my_review_state === 'DISMISSED'"
+                        variant="outline"
+                        title="GitHub dismissed your review, usually because new commits were pushed, so it needs your review again"
+                    >
+                        <RotateCcw />
+                        Your review was dismissed
                     </Badge>
                     <Badge
                         v-for="team in pullRequest.requested_via_teams"
