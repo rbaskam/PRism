@@ -10,6 +10,8 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-18
+
 ### Added
 
 - Pull requests that are only assigned to you get their own **Assigned to you** state, colour and filter.
