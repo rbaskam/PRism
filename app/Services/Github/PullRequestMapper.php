@@ -63,7 +63,7 @@ class PullRequestMapper
             'deletions' => $node['deletions'],
             'changed_files' => $node['changedFiles'],
             'comments_count' => $node['comments']['totalCount'] ?? 0,
-            'review_decision' => $node['reviewDecision'],
+            'review_decision' => $node['reviewDecision'] ?? $this->reviewDecisionFromReviews($node),
             'checks_state' => $node['commits']['nodes'][0]['commit']['statusCheckRollup']['state'] ?? null,
             'mergeable' => $node['mergeable'],
             'my_review_state' => $myReview['state'] ?? null,
@@ -286,6 +286,25 @@ class PullRequestMapper
         return strtolower($reviewer['type'] === 'user'
             ? 'user:'.($reviewer['login'] ?? '')
             : 'team:'.($reviewer['organization'] ?? '').'/'.($reviewer['slug'] ?? ''));
+    }
+
+    /**
+     * GitHub only gives a review decision when the base branch requires reviews. Without one, go by each reviewer's
+     * latest approval or change request, as GitHub's reviewers list does: a change request outweighs approvals, and a
+     * dismissed review counts for nothing.
+     *
+     * @param  array<string, mixed>  $node
+     */
+    private function reviewDecisionFromReviews(array $node): ?string
+    {
+        $states = collect($this->nodes($node, 'latestOpinionatedReviews'))
+            ->map(fn (array $review): ?ReviewState => ReviewState::tryFrom($review['state'] ?? ''));
+
+        return match (true) {
+            $states->contains(ReviewState::ChangesRequested) => ReviewState::ChangesRequested->value,
+            $states->contains(ReviewState::Approved) => ReviewState::Approved->value,
+            default => null,
+        };
     }
 
     /**

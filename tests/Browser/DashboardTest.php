@@ -109,6 +109,27 @@ it('counts a pull request whose approval GitHub dismissed as awaiting your revie
         ->assertNoJavaScriptErrors();
 });
 
+it('shows whether reviewers approved your pull requests or asked for changes', function () {
+    $mine = ['author' => ['login' => 'octocat', 'avatarUrl' => null]];
+    (new FakeGithub)
+        ->withPullRequests('acme/api', [
+            FakeGithub::pullRequest(107, 'Add audit log', [...$mine, 'reviewDecision' => 'APPROVED']),
+            FakeGithub::pullRequest(108, 'Drop the legacy API', [...$mine, 'reviewDecision' => 'CHANGES_REQUESTED']),
+            FakeGithub::pullRequest(109, 'Rename the settings page', [...$mine, 'reviewDecision' => 'REVIEW_REQUIRED']),
+        ])
+        ->fake();
+    syncFromGithub();
+
+    $page = visit('/');
+
+    $page->assertSee('Rename the settings page')
+        ->assertSeeIn('[title="Reviewers approved your pull request"]', 'Approved')
+        ->assertSeeIn('[title="A reviewer asked for changes to your pull request"]', 'Changes requested')
+        ->assertCount('[title="Reviewers approved your pull request"]', 1)
+        ->assertCount('[title="A reviewer asked for changes to your pull request"]', 1)
+        ->assertNoJavaScriptErrors();
+});
+
 it('syncs with GitHub when you come back to the app, e.g. after approving a pull request there', function () {
     $github = githubWithPullRequestsForOctocat();
     syncFromGithub();
