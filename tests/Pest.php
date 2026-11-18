@@ -8,6 +8,7 @@ use App\Services\AppSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Pest\Browser\Api\AwaitableWebpage;
 use Pest\Browser\Api\PendingAwaitablePage;
+use Pest\Browser\Support\GuessLocator;
 use Tests\BrowserTestCase;
 use Tests\TestCase;
 
@@ -188,13 +189,23 @@ function waitForRequests(PendingAwaitablePage|AwaitableWebpage $page): void
 }
 
 /**
- * Click the element matching the selector exactly once. Use it for a click that removes, disables or replaces what
- * it clicked, e.g. one that closes a sheet and navigates. The page's own click() retries with a one-second limit per
- * try, so on a slow machine a click that lands just after that limit is sent again, and the retry fails because its
- * target is gone, although the first click worked. Playwright still waits for the element and only clicks again
- * when nothing received the first click.
+ * Click the element matching the selector exactly once, and return the page to carry on with. It finds the element
+ * the same way as the page's own click(): a CSS or role selector, an id or name, or else the element's whole text.
+ *
+ * Use it for every click that changes something: toggling, submitting, opening or closing a dialog or menu, or one
+ * that disables, removes or navigates away from what it clicked. The page's own click() retries with a one-second
+ * limit per try, so on a slow machine a click that lands just after that limit is sent again. The second click then
+ * undoes a toggle, submits twice, or waits for a target that is gone until the test times out. Playwright still
+ * waits for the element and only clicks again when nothing received the first click.
+ *
+ * @template TPage of PendingAwaitablePage|AwaitableWebpage
+ *
+ * @param  TPage  $page
+ * @return TPage
  */
-function clickOnce(PendingAwaitablePage|AwaitableWebpage $page, string $selector): void
+function clickOnce(PendingAwaitablePage|AwaitableWebpage $page, string $selector): PendingAwaitablePage|AwaitableWebpage
 {
-    $page->page()->locator($selector)->click();
+    (new GuessLocator($page->page()))->for($selector)->click();
+
+    return $page;
 }

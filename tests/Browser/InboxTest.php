@@ -34,11 +34,11 @@ it('lists your unread GitHub notifications with a count for each reason', functi
 });
 
 it('filters notifications by reason and by search', function () {
-    visit('/inbox')
-        ->click('button[aria-pressed]:has-text("Mentioned")')
+    $page = visit('/inbox');
+    clickOnce($page, 'button[aria-pressed]:has-text("Mentioned")')
         ->assertSee('Redesign settings')
-        ->assertDontSee('Add rate limiting')
-        ->click('All reasons')
+        ->assertDontSee('Add rate limiting');
+    clickOnce($page, 'All reasons')
         ->fill('[aria-label="Search notifications"]', 'login')
         ->assertSee('Fix login redirect')
         ->assertDontSee('Redesign settings')
@@ -48,8 +48,8 @@ it('filters notifications by reason and by search', function () {
 it('marks a notification as read on GitHub', function () {
     $page = visit('/inbox');
     trackRequests($page);
-    $page->hover('li:has-text("Redesign settings")')
-        ->click('li:has-text("Redesign settings") button[title="Mark as read"]');
+    $page->hover('li:has-text("Redesign settings")');
+    clickOnce($page, 'li:has-text("Redesign settings") button[title="Mark as read"]');
     waitForRequests($page);
 
     $page->navigate('/inbox')
@@ -64,7 +64,7 @@ it('marks a notification as read on GitHub', function () {
 it('marks everything as read on GitHub', function () {
     $page = visit('/inbox');
     trackRequests($page);
-    $page->click('internal:role=button[name="Mark all as read"i]');
+    clickOnce($page, 'internal:role=button[name="Mark all as read"i]');
     waitForRequests($page);
 
     $page->navigate('/inbox')
@@ -77,8 +77,7 @@ it('marks everything as read on GitHub', function () {
 });
 
 it('opens a pull request notification in the app', function () {
-    visit('/inbox')
-        ->click('Add rate limiting')
+    clickOnce(visit('/inbox'), 'Add rate limiting')
         ->waitForText('Awaiting your review')
         ->assertPathBeginsWith('/pull-requests/')
         ->assertNoJavaScriptErrors();

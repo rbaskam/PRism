@@ -165,7 +165,7 @@ it('narrows the list to one kind when you click its count, and back again', func
     githubWithPullRequestsForOctocat();
     syncFromGithub();
 
-    $page = visit('/')->click('button[title="Show only: awaiting your review"]');
+    $page = clickOnce(visit('/'), 'button[title="Show only: awaiting your review"]');
 
     $page->assertSee('Showing 3 of 6 pull requests')
         ->assertSee('Add rate limiting')
@@ -174,7 +174,7 @@ it('narrows the list to one kind when you click its count, and back again', func
         ->assertDontSee('Upgrade Laravel')
         ->assertDontSee('Redesign settings');
 
-    $page->click('button[title="Click to remove this filter"]')
+    clickOnce($page, 'button[title="Click to remove this filter"]')
         ->assertSee('Showing 6 of 6 pull requests')
         ->assertNoJavaScriptErrors();
 });
@@ -187,14 +187,14 @@ it('filters by search, repository and how your review was requested', function (
 
     $page->fill('[aria-label="Search pull requests"]', 'login')
         ->assertSee('Fix login redirect')
-        ->assertSee('Showing 1 of 6 pull requests')
-        ->click('internal:role=button[name="Clear all"i]');
+        ->assertSee('Showing 1 of 6 pull requests');
+    clickOnce($page, 'internal:role=button[name="Clear all"i]');
 
     $page->select('select[aria-label="Filter by repository"]', (string) Repository::firstWhere('name', 'web')->id)
         ->assertSee('Redesign settings')
         ->assertSee('Bump dependencies')
-        ->assertDontSee('Add rate limiting')
-        ->click('internal:role=button[name="Clear all"i]');
+        ->assertDontSee('Add rate limiting');
+    clickOnce($page, 'internal:role=button[name="Clear all"i]');
 
     $page->select('select[aria-label="Filter by how your review was requested"]', 'team:acme/reviewers')
         ->assertSee('Fix login redirect')
@@ -208,18 +208,18 @@ it('filters by status and hides drafts or shows only failing checks', function (
 
     $page = visit('/');
 
-    $page->click('[aria-label="Filter by status"] button[title="Approved by you"]')
-        ->click('[aria-label="Filter by status"] button[title="You requested changes"]')
+    clickOnce($page, '[aria-label="Filter by status"] button[title="Approved by you"]');
+    clickOnce($page, '[aria-label="Filter by status"] button[title="You requested changes"]')
         ->assertSee('Upgrade Laravel')
         ->assertSee('Bump dependencies')
-        ->assertSee('Showing 2 of 6 pull requests')
-        ->click('internal:role=button[name="Clear all"i]');
+        ->assertSee('Showing 2 of 6 pull requests');
+    clickOnce($page, 'internal:role=button[name="Clear all"i]');
 
-    $page->click('Hide drafts')
+    clickOnce($page, 'Hide drafts')
         ->assertDontSee('New onboarding flow')
-        ->assertSee('Showing 5 of 6 pull requests')
-        ->click('Hide drafts')
-        ->click('Failing checks')
+        ->assertSee('Showing 5 of 6 pull requests');
+    clickOnce($page, 'Hide drafts');
+    clickOnce($page, 'Failing checks')
         ->assertSee('New onboarding flow')
         ->assertSee('Showing 1 of 6 pull requests')
         ->assertNoJavaScriptErrors();
@@ -229,7 +229,7 @@ it('remembers your filters when you come back', function () {
     githubWithPullRequestsForOctocat();
     syncFromGithub();
 
-    $page = visit('/')->click('Hide drafts');
+    $page = clickOnce(visit('/'), 'Hide drafts');
 
     $page->refresh()
         ->assertSee('Showing 5 of 6 pull requests')
@@ -241,13 +241,13 @@ it('groups the list by repository', function () {
     githubWithPullRequestsForOctocat();
     syncFromGithub();
 
-    $page = visit('/')->click('Group by repository');
+    $page = clickOnce(visit('/'), 'Group by repository');
 
     $page->assertSee('2 awaiting')
         ->assertSee('1 approved')
         ->assertSee('1 awaiting')
-        ->assertSee('Collapse all')
-        ->click('Collapse all')
+        ->assertSee('Collapse all');
+    clickOnce($page, 'Collapse all')
         ->assertDontSee('Add rate limiting')
         ->assertSee('Expand all')
         ->assertNoJavaScriptErrors();
@@ -259,7 +259,7 @@ it('pulls new review requests from GitHub when you click Sync', function () {
     $page = visit('/')->assertSee('Nothing needs you right now');
 
     $github->withPullRequests('acme/api', [FakeGithub::pullRequest(101, 'Add rate limiting', FakeGithub::requestedFrom('octocat'))]);
-    $page->click('Sync with GitHub');
+    clickOnce($page, 'Sync with GitHub');
 
     $page->waitForText('Add rate limiting')
         ->assertSeeIn('button[title="Show only: awaiting your review"]', '1')
@@ -290,22 +290,21 @@ it('snoozes a pull request out of the list and its counts, and brings it back', 
     githubWithPullRequestsForOctocat();
     syncFromGithub();
 
-    $page = visit('/')
-        ->hover('div.group:has-text("Add rate limiting")')
-        ->click('div.group:has-text("Add rate limiting") button[title="Snooze"]')
-        ->click('internal:role=menuitem[name="For 1 week"i]')
+    $page = visit('/')->hover('div.group:has-text("Add rate limiting")');
+    clickOnce($page, 'div.group:has-text("Add rate limiting") button[title="Snooze"]');
+    clickOnce($page, 'internal:role=menuitem[name="For 1 week"i]')
         ->waitForText('Snoozed for a week.')
         ->assertDontSee('Add rate limiting')
         ->assertSeeIn('button[title="Show only: awaiting your review"]', '2')
-        ->assertSeeIn('[data-sidebar="menu-badge"]', '2')
-        ->click('button[aria-pressed]:has-text("Snoozed")')
+        ->assertSeeIn('[data-sidebar="menu-badge"]', '2');
+    clickOnce($page, 'button[aria-pressed]:has-text("Snoozed")')
         ->assertSee('Add rate limiting')
         ->assertSee('Snoozed until');
 
     expect(PullRequest::firstWhere('number', 101)->isSnoozed())->toBeTrue();
 
-    $page->click('div.group:has-text("Add rate limiting") button[title="Change or end the snooze"]')
-        ->click('internal:role=menuitem[name="Unsnooze"i]')
+    clickOnce($page, 'div.group:has-text("Add rate limiting") button[title="Change or end the snooze"]');
+    clickOnce($page, 'internal:role=menuitem[name="Unsnooze"i]')
         ->waitForText('No longer snoozed.')
         ->assertSeeIn('[data-sidebar="menu-badge"]', '3')
         ->assertNoJavaScriptErrors();
@@ -318,19 +317,18 @@ it('spells out which filters are hiding pull requests and removes them one at a 
     syncFromGithub();
     $web = Repository::firstWhere('name', 'web');
 
-    $page = visit('/')
-        ->select('select[aria-label="Filter by repository"]', (string) $web->id)
-        ->click('[aria-label="Filter by status"] button[title="Awaiting your review"]')
+    $page = visit('/')->select('select[aria-label="Filter by repository"]', (string) $web->id);
+    clickOnce($page, '[aria-label="Filter by status"] button[title="Awaiting your review"]')
         ->assertSeeIn('[aria-label="Active filters"]', 'Repository: acme/web')
         ->assertSeeIn('[aria-label="Active filters"]', 'Status: Awaiting')
         ->assertScript('getComputedStyle(document.querySelector(\'select[aria-label="Filter by repository"]\')).borderColor !== getComputedStyle(document.querySelector(\'select[aria-label="Sort pull requests"]\')).borderColor')
         ->assertSee('Showing 1 of 6 pull requests');
 
-    $page->click('[aria-label="Active filters"] button[title^="Remove the filter “Repository"]')
+    clickOnce($page, '[aria-label="Active filters"] button[title^="Remove the filter “Repository"]')
         ->assertDontSeeIn('[aria-label="Active filters"]', 'Repository: acme/web')
         ->assertSeeIn('[aria-label="Active filters"]', 'Status: Awaiting')
-        ->assertSee('Showing 3 of 6 pull requests')
-        ->click('internal:role=button[name="Clear all"i]')
+        ->assertSee('Showing 3 of 6 pull requests');
+    clickOnce($page, 'internal:role=button[name="Clear all"i]')
         ->assertMissing('[aria-label="Active filters"]')
         ->assertSee('Showing 6 of 6 pull requests')
         ->assertNoJavaScriptErrors();
@@ -341,11 +339,11 @@ it('says nothing needs you when your only pull requests were closed recently, an
     syncFromGithub();
     PullRequest::firstWhere('number', 101)->update(['state' => PullRequest::STATE_CLOSED, 'closed_at' => now()->subDay()]);
 
-    visit('/')
+    $page = visit('/')
         ->assertSee('Nothing needs you right now')
         ->assertDontSee('No pull requests match your filters')
-        ->assertSee('1 pull request was closed or merged recently.')
-        ->click('Show recently closed')
+        ->assertSee('1 pull request was closed or merged recently.');
+    clickOnce($page, 'Show recently closed')
         ->assertSee('Add rate limiting')
         ->assertNoJavaScriptErrors();
 });
@@ -361,14 +359,13 @@ it('shows which recently closed pull requests were merged, there and on the pull
     $github->merge('acme/api', 101)->close('acme/api', 102);
     syncFromGithub();
 
-    visit('/')
-        ->assertSee('2 pull requests were closed or merged recently.')
-        ->click('Show recently closed')
+    $page = visit('/')->assertSee('2 pull requests were closed or merged recently.');
+    clickOnce($page, 'Show recently closed')
         ->assertSeeIn('div.group:has(a[title="Add rate limiting"])', 'Merged')
         ->assertDontSeeIn('div.group:has(a[title="Add rate limiting"])', 'Closed')
         ->assertSeeIn('div.group:has(a[title="Fix login redirect"])', 'Closed')
-        ->assertDontSeeIn('div.group:has(a[title="Fix login redirect"])', 'Merged')
-        ->click('a[title="Add rate limiting"]')
+        ->assertDontSeeIn('div.group:has(a[title="Fix login redirect"])', 'Merged');
+    clickOnce($page, 'a[title="Add rate limiting"]')
         ->waitForText('Review history')
         ->assertSeeIn('header:has(h1)', 'Merged')
         ->assertNoJavaScriptErrors();
@@ -457,7 +454,7 @@ it('shows counts as dots and keeps search in reach when the sidebar is collapsed
         ->assertMissing('[data-sidebar="menu-badge"]')
         ->assertScript('document.querySelector("[data-collapsed-badge]").textContent.trim()', '3 awaiting your review');
 
-    $page->click('internal:role=button[name="Search…"s]')
+    clickOnce($page, 'internal:role=button[name="Search…"s]')
         ->fill('[role="combobox"]', 'lock')
         ->keys('[role="combobox"]', 'Enter')
         ->waitForText('Require a PIN to open')
@@ -484,14 +481,14 @@ it('lists the pull requests you opened recently in the sidebar, newest first, un
         ->assertAttribute('[data-recent-pull-requests] a[aria-current="page"]', 'title', 'New onboarding flow (acme/web#202)');
     $this->travel(1)->minute();
 
-    $page->click('[data-recent-pull-requests] a[title^="Add rate limiting"]')
+    clickOnce($page, '[data-recent-pull-requests] a[title^="Add rate limiting"]')
         ->waitForText('Files changed')
         ->assertPathIs("/pull-requests/{$rateLimiting->id}")
         ->assertScript(recentlyViewedLinks(), ['Add rate limiting #101 · api', 'New onboarding flow #202 · Draft · web'])
         ->assertSeeIn('[data-recent-pull-requests] a[aria-current="page"]', 'Add rate limiting');
 
     trackRequests($page);
-    $page->click('internal:role=button[name="Clear recently viewed pull requests"s]');
+    clickOnce($page, 'internal:role=button[name="Clear recently viewed pull requests"s]');
     waitForRequests($page);
 
     $page->assertSeeIn('[data-recent-pull-requests]', 'Pull requests you open appear here.')
@@ -519,7 +516,7 @@ it('marks pull requests with new AI findings in the list and the sidebar until y
         ->assertCount('[data-recent-pull-requests] [data-unseen-findings]', 1)
         ->assertSeeIn('[data-recent-pull-requests] a:has([data-unseen-findings])', 'Add rate limiting');
 
-    $page->click('[data-pull-request-row]:has([data-unseen-findings]) [data-pull-request-link]')
+    clickOnce($page, '[data-pull-request-row]:has([data-unseen-findings]) [data-pull-request-link]')
         ->waitForText('Limit can be bypassed')
         ->assertCount('[data-unseen-findings]', 0)
         ->navigate('/')

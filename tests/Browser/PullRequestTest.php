@@ -165,13 +165,13 @@ it('comments on a line in the diff and shows the thread under it', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
     $file = 'section[data-file-path="app/Http/Middleware/RateLimit.php"]';
 
-    visit("/pull-requests/{$pullRequest->id}")
+    $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
-        ->waitForText('// limit requests')
-        ->click('[data-path="app/Http/Middleware/RateLimit.php"][data-line="2"] [data-gutter]')
-        ->click('internal:role=button[name="Comment c"s]')
-        ->fill('textarea[aria-label="Comment"]', 'Make the limit configurable per client.')
-        ->click("{$file} button[type=\"submit\"]")
+        ->waitForText('// limit requests');
+    clickOnce($page, '[data-path="app/Http/Middleware/RateLimit.php"][data-line="2"] [data-gutter]');
+    clickOnce($page, 'internal:role=button[name="Comment c"s]')
+        ->fill('textarea[aria-label="Comment"]', 'Make the limit configurable per client.');
+    clickOnce($page, "{$file} button[type=\"submit\"]")
         ->waitForText('Comment added.')
         ->waitForText('Make the limit configurable per client.')
         ->assertSeeIn($file, 'Make the limit configurable per client.')
@@ -189,10 +189,10 @@ it('comments on a line in the diff and shows the thread under it', function () {
 it('approves the pull request on GitHub and takes it out of your queue', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    $page = visit("/pull-requests/{$pullRequest->id}")
-        ->click('internal:role=button[name="Approve"s]')
-        ->assertSee('Submit your review')
-        ->click('[role="dialog"] button[type="submit"]')
+    $page = visit("/pull-requests/{$pullRequest->id}");
+    clickOnce($page, 'internal:role=button[name="Approve"s]')
+        ->assertSee('Submit your review');
+    clickOnce($page, '[role="dialog"] button[type="submit"]')
         ->waitForText('Approved by you')
         ->assertMissing('[data-meme-reaction]')
         ->assertNoJavaScriptErrors();
@@ -209,15 +209,14 @@ it('approves the pull request on GitHub and takes it out of your queue', functio
 it('reacts with a meme when you approve with meme reactions on', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    $page = visit('/settings/appearance')
-        ->click('#meme-reactions')
+    $page = clickOnce(visit('/settings/appearance'), '#meme-reactions')
         ->assertScript('localStorage.getItem("prism.meme-reactions")', 'true')
         ->navigate("/pull-requests/{$pullRequest->id}");
     // Pick the first GIF, then one of the shared phrases rather than a line written for that GIF: the first one.
     $page->script('() => { const values = [0, 0.9, 0]; let call = 0; Math.random = () => values[call++ % values.length]; }');
 
-    $page->click('internal:role=button[name="Approve"s]')
-        ->click('[role="dialog"] button[type="submit"]')
+    clickOnce($page, 'internal:role=button[name="Approve"s]');
+    clickOnce($page, '[role="dialog"] button[type="submit"]')
         ->waitForText("LGTM: Let's Get This Merged.")
         ->assertSee('Approved by you')
         // It never gets in the way: clicks go through it, and it goes away on its own.
@@ -234,14 +233,13 @@ it('reacts with a meme when Claude starts fixing the pull request', function () 
     $pullRequest = PullRequest::firstWhere('number', 101);
     $pullRequest->repository->update(['local_path' => sys_get_temp_dir()]);
 
-    $page = visit('/settings/appearance')
-        ->click('#meme-reactions')
+    $page = clickOnce(visit('/settings/appearance'), '#meme-reactions')
         ->navigate("/pull-requests/{$pullRequest->id}");
     $page->script('() => { Math.random = () => 0; }');
 
-    $page->click('internal:role=button[name="Fix with Claude"s]')
-        ->fill('#fix-instructions', 'Make the limit configurable.')
-        ->click('[role="dialog"] button[type="submit"]')
+    clickOnce($page, 'internal:role=button[name="Fix with Claude"s]')
+        ->fill('#fix-instructions', 'Make the limit configurable.');
+    clickOnce($page, '[role="dialog"] button[type="submit"]')
         ->waitForText('Fine. Claude will do it itself.')
         ->assertNoJavaScriptErrors();
 
@@ -260,13 +258,13 @@ it('keeps the viewed progress in sight and moves on to the next file when you ma
     $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
         ->waitForText('src/File01.php')
-        ->assertSee('0 of 30 files viewed')
-        ->click('section[data-file-path="src/File01.php"] [role="checkbox"]')
+        ->assertSee('0 of 30 files viewed');
+    clickOnce($page, 'section[data-file-path="src/File01.php"] [role="checkbox"]')
         ->assertSee('1 of 30 files viewed');
 
     expect($page->script(fileIsJustBelowTheToolbar('src/File02.php')))->toBeTrue();
 
-    $page->click('section[data-file-path="src/File02.php"] [role="checkbox"]')
+    clickOnce($page, 'section[data-file-path="src/File02.php"] [role="checkbox"]')
         ->assertSee('2 of 30 files viewed')
         ->assertNoJavaScriptErrors();
 
@@ -276,10 +274,10 @@ it('keeps the viewed progress in sight and moves on to the next file when you ma
 it('says when every file has been viewed', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    visit("/pull-requests/{$pullRequest->id}")
+    $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
-        ->waitForText('app/Http/Middleware/RateLimit.php')
-        ->click('section[data-file-path="app/Http/Middleware/RateLimit.php"] [role="checkbox"]')
+        ->waitForText('app/Http/Middleware/RateLimit.php');
+    clickOnce($page, 'section[data-file-path="app/Http/Middleware/RateLimit.php"] [role="checkbox"]')
         ->waitForText('File viewed')
         ->assertNoJavaScriptErrors();
 });
@@ -287,10 +285,10 @@ it('says when every file has been viewed', function () {
 it('keeps showing the changed files after syncing with GitHub', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    visit("/pull-requests/{$pullRequest->id}")
+    $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
-        ->waitForText('app/Http/Middleware/RateLimit.php')
-        ->click('Sync with GitHub')
+        ->waitForText('app/Http/Middleware/RateLimit.php');
+    clickOnce($page, 'Sync with GitHub')
         ->waitForText('Syncing with GitHub…')
         ->waitForText('app/Http/Middleware/RateLimit.php')
         ->assertDontSee('Loading the changed files from GitHub…')
@@ -304,8 +302,8 @@ it('opens a file on GitHub from the desktop app without reloading the changed fi
 
     $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
-        ->waitForText('app/Http/Middleware/RateLimit.php')
-        ->click('section[data-file-path="app/Http/Middleware/RateLimit.php"] header a[href$="/files"]');
+        ->waitForText('app/Http/Middleware/RateLimit.php');
+    clickOnce($page, 'section[data-file-path="app/Http/Middleware/RateLimit.php"] header a[href$="/files"]');
 
     // The app serves one request at a time, so this request is answered after the one that opened the link.
     $page->script('function () { return fetch("/settings/about").then((response) => response.status); }');
@@ -319,9 +317,9 @@ it('opens a file on GitHub from the desktop app without reloading the changed fi
 it('snoozes the pull request from its page', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    visit("/pull-requests/{$pullRequest->id}")
-        ->click('internal:role=button[name="Snooze"s]')
-        ->click('internal:role=menuitem[name="For 3 days"i]')
+    $page = visit("/pull-requests/{$pullRequest->id}");
+    clickOnce($page, 'internal:role=button[name="Snooze"s]');
+    clickOnce($page, 'internal:role=menuitem[name="For 3 days"i]')
         ->waitForText('Snoozed for 3 days.')
         ->assertSee('Snoozed until')
         ->assertNoJavaScriptErrors();
@@ -346,7 +344,7 @@ it('shows AI findings under the lines they are about and triages them there', fu
         ->assertSeeIn($file, 'Limit is applied before authentication');
 
     trackRequests($page);
-    $page->click("[data-finding-id=\"{$finding->id}\"] button[aria-label=\"Mark read\"]");
+    clickOnce($page, "[data-finding-id=\"{$finding->id}\"] button[aria-label=\"Mark read\"]");
     waitForRequests($page);
 
     $page->assertNoJavaScriptErrors();
@@ -357,9 +355,9 @@ it('cancels an AI review that is still running', function () {
     $pullRequest = PullRequest::firstWhere('number', 101);
     $run = ReviewRun::factory()->running()->for($pullRequest)->create();
 
-    visit("/pull-requests/{$pullRequest->id}")
-        ->assertSee('Claude is reviewing…')
-        ->click('internal:role=button[name="Cancel review"s]')
+    $page = visit("/pull-requests/{$pullRequest->id}")
+        ->assertSee('Claude is reviewing…');
+    clickOnce($page, 'internal:role=button[name="Cancel review"s]')
         ->waitForText('AI review cancelled')
         ->assertDontSee('Claude is reviewing…')
         ->assertDontSee('Claude found nothing to flag')
@@ -396,10 +394,10 @@ it('shows the diff side by side and remembers the choice', function () {
     withConfigFileChangedInTwoPlaces($this->github);
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    visit("/pull-requests/{$pullRequest->id}")
+    $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
-        ->waitForText('config/limits.php')
-        ->click('button[title="Side by side"]')
+        ->waitForText('config/limits.php');
+    clickOnce($page, 'button[title="Side by side"]')
         ->assertPresent('[data-path="config/limits.php"][data-side="LEFT"][data-line="2"]')
         ->assertPresent('[data-path="config/limits.php"][data-side="RIGHT"][data-line="2"]')
         ->assertScript('localStorage.getItem("prism.diff-layout")', 'split')
@@ -410,11 +408,11 @@ it('shows the unchanged lines between the changes', function () {
     withConfigFileChangedInTwoPlaces($this->github);
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    visit("/pull-requests/{$pullRequest->id}")
+    $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
         ->waitForText('config/limits.php')
-        ->assertDontSee('line 6')
-        ->click('internal:role=button[name="Show 5 hidden lines"i]')
+        ->assertDontSee('line 6');
+    clickOnce($page, 'internal:role=button[name="Show 5 hidden lines"i]')
         ->waitForText('line 6')
         ->assertSee('line 4')
         ->assertSee('line 8')
@@ -438,20 +436,20 @@ it('adds comments to your review and posts them when you submit it', function ()
 
     $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
-        ->waitForText('// limit requests')
-        ->click('[data-path="app/Http/Middleware/RateLimit.php"][data-line="2"] [data-gutter]')
-        ->click('internal:role=button[name="Comment c"s]')
-        ->fill('textarea[aria-label="Comment"]', 'Say which requests this limits.')
-        ->click('internal:role=button[name="Add to review"i]')
+        ->waitForText('// limit requests');
+    clickOnce($page, '[data-path="app/Http/Middleware/RateLimit.php"][data-line="2"] [data-gutter]');
+    clickOnce($page, 'internal:role=button[name="Comment c"s]')
+        ->fill('textarea[aria-label="Comment"]', 'Say which requests this limits.');
+    clickOnce($page, 'internal:role=button[name="Add to review"i]')
         ->waitForText('Added to your review.')
         ->assertSee('1 comment waiting in your review')
         ->assertSeeIn('[data-pending-comment-id]', 'Say which requests this limits.');
 
     expect($this->github->sent('POST', '/repos/acme/api/pulls/101/comments'))->toBe([]);
 
-    $page->click('internal:role=button[name="Finish your review"i]')
-        ->assertSee('Your comments')
-        ->click('[role="dialog"] button[type="submit"]')
+    clickOnce($page, 'internal:role=button[name="Finish your review"i]')
+        ->assertSee('Your comments');
+    clickOnce($page, '[role="dialog"] button[type="submit"]')
         ->waitForText('Approved by you')
         ->assertDontSee('waiting in your review')
         ->assertNoJavaScriptErrors();
@@ -469,12 +467,12 @@ it('starts a suggested change from the selected lines', function () {
     app(AppSettings::class)->set(AppSettings::ALLOW_REPLYING_TO_COMMENTS, true);
     $pullRequest = PullRequest::firstWhere('number', 101);
 
-    visit("/pull-requests/{$pullRequest->id}")
+    $page = visit("/pull-requests/{$pullRequest->id}")
         ->click('internal:role=tab[name="Files changed"i]')
-        ->waitForText('// limit requests')
-        ->click('[data-path="app/Http/Middleware/RateLimit.php"][data-line="2"] [data-gutter]')
-        ->click('internal:role=button[name="Comment c"s]')
-        ->click('internal:role=button[name="Suggest a change"i]')
+        ->waitForText('// limit requests');
+    clickOnce($page, '[data-path="app/Http/Middleware/RateLimit.php"][data-line="2"] [data-gutter]');
+    clickOnce($page, 'internal:role=button[name="Comment c"s]');
+    clickOnce($page, 'internal:role=button[name="Suggest a change"i]')
         ->assertValue('textarea[aria-label="Comment"]', "```suggestion\n// limit requests\n```\n")
         ->assertNoJavaScriptErrors();
 });

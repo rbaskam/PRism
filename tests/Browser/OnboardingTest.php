@@ -11,19 +11,19 @@ it('connects GitHub, tracks a repository and lands on its pull requests', functi
         ->withPullRequests('acme/api', [FakeGithub::pullRequest(101, 'Add rate limiting', FakeGithub::requestedFrom('octocat'))])
         ->fake();
 
-    visit('/')
+    $page = visit('/')
         ->assertPathIs('/onboarding/github')
         ->assertSee('Connect GitHub')
-        ->fill('#github-token', 'ghp_'.str_repeat('x', 36))
-        ->click('internal:role=button[name="Connect"s]')
+        ->fill('#github-token', 'ghp_'.str_repeat('x', 36));
+    clickOnce($page, 'internal:role=button[name="Connect"s]')
         ->waitForText('Choose repositories')
         ->assertPathIs('/onboarding/repositories')
-        ->waitForText('web')
-        ->click('label:has-text("acme/api")')
-        ->click('Track 1 repository')
+        ->waitForText('web');
+    clickOnce($page, 'label:has-text("acme/api")');
+    clickOnce($page, 'Track 1 repository')
         ->waitForText('Connect Claude')
-        ->assertPathIs('/onboarding/claude')
-        ->click('Skip for now — connect Claude later in Settings')
+        ->assertPathIs('/onboarding/claude');
+    clickOnce($page, 'Skip for now — connect Claude later in Settings')
         ->waitForText('Add rate limiting')
         ->assertPathIs('/')
         ->assertSeeIn('button[title="Show only: awaiting your review"]', '1')
