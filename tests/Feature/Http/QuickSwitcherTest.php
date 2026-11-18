@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\PendingReviewComment;
 use App\Models\PullRequest;
 
 beforeEach(function () {
@@ -46,6 +47,20 @@ it('lists tracked repositories with their counts, and their open pull requests b
         ->assertJsonPath('pull_requests.0.attention', 'authored')
         ->assertJsonPath('pull_requests.2.state', 'closed')
         ->assertJsonPath('pull_requests.2.merged_at', $closed->merged_at?->toIso8601String());
+});
+
+it('counts an approved pull request with review comments drafted in PRism as awaiting, not approved', function () {
+    $api = trackedRepository('acme/api');
+    $drafted = PullRequest::factory()->for($api)->approvedByMe()->create(['github_updated_at' => now()->subMinute()]);
+    PendingReviewComment::factory()->for($drafted)->create();
+    $assigned = PullRequest::factory()->for($api)->assignedToMe()->create(['github_updated_at' => now()->subHour()]);
+
+    $response = $this->getJson(route('quick-switcher'));
+
+    $response->assertOk()
+        ->assertJsonPath('repositories.0.counts', ['open' => 2, 'awaiting' => 1, 'approved' => 0])
+        ->assertJsonPath('pull_requests.*.id', [$drafted->id, $assigned->id])
+        ->assertJsonPath('pull_requests.*.attention', ['awaiting', 'assigned']);
 });
 
 it('leaves out untracked repositories and pull requests closed too long ago', function () {

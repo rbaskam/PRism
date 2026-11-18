@@ -24,6 +24,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $notifications_last_modified
  * @property Carbon|null $notifications_polled_at
  * @property list<string>|null $untracked_review_requests
+ * @property list<string>|null $mentioned_in
+ * @property list<string>|null $commented_in
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -50,6 +52,8 @@ class GithubAccount extends Model
         'notifications_last_modified',
         'notifications_polled_at',
         'untracked_review_requests',
+        'mentioned_in',
+        'commented_in',
     ];
 
     /**
@@ -76,6 +80,8 @@ class GithubAccount extends Model
             'teams_synced_at' => 'datetime',
             'notifications_polled_at' => 'datetime',
             'untracked_review_requests' => 'array',
+            'mentioned_in' => 'array',
+            'commented_in' => 'array',
         ];
     }
 

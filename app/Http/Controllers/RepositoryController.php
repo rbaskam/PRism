@@ -34,6 +34,7 @@ class RepositoryController extends Controller
             ->openOrRecentlyClosed()
             ->with(['repository', 'latestReviewRun'])
             ->withFindingCounts()
+            ->withDraftReviewComments()
             ->orderByDesc('github_updated_at')
             ->orderByDesc('id')
             ->get();

@@ -38,10 +38,18 @@ class PullRequestMapper
         $isRequestedDirectly = collect($requestsForMe)
             ->contains(fn (array $reviewer): bool => $reviewer['type'] === 'user' && $this->isMe($reviewer, $account));
         $myReview = $this->myLatestReview($node, $myLogin);
+
+        // With "keep awaiting until I approve or request changes" on, a comment doesn't answer a dismissed review either.
+        if ($this->settings->keepsAwaitingAfterComments() && ReviewState::tryFrom($myReview['state'] ?? '') === ReviewState::Commented) {
+            $myReview = $this->myLatestDismissedReview($node, $myLogin) ?? $myReview;
+        }
+
         $isOpen = $node['state'] === 'OPEN';
         // GitHub dismisses a review when new commits make it stale (or a maintainer dismisses it) without asking for a
-        // new one, so the pull request waits on the user again.
+        // new one, so the pull request waits on the user again. So does a review they started and haven't submitted.
         $isMyReviewDismissed = ReviewState::tryFrom($myReview['state'] ?? '') === ReviewState::Dismissed;
+        $hasMyPendingReview = $isOpen && ! $isAuthoredByMe && collect($this->nodes($node, 'pendingReviews'))
+            ->contains(fn (array $review): bool => strcasecmp($review['author']['login'] ?? '', $myLogin) === 0);
 
         $attributes = [
             'node_id' => $node['id'],
@@ -70,7 +78,7 @@ class PullRequestMapper
             'my_review_submitted_at' => isset($myReview['submittedAt']) ? Carbon::parse($myReview['submittedAt']) : null,
             'my_review_commit_sha' => $myReview['commit']['oid'] ?? null,
             // GitHub keeps review requests on closed pull requests, but they no longer need anyone.
-            'is_review_requested_from_me' => $isOpen && ($isRequestedDirectly || $myTeams !== [] || $isMyReviewDismissed),
+            'is_review_requested_from_me' => $isOpen && ($isRequestedDirectly || $myTeams !== [] || $isMyReviewDismissed || $hasMyPendingReview),
             'is_review_requested_directly' => $isOpen && $isRequestedDirectly,
             'requested_via_teams' => $myTeams,
             'answered_team_requests' => $isAuthoredByMe ? [] : $this->answeredTeamRequests($node, $account, $requestsForMe),
@@ -82,6 +90,9 @@ class PullRequestMapper
             'is_authored_by_me' => $isAuthoredByMe,
             'is_assigned_to_me' => collect($this->nodes($node, 'assignees'))
                 ->contains(fn (array $assignee): bool => strcasecmp($assignee['login'], $myLogin) === 0),
+            'is_mentioned' => $this->isAmong($node, $account->mentioned_in),
+            'has_my_comments' => $this->isAmong($node, $account->commented_in),
+            'has_my_pending_review' => $hasMyPendingReview,
             'github_created_at' => Carbon::parse($node['createdAt']),
             'github_updated_at' => Carbon::parse($node['updatedAt']),
             'closed_at' => isset($node['closedAt']) ? Carbon::parse($node['closedAt']) : null,
@@ -305,6 +316,36 @@ class PullRequestMapper
             $states->contains(ReviewState::Approved) => ReviewState::Approved->value,
             default => null,
         };
+    }
+
+    /**
+     * The user's latest review that was dismissed. GitHub leaves dismissed reviews out of its latest reviews once the
+     * user comments again, so they come from the timeline.
+     *
+     * @param  array<string, mixed>  $node
+     * @return array<string, mixed>|null
+     */
+    private function myLatestDismissedReview(array $node, string $myLogin): ?array
+    {
+        return collect($this->nodes($node, 'reviewDismissedEvents'))
+            ->pluck('review')
+            ->filter(fn (mixed $review): bool => is_array($review)
+                && isset($review['submittedAt'])
+                && strcasecmp($review['author']['login'] ?? '', $myLogin) === 0)
+            ->sortBy(fn (array $review): string => Carbon::parse($review['submittedAt'])->toIso8601String())
+            ->map(fn (array $review): array => [...$review, 'state' => ReviewState::Dismissed->value])
+            ->last();
+    }
+
+    /**
+     * Whether the pull request is one of the given ones, found by GitHub's search (see RefreshGithubAccount).
+     *
+     * @param  array<string, mixed>  $node
+     * @param  list<string>|null  $urls
+     */
+    private function isAmong(array $node, ?array $urls): bool
+    {
+        return collect($urls ?? [])->contains(fn (string $url): bool => strcasecmp($url, (string) $node['url']) === 0);
     }
 
     /**

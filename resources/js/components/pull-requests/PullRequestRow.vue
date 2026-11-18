@@ -5,7 +5,7 @@ import SnoozeMenu from '@/components/pull-requests/SnoozeMenu.vue';
 import UnseenFindingsDot from '@/components/pull-requests/UnseenFindingsDot.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, timeAgo } from '@/lib/pull-requests';
+import { attentionStyles, checksLabel, closedStateLabel, formatSnoozedUntil, ownReviewDecision, timeAgo } from '@/lib/pull-requests';
 import { cn } from '@/lib/utils';
 import type { PullRequest } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
@@ -17,11 +17,11 @@ import {
     CircleX,
     ExternalLink as ExternalLinkIcon,
     FileDiff,
+    FilePen,
     GitCommitHorizontal,
     GitMerge,
     LoaderCircle,
     MessageSquare,
-    MessageSquareDiff,
     RotateCcw,
     Sparkles,
     TriangleAlert,
@@ -63,26 +63,7 @@ const checksIcon = computed(() => {
             return CircleDashed;
     }
 });
-/** On the user's own open pull request, whether reviewers approved it or asked for changes. */
-const ownReviewDecision = computed(() => {
-    if (props.pullRequest.attention !== 'authored' || props.pullRequest.state !== 'open') {
-        return null;
-    }
-
-    switch (props.pullRequest.review_decision) {
-        case 'APPROVED':
-            return { label: 'Approved', badge: 'success', icon: CircleCheck, title: 'Reviewers approved your pull request' } as const;
-        case 'CHANGES_REQUESTED':
-            return {
-                label: 'Changes requested',
-                badge: 'warning',
-                icon: MessageSquareDiff,
-                title: 'A reviewer asked for changes to your pull request',
-            } as const;
-        default:
-            return null;
-    }
-});
+const reviewDecision = computed(() => ownReviewDecision(props.pullRequest));
 const isConflicting = computed(() => props.pullRequest.mergeable === 'CONFLICTING');
 const reviewRun = computed(() => props.pullRequest.latest_review_run ?? null);
 const openFindings = computed(() => props.pullRequest.open_findings_count ?? 0);
@@ -212,9 +193,9 @@ const hasStatusBadges = computed(
 
                 <div v-if="hasStatusBadges" class="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <AttentionBadge v-if="pullRequest.attention !== 'none'" :attention="pullRequest.attention" />
-                    <Badge v-if="ownReviewDecision" :variant="ownReviewDecision.badge" :title="ownReviewDecision.title">
-                        <component :is="ownReviewDecision.icon" />
-                        {{ ownReviewDecision.label }}
+                    <Badge v-if="reviewDecision" :variant="reviewDecision.badge" :title="reviewDecision.title">
+                        <component :is="reviewDecision.icon" />
+                        {{ reviewDecision.label }}
                     </Badge>
                     <Badge v-if="pullRequest.snoozed_until" variant="muted" :title="`Snoozed until ${formatSnoozedUntil(pullRequest.snoozed_until)}`">
                         <AlarmClock />
@@ -231,6 +212,14 @@ const hasStatusBadges = computed(
                     >
                         <RotateCcw />
                         Your review was dismissed
+                    </Badge>
+                    <Badge
+                        v-if="pullRequest.attention === 'awaiting' && pullRequest.has_unsubmitted_review"
+                        variant="outline"
+                        title="You started a review but haven't submitted it yet"
+                    >
+                        <FilePen />
+                        Review not submitted
                     </Badge>
                     <Badge
                         v-for="team in pullRequest.requested_via_teams"
@@ -253,7 +242,7 @@ const hasStatusBadges = computed(
                             via @{{ team }} · reviewed by a teammate
                         </Badge>
                     </template>
-                    <Badge v-if="pullRequest.is_assigned_to_me" variant="outline">
+                    <Badge v-if="pullRequest.is_assigned_to_me && pullRequest.attention !== 'assigned'" variant="outline">
                         <UserCheck />
                         Assigned to you
                     </Badge>

@@ -1,5 +1,13 @@
 import type { FindingSeverity, FindingStatus, PullRequest, ReviewAttention } from '@/types';
-import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, type LucideIcon } from 'lucide-vue-next';
+import {
+    CircleCheck,
+    GitMerge,
+    GitPullRequest,
+    GitPullRequestClosed,
+    GitPullRequestDraft,
+    MessageSquareDiff,
+    type LucideIcon,
+} from 'lucide-vue-next';
 
 export interface AttentionStyle {
     label: string;
@@ -20,9 +28,37 @@ export const attentionStyles: Record<ReviewAttention, AttentionStyle> = {
     approved: { label: 'Approved by you', badge: 'success', border: 'border-l-emerald-500', dot: 'bg-emerald-500' },
     changes_requested: { label: 'You requested changes', badge: 'warning', border: 'border-l-amber-500', dot: 'bg-amber-500' },
     commented: { label: 'You commented', badge: 'info', border: 'border-l-sky-500', dot: 'bg-sky-500' },
+    assigned: { label: 'Assigned to you', badge: 'secondary', border: 'border-l-teal-500', dot: 'bg-teal-500' },
+    mentioned: { label: 'Mentioned you', badge: 'muted', border: 'border-l-pink-500', dot: 'bg-pink-500' },
     authored: { label: 'Your pull request', badge: 'secondary', border: 'border-l-violet-500', dot: 'bg-violet-500' },
     none: { label: 'Not involved', badge: 'muted', border: 'border-l-transparent', dot: 'bg-muted-foreground/40' },
 };
+
+/**
+ * On the user's own open pull request, whether reviewers approved it or asked for changes; null while it waits for
+ * reviews, and on anyone else's pull request.
+ */
+export function ownReviewDecision(
+    pullRequest: Pick<PullRequest, 'attention' | 'state' | 'review_decision'>,
+): { label: string; badge: 'success' | 'warning'; icon: LucideIcon; title: string } | null {
+    if (pullRequest.attention !== 'authored' || pullRequest.state !== 'open') {
+        return null;
+    }
+
+    switch (pullRequest.review_decision) {
+        case 'APPROVED':
+            return { label: 'Approved', badge: 'success', icon: CircleCheck, title: 'Reviewers approved your pull request' };
+        case 'CHANGES_REQUESTED':
+            return {
+                label: 'Changes requested',
+                badge: 'warning',
+                icon: MessageSquareDiff,
+                title: 'A reviewer asked for changes to your pull request',
+            };
+        default:
+            return null;
+    }
+}
 
 export const severityStyles: Record<FindingSeverity, { label: string; badge: 'destructive' | 'danger' | 'warning' | 'info' | 'muted' }> = {
     critical: { label: 'Critical', badge: 'destructive' },

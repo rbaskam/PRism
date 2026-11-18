@@ -11,6 +11,8 @@ enum ReviewAttention: string
     case Approved = 'approved';
     case ChangesRequested = 'changes_requested';
     case Commented = 'commented';
+    case Assigned = 'assigned';
+    case Mentioned = 'mentioned';
     case Authored = 'authored';
     case None = 'none';
 
@@ -21,6 +23,8 @@ enum ReviewAttention: string
             self::Approved => 'Approved by you',
             self::ChangesRequested => 'You requested changes',
             self::Commented => 'You commented',
+            self::Assigned => 'Assigned to you',
+            self::Mentioned => 'Mentioned you',
             self::Authored => 'Your pull request',
             self::None => 'Not involved',
         };

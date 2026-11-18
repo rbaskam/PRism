@@ -51,7 +51,7 @@ const lastSyncedTitle = computed<string | undefined>(() => (props.lastSyncedAt ?
                 <p class="text-sm text-muted-foreground">
                     Open pull requests across your {{ repositories.length }} tracked
                     {{ repositories.length === 1 ? 'repository' : 'repositories' }} that you opened, were asked to review (directly or via a team),
-                    are assigned to, or have reviewed.
+                    are assigned to, have reviewed or commented on, or were mentioned in.
                 </p>
             </div>
 

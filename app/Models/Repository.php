@@ -132,7 +132,8 @@ class Repository extends Model
             'pullRequestsAwaitingMyReview as awaiting_my_review_count',
             'openPullRequests as approved_by_me_count' => fn (Builder $query) => $query
                 ->where('is_review_requested_from_me', false)
-                ->where('my_review_state', ReviewState::Approved),
+                ->where('my_review_state', ReviewState::Approved)
+                ->doesntHave('pendingReviewComments'),
         ]);
     }
 

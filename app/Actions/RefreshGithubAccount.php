@@ -7,8 +7,9 @@ use App\Models\Repository;
 use App\Services\Github\GithubClient;
 
 /**
- * Refreshes the teams the user belongs to (so team review requests are recognised)
- * and finds review requests in repositories the user is not tracking yet.
+ * Refreshes the teams the user belongs to (so team review requests are recognised), finds review requests in
+ * repositories the user is not tracking yet, and finds the open pull requests that mention the user or that they
+ * commented on, which the next sync of each repository marks.
  */
 class RefreshGithubAccount
 {
@@ -25,6 +26,8 @@ class RefreshGithubAccount
                 ->reject(fn (string $repository): bool => $tracked->contains($repository))
                 ->values()
                 ->all(),
+            'mentioned_in' => $this->github->openPullRequestUrls('mentions:@me'),
+            'commented_in' => $this->github->openPullRequestUrls('commenter:@me'),
         ]);
     }
 }

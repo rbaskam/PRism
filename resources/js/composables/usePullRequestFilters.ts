@@ -47,6 +47,8 @@ export const attentionFilterOptions: { value: ReviewAttention; label: string }[]
     { value: 'approved', label: 'Approved' },
     { value: 'changes_requested', label: 'Changes requested' },
     { value: 'commented', label: 'Commented' },
+    { value: 'assigned', label: 'Assigned' },
+    { value: 'mentioned', label: 'Mentioned' },
     { value: 'authored', label: 'Mine' },
     { value: 'none', label: 'Other' },
 ];
@@ -171,7 +173,16 @@ export function sortPullRequests(pullRequests: PullRequest[], sort: PullRequestS
 }
 
 export function summarisePullRequests(pullRequests: PullRequest[]): PullRequestStats {
-    const byAttention: Record<ReviewAttention, number> = { awaiting: 0, approved: 0, changes_requested: 0, commented: 0, authored: 0, none: 0 };
+    const byAttention: Record<ReviewAttention, number> = {
+        awaiting: 0,
+        approved: 0,
+        changes_requested: 0,
+        commented: 0,
+        assigned: 0,
+        mentioned: 0,
+        authored: 0,
+        none: 0,
+    };
 
     for (const pullRequest of pullRequests) {
         byAttention[pullRequest.attention]++;

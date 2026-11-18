@@ -42,6 +42,20 @@ final class FakeGithub
     private array $reviewRequestsElsewhere = [];
 
     /**
+     * URLs of open pull requests that mention the user, for GitHub's search.
+     *
+     * @var list<string>
+     */
+    private array $mentionedIn = [];
+
+    /**
+     * URLs of open pull requests the user commented on, for GitHub's search.
+     *
+     * @var list<string>
+     */
+    private array $commentedIn = [];
+
+    /**
      * @var list<array<string, mixed>>
      */
     private array $notifications = [];
@@ -133,6 +147,16 @@ final class FakeGithub
     }
 
     /**
+     * Node fields for a review the user started on GitHub and hasn't submitted.
+     *
+     * @return array<string, mixed>
+     */
+    public static function pendingReviewBy(string $login): array
+    {
+        return ['pendingReviews' => ['nodes' => [['author' => ['login' => $login]]]]];
+    }
+
+    /**
      * A comment in a pull request's conversation, as GitHub's GraphQL API returns it.
      *
      * @return array<string, mixed>
@@ -202,6 +226,26 @@ final class FakeGithub
     public function withReviewRequestIn(string $repository): self
     {
         $this->reviewRequestsElsewhere[] = $repository;
+
+        return $this;
+    }
+
+    /**
+     * Have GitHub's search find a pull request that mentions the user.
+     */
+    public function withMentionIn(string $repository, int $number): self
+    {
+        $this->mentionedIn[] = "https://github.com/{$repository}/pull/{$number}";
+
+        return $this;
+    }
+
+    /**
+     * Have GitHub's search find a pull request the user commented on.
+     */
+    public function withCommentIn(string $repository, int $number): self
+    {
+        $this->commentedIn[] = "https://github.com/{$repository}/pull/{$number}";
 
         return $this;
     }
@@ -280,6 +324,26 @@ final class FakeGithub
         return $this;
     }
 
+    /**
+     * What GitHub's issue search finds for the query in the request: review requests, mentions or comments.
+     *
+     * @return list<array<string, string>>
+     */
+    private function searchResults(Request $request): array
+    {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+        $search = (string) ($query['q'] ?? '');
+
+        return match (true) {
+            str_contains($search, 'review-requested:@me') => array_map(fn (string $repository): array => [
+                'repository_url' => GithubClient::BASE_URL."/repos/{$repository}",
+            ], $this->reviewRequestsElsewhere),
+            str_contains($search, 'mentions:@me') => array_map(fn (string $url): array => ['html_url' => $url], $this->mentionedIn),
+            str_contains($search, 'commenter:@me') => array_map(fn (string $url): array => ['html_url' => $url], $this->commentedIn),
+            default => [],
+        };
+    }
+
     private function respond(Request $request): PromiseInterface
     {
         $path = (string) parse_url($request->url(), PHP_URL_PATH);
@@ -296,9 +360,7 @@ final class FakeGithub
                 'slug' => $team['slug'],
                 'name' => $team['name'],
             ], $this->teams)),
-            $path === '/search/issues' => Http::response(['items' => array_map(fn (string $repository): array => [
-                'repository_url' => GithubClient::BASE_URL."/repos/{$repository}",
-            ], $this->reviewRequestsElsewhere)]),
+            $path === '/search/issues' => Http::response(['items' => $this->searchResults($request)]),
             $path === '/notifications' && $request->method() === 'GET' => Http::response($this->notifications, 200, ['Last-Modified' => 'Tue, 13 Oct 2026 09:00:00 GMT']),
             $path === '/notifications' && $request->method() === 'PUT', str_starts_with($path, '/notifications/threads/') => Http::response(null, 205),
             $path === '/user/repos' => Http::response($this->repositories),

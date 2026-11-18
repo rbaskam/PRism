@@ -28,7 +28,7 @@ class QuickSwitcherController extends Controller
             ->orderByRaw('CASE WHEN state = ? THEN 0 ELSE 1 END', [PullRequest::STATE_OPEN])
             ->orderByDesc('github_updated_at')
             ->orderByDesc('id')
-            ->get([
+            ->select([
                 'id',
                 'repository_id',
                 'number',
@@ -41,7 +41,12 @@ class QuickSwitcherController extends Controller
                 'is_authored_by_me',
                 'is_review_requested_from_me',
                 'my_review_state',
-            ]);
+                'is_assigned_to_me',
+                'has_my_comments',
+                'is_mentioned',
+            ])
+            ->withDraftReviewComments()
+            ->get();
 
         return response()->json([
             'repositories' => $repositories->map(fn (Repository $repository): array => [

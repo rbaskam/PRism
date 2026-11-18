@@ -47,7 +47,8 @@ class GithubClient
     }
 
     /**
-     * Get the teams the authenticated user belongs to.
+     * Get the teams the authenticated user belongs to, including the parents of nested teams: a review requested from
+     * a parent team is one for the members of its child teams too.
      *
      * @return list<array{organization: string, slug: string, name: string}>
      */
@@ -59,17 +60,25 @@ class GithubClient
             return [];
         }
 
-        /** @var list<array{slug: string, name: string, organization: array{login: string}}> $teams */
-        $teams = $response->throw()->json();
+        /** @var list<array{slug: string, name: string, organization: array{login: string}, parent?: array{slug: string, name: string}|null}> $memberships */
+        $memberships = $response->throw()->json();
+        $teams = [];
 
-        return collect($teams)
-            ->map(fn (array $team): array => [
-                'organization' => $team['organization']['login'],
-                'slug' => $team['slug'],
-                'name' => $team['name'],
-            ])
-            ->values()
-            ->all();
+        foreach ($memberships as $team) {
+            $organization = $team['organization']['login'];
+            $teams["{$organization}/{$team['slug']}"] = ['organization' => $organization, 'slug' => $team['slug'], 'name' => $team['name']];
+            $parent = $team['parent'] ?? null;
+
+            // GitHub only names a team's direct parent, so look each parent up to find the one above it.
+            while (is_array($parent) && ! isset($teams["{$organization}/{$parent['slug']}"])) {
+                $teams["{$organization}/{$parent['slug']}"] = ['organization' => $organization, 'slug' => $parent['slug'], 'name' => $parent['name']];
+                $parentResponse = $this->readRequest()->get("/orgs/{$organization}/teams/{$parent['slug']}");
+                /** @var array{slug: string, name: string}|null $parent */
+                $parent = $parentResponse->successful() ? $parentResponse->json('parent') : null;
+            }
+        }
+
+        return array_values($teams);
     }
 
     /**
@@ -214,6 +223,26 @@ class GithubClient
         return collect($items)
             ->map(fn (array $item): string => str($item['repository_url'])->after('/repos/')->toString())
             ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get the URL of every open pull request found by a search, e.g. "mentions:@me" for the ones that mention the user.
+     *
+     * @return list<string>
+     */
+    public function openPullRequestUrls(string $search): array
+    {
+        $items = $this->readRequest()->get('/search/issues', [
+            'q' => "is:pr is:open archived:false {$search}",
+            'per_page' => 100,
+        ])->throw()->json('items', []);
+
+        /** @var list<array{html_url?: string}> $items */
+        return collect($items)
+            ->pluck('html_url')
+            ->filter(fn (mixed $url): bool => is_string($url))
             ->values()
             ->all();
     }

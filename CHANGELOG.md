@@ -10,6 +10,18 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- Pull requests that are only assigned to you get their own **Assigned to you** state, colour and filter.
+- Pull requests you commented on or were @mentioned in now appear in My pull requests, as **You commented** or **Mentioned you**, with a filter for mentions. They don't count as awaiting your review.
+- A review you started but haven't submitted, whether comments drafted in PRism or a pending review on GitHub, shows **Review not submitted** and counts as awaiting your review until you submit it.
+- Your own pull request's page shows whether reviewers approved it or asked for changes, as the list does.
+
+### Fixed
+
+- With "keep awaiting until I approve or request changes" on, a pull request whose approval was dismissed stays awaiting your review after you comment on it.
+- A review requested from a parent team now counts as one for you when you're in one of its child teams.
+
 ## [0.24.0] - 2026-11-18
 
 ### Added
