@@ -32,6 +32,25 @@ it('leaves the head repository empty when the fork was deleted', function () {
         ->head_repository->toBeNull();
 });
 
+it('works out the review decision from the latest reviews when GitHub gives none', function (?string $githubDecision, array $reviewStates, ?string $expected) {
+    $attributes = app(PullRequestMapper::class)->attributes(githubPullRequestNode([
+        'reviewDecision' => $githubDecision,
+        'latestOpinionatedReviews' => ['nodes' => array_map(fn (string $state): array => [
+            'author' => ['login' => fake()->unique()->userName()],
+            'state' => $state,
+            'submittedAt' => '2026-10-02T09:00:00Z',
+            'commit' => ['oid' => 'headsha'],
+        ], $reviewStates)],
+    ]), GithubAccount::factory()->make(['login' => 'octocat']));
+
+    expect($attributes['review_decision'])->toBe($expected);
+})->with([
+    'GitHub decides, as the branch requires reviews' => ['REVIEW_REQUIRED', ['APPROVED'], 'REVIEW_REQUIRED'],
+    'a change request outweighs approvals' => [null, ['APPROVED', 'CHANGES_REQUESTED'], 'CHANGES_REQUESTED'],
+    'approved' => [null, ['APPROVED'], 'APPROVED'],
+    'no approvals or change requests' => [null, [], null],
+]);
+
 it('tells the page where Claude may send changes for a pull request', function (?bool $isCrossRepository, bool $maintainerCanModify, array $refused) {
     $pullRequest = PullRequest::factory()->create([
         'is_cross_repository' => $isCrossRepository,

@@ -188,8 +188,11 @@ export interface PullRequest {
     deletions: number;
     changed_files: number;
     comments_count: number;
-    /** GitHub's overall decision: APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED or null. */
-    review_decision: string | null;
+    /**
+     * GitHub's overall decision. Where the base branch doesn't require reviews, PRism works it out from the reviewers'
+     * latest approvals and change requests, and it's null when there are none.
+     */
+    review_decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
     /** CI status rollup: SUCCESS, FAILURE, ERROR, PENDING, EXPECTED or null. */
     checks_state: string | null;
     /** MERGEABLE, CONFLICTING or UNKNOWN. */

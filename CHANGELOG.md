@@ -10,6 +10,10 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- Your own pull requests now show in the list when reviewers have approved them or asked for changes. Where the repository doesn't require reviews, PRism goes by each reviewer's latest approval or change request.
+
 ## [0.23.1] - 2026-11-18
 
 ### Fixed

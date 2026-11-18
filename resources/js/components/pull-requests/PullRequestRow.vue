@@ -21,6 +21,7 @@ import {
     GitMerge,
     LoaderCircle,
     MessageSquare,
+    MessageSquareDiff,
     RotateCcw,
     Sparkles,
     TriangleAlert,
@@ -60,6 +61,26 @@ const checksIcon = computed(() => {
             return CircleX;
         default:
             return CircleDashed;
+    }
+});
+/** On the user's own open pull request, whether reviewers approved it or asked for changes. */
+const ownReviewDecision = computed(() => {
+    if (props.pullRequest.attention !== 'authored' || props.pullRequest.state !== 'open') {
+        return null;
+    }
+
+    switch (props.pullRequest.review_decision) {
+        case 'APPROVED':
+            return { label: 'Approved', badge: 'success', icon: CircleCheck, title: 'Reviewers approved your pull request' } as const;
+        case 'CHANGES_REQUESTED':
+            return {
+                label: 'Changes requested',
+                badge: 'warning',
+                icon: MessageSquareDiff,
+                title: 'A reviewer asked for changes to your pull request',
+            } as const;
+        default:
+            return null;
     }
 });
 const isConflicting = computed(() => props.pullRequest.mergeable === 'CONFLICTING');
@@ -191,6 +212,10 @@ const hasStatusBadges = computed(
 
                 <div v-if="hasStatusBadges" class="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <AttentionBadge v-if="pullRequest.attention !== 'none'" :attention="pullRequest.attention" />
+                    <Badge v-if="ownReviewDecision" :variant="ownReviewDecision.badge" :title="ownReviewDecision.title">
+                        <component :is="ownReviewDecision.icon" />
+                        {{ ownReviewDecision.label }}
+                    </Badge>
                     <Badge v-if="pullRequest.snoozed_until" variant="muted" :title="`Snoozed until ${formatSnoozedUntil(pullRequest.snoozed_until)}`">
                         <AlarmClock />
                         Snoozed until {{ formatSnoozedUntil(pullRequest.snoozed_until) }}
