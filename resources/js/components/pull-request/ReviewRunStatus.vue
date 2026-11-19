@@ -57,7 +57,7 @@ function cancel(run: ReviewRun): void {
             aria-live="polite"
         >
             <Clock class="size-4 shrink-0 animate-pulse text-muted-foreground" />
-            <span class="min-w-0 font-medium">Queued — waiting for the review worker</span>
+            <span class="min-w-0 font-medium">Queued — waiting for a free review runner</span>
             <span class="ml-auto text-xs text-muted-foreground"><ElapsedTime :since="runStartedAt(latestRun)" /></span>
             <Button size="sm" variant="outline" class="shrink-0" :disabled="cancelling" @click="cancel(latestRun)">
                 <Loader2 v-if="cancelling" class="animate-spin" />

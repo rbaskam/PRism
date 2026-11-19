@@ -10,6 +10,7 @@ use App\Services\AppSettings;
 use App\Services\Claude\ClaudeCode;
 use App\Services\Git\Git;
 use App\Services\Git\GitException;
+use App\Services\Git\PullRequestCheckout;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
 
@@ -102,6 +103,22 @@ it('fetches with the GitHub token from the environment, never in the command', f
     Process::assertRan(fn (PendingProcess $process): bool => in_array('fetch', $process->command, true)
         && $process->environment['PRISM_GIT_TOKEN'] === 'ghp_test'
         && ! str_contains(implode(' ', $process->command), 'ghp_test'));
+});
+
+it('keeps the checkout to itself while it fetches the pull request, so review runners take turns', function () {
+    $change = queuedCodeChange();
+    $anotherRunnerCouldFetch = null;
+    Process::fake(['*--no-write-fetch-head*' => function () use ($change, &$anotherRunnerCouldFetch) {
+        $anotherRunnerCouldFetch = PullRequestCheckout::lock($change->checkout_path)->get();
+
+        return Process::result('');
+    }]);
+    fakeGitAndClaude('');
+
+    MakeCodeChanges::dispatchSync($change);
+
+    expect($anotherRunnerCouldFetch)->toBeFalse()
+        ->and(PullRequestCheckout::lock($change->checkout_path)->get())->toBeTrue();
 });
 
 it('refuses to change a pull request that has moved on since PRism synced it', function () {

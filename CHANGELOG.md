@@ -10,6 +10,14 @@ Every pull request adds its user-facing changes under **Unreleased**. When it is
 
 ## [Unreleased]
 
+### Added
+
+- **Reviews at once**, under Settings → PR review: how many reviews Claude works on at the same time, from 1 to 4. It's 2 unless you change it, so one long review no longer holds up the rest. Questions, reply drafts and Fix with Claude share these runners. More take work straight away; fewer finish what they're doing first.
+
+### Changed
+
+- A queued review says it's waiting for a free review runner.
+
 ## [0.25.0] - 2026-11-18
 
 ### Added

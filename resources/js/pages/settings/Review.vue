@@ -4,6 +4,7 @@ import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
@@ -25,7 +26,10 @@ const props = defineProps<{
         keep_answered_team_requests: boolean;
         allow_code_changes: boolean;
         allow_pushing: boolean;
+        review_runners: number;
     };
+    /** The most reviews the user can run at once. */
+    maxReviewRunners: number;
     defaultPrompt: string;
     /** Placeholder (e.g. "{number}") => what it is replaced with. */
     placeholders: Record<string, string>;
@@ -300,6 +304,32 @@ function save(): void {
                                 <InputError :message="form.errors[toggle.key]" />
                             </div>
                             <Switch :id="toggle.key" v-model:checked="form[toggle.key]" :disabled="isUnavailable(toggle)" class="mt-0.5" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <HeadingSmall title="Review runners" description="How much Claude works on at the same time." />
+
+                    <div class="rounded-lg border">
+                        <div class="flex flex-wrap items-start justify-between gap-4 p-4 sm:flex-nowrap">
+                            <div class="min-w-0 space-y-1">
+                                <Label for="review_runners">Reviews at once</Label>
+                                <p class="text-sm text-muted-foreground">
+                                    Questions, reply drafts and Fix with Claude share these runners. Each one is a Claude Code session of its own, so
+                                    more at once finish sooner but use more of your Claude plan or API budget at the same time. Fewer runners take
+                                    effect once the ones running finish what they're doing.
+                                </p>
+                                <InputError :message="form.errors.review_runners" />
+                            </div>
+                            <NativeSelect
+                                id="review_runners"
+                                :model-value="form.review_runners"
+                                class="shrink-0 sm:w-28"
+                                @update:model-value="(value) => (form.review_runners = Number(value))"
+                            >
+                                <option v-for="runners in maxReviewRunners" :key="runners" :value="runners">{{ runners }}</option>
+                            </NativeSelect>
                         </div>
                     </div>
                 </div>

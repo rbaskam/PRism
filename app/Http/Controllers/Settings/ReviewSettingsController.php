@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SyncGithub;
 use App\Models\Repository;
 use App\Services\AppSettings;
+use App\Services\ReviewRunners;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -25,7 +26,9 @@ class ReviewSettingsController extends Controller
                 'keep_answered_team_requests' => $settings->keepsAnsweredTeamRequests(),
                 'allow_code_changes' => $settings->allowsCodeChanges(),
                 'allow_pushing' => $settings->allowsPushing(),
+                'review_runners' => $settings->reviewRunners(),
             ],
+            'maxReviewRunners' => AppSettings::MAX_REVIEW_RUNNERS,
             'defaultPrompt' => AppSettings::DEFAULT_REVIEW_PROMPT,
             'placeholders' => AppSettings::REVIEW_PROMPT_PLACEHOLDERS,
             'repositoriesWithOwnPrompt' => Repository::query()
@@ -38,7 +41,7 @@ class ReviewSettingsController extends Controller
         ]);
     }
 
-    public function update(Request $request, AppSettings $settings): RedirectResponse
+    public function update(Request $request, AppSettings $settings, ReviewRunners $runners): RedirectResponse
     {
         $validated = $request->validate([
             'prompt' => ['required', 'string', 'max:'.AppSettings::REVIEW_PROMPT_MAX_LENGTH],
@@ -49,6 +52,7 @@ class ReviewSettingsController extends Controller
             'keep_answered_team_requests' => ['sometimes', 'boolean'],
             'allow_code_changes' => ['sometimes', 'boolean'],
             'allow_pushing' => ['sometimes', 'boolean'],
+            'review_runners' => ['sometimes', 'integer', 'min:1', 'max:'.AppSettings::MAX_REVIEW_RUNNERS],
         ]);
 
         $keptAwaitingAfterComments = $settings->keepsAwaitingAfterComments();
@@ -62,7 +66,13 @@ class ReviewSettingsController extends Controller
             AppSettings::KEEP_ANSWERED_TEAM_REQUESTS => $validated['keep_answered_team_requests'] ?? $settings->keepsAnsweredTeamRequests(),
             AppSettings::ALLOW_CODE_CHANGES => $validated['allow_code_changes'] ?? $settings->allowsCodeChanges(),
             AppSettings::ALLOW_PUSHING => $validated['allow_pushing'] ?? $settings->allowsPushing(),
+            AppSettings::REVIEW_RUNNERS => (int) ($validated['review_runners'] ?? $settings->reviewRunners()),
         ]);
+
+        // More runners take work straight away. Fewer finish what they're doing first (see ReviewRunners).
+        if (config('nativephp-internal.running')) {
+            $runners->start();
+        }
 
         // What counts as answering a review request changed, so work out again which pull requests await the user.
         if ($settings->keepsAwaitingAfterComments() !== $keptAwaitingAfterComments) {

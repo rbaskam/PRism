@@ -106,6 +106,20 @@ it('saves the review prompt and what Claude may do', function () {
         ->and($settings->keepsAnsweredTeamRequests())->toBeTrue();
 });
 
+it('chooses how many reviews run at once, two unless you change it', function () {
+    $page = visit('/settings/review')->assertValue('#review_runners', '2');
+    trackRequests($page);
+    $page->select('#review_runners', '3');
+    clickOnce($page, 'Save');
+    waitForRequests($page);
+
+    $page->navigate('/settings/review')
+        ->assertValue('#review_runners', '3')
+        ->assertNoJavaScriptErrors();
+
+    expect(app(AppSettings::class)->reviewRunners())->toBe(3);
+});
+
 it('saves which desktop alerts you get and their sound', function () {
     $page = visit('/settings/notifications');
     trackRequests($page);

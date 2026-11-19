@@ -10,6 +10,7 @@ use App\Models\ReviewFinding;
 use App\Services\Alerts;
 use App\Services\Claude\ClaudeCode;
 use App\Services\Git\Git;
+use App\Services\Git\PullRequestCheckout;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Str;
@@ -62,11 +63,20 @@ class MakeCodeChanges implements ShouldQueue
         $deadline = now()->addSeconds($this->timeout - self::FINISHING_SECONDS);
         $change->update(['status' => CodeChangeStatus::Running, 'started_at' => now(), 'error' => null]);
 
-        // Only change the commit the user saw: refuse when the pull request has moved on since PRism synced it.
-        $base = $git->fetchPullRequestHead($change->checkout_path, $repository, $pullRequest->number, $account->token, $pullRequest->head_sha);
         $branch = "prism/change-{$change->id}";
         $worktree = $git->worktreePath($repository, "pr-{$pullRequest->number}-change-{$change->id}");
-        $git->addWorktree($change->checkout_path, $worktree, $base, $branch);
+
+        // One job at a time fetches and adds worktrees in a checkout, as other review runners may be working in it.
+        $base = PullRequestCheckout::lock($change->checkout_path)->block(
+            PullRequestCheckout::WAIT_FOR_CHECKOUT_SECONDS,
+            function () use ($git, $change, $repository, $pullRequest, $account, $worktree, $branch): string {
+                // Only change the commit the user saw: refuse when the pull request has moved on since PRism synced it.
+                $base = $git->fetchPullRequestHead($change->checkout_path, $repository, $pullRequest->number, $account->token, $pullRequest->head_sha);
+                $git->addWorktree($change->checkout_path, $worktree, $base, $branch);
+
+                return $base;
+            },
+        );
         $change->update(['worktree_path' => $worktree, 'branch' => $branch, 'base_sha' => $base]);
 
         $result = $claude->run(
