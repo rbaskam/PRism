@@ -9,6 +9,8 @@ use App\Services\AppSettings;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use Native\Desktop\DataObjects\QueueConfig;
+use Native\Desktop\Facades\QueueWorker;
 
 it('saves an Anthropic API key encrypted', function () {
     onboardedAccount();
@@ -114,6 +116,40 @@ it('saves whether pull requests a teammate reviewed for the user\'s team stay on
     $response->assertSessionHas('success', 'Review settings saved.');
     expect(app(AppSettings::class)->keepsAnsweredTeamRequests())->toBeTrue();
 });
+
+it('runs two reviews at once until the user chooses how many, and starts more runners straight away', function () {
+    onboardedAccount();
+    config(['nativephp-internal.running' => true]);
+    $queueWorkers = QueueWorker::fake();
+    expect(app(AppSettings::class)->reviewRunners())->toBe(2);
+
+    $response = $this->put(route('settings.review.update'), [
+        'prompt' => AppSettings::DEFAULT_REVIEW_PROMPT,
+        'allow_posting_findings' => false,
+        'allow_replying_to_comments' => false,
+        'auto_review_on_request' => false,
+        'review_runners' => 4,
+    ]);
+
+    $response->assertSessionHas('success', 'Review settings saved.');
+    expect(app(AppSettings::class)->reviewRunners())->toBe(4)
+        ->and(collect($queueWorkers->ups)->map(fn (QueueConfig $config): string => $config->alias)->all())->toBe(['reviews-2', 'reviews-3', 'reviews-4']);
+});
+
+it('runs between one and four reviews at once', function (int $runners) {
+    onboardedAccount();
+
+    $response = $this->put(route('settings.review.update'), [
+        'prompt' => AppSettings::DEFAULT_REVIEW_PROMPT,
+        'allow_posting_findings' => false,
+        'allow_replying_to_comments' => false,
+        'auto_review_on_request' => false,
+        'review_runners' => $runners,
+    ]);
+
+    $response->assertSessionHasErrors('review_runners');
+    expect(app(AppSettings::class)->reviewRunners())->toBe(2);
+})->with([0, 5]);
 
 it('saves which desktop alerts the user wants', function () {
     onboardedAccount();

@@ -6,6 +6,7 @@ use App\Jobs\SyncGithub;
 use App\Models\GithubAccount;
 use App\Services\AppLock;
 use App\Services\AppSettings;
+use App\Services\ReviewRunners;
 use Native\Desktop\Contracts\ProvidesPhpIni;
 use Native\Desktop\Facades\Window;
 
@@ -24,6 +25,9 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         if ($settings->isAppLockEnabled() && $settings->locksOnLaunch()) {
             app(AppLock::class)->lockEverywhere();
         }
+
+        // NativePHP starts the first review runner from config/nativephp.php; start the others the user asked for.
+        app(ReviewRunners::class)->start();
 
         // Catch up on what changed on GitHub while PRism was closed, rather than at the next scheduled sync.
         if (GithubAccount::query()->exists()) {

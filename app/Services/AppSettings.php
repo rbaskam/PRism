@@ -25,6 +25,8 @@ class AppSettings
 
     public const KEEP_ANSWERED_TEAM_REQUESTS = 'review.keep_answered_team_requests';
 
+    public const REVIEW_RUNNERS = 'review.runners';
+
     public const CLAUDE_AUTH_MODE = 'claude.auth_mode';
 
     public const CLAUDE_CREDENTIAL = 'claude.credential';
@@ -73,6 +75,16 @@ class AppSettings
      * The longest review prompt, app-wide or for one repository, in characters.
      */
     public const REVIEW_PROMPT_MAX_LENGTH = 20000;
+
+    /**
+     * How many reviews, questions, reply drafts and code changes Claude works on at once, unless the user chose.
+     */
+    public const DEFAULT_REVIEW_RUNNERS = 2;
+
+    /**
+     * The most the user can choose: each one is a Claude Code session of its own.
+     */
+    public const MAX_REVIEW_RUNNERS = 4;
 
     public const DEFAULT_REVIEW_PROMPT = <<<'PROMPT'
         You are a senior engineer reviewing pull request #{number} "{title}" in {repository} ({head} into {base}), opened by @{author}.
@@ -194,6 +206,16 @@ class AppSettings
     public function keepsAnsweredTeamRequests(): bool
     {
         return (bool) $this->get(self::KEEP_ANSWERED_TEAM_REQUESTS, false);
+    }
+
+    /**
+     * How many reviews, questions, reply drafts and code changes Claude works on at once (see ReviewRunners).
+     */
+    public function reviewRunners(): int
+    {
+        $runners = $this->get(self::REVIEW_RUNNERS);
+
+        return is_int($runners) ? max(1, min(self::MAX_REVIEW_RUNNERS, $runners)) : self::DEFAULT_REVIEW_RUNNERS;
     }
 
     public function claudeAuthMode(): ?ClaudeAuthMode

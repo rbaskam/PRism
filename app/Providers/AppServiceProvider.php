@@ -8,6 +8,10 @@ use App\Services\Changelog;
 use App\Services\Github\GithubClient;
 use App\Services\Github\GithubDeviceFlow;
 use App\Services\InstallationKey;
+use App\Services\ReviewRunners;
+use Illuminate\Queue\Events\Looping;
+use Illuminate\Queue\Events\WorkerStarting;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
@@ -17,6 +21,11 @@ class AppServiceProvider extends ServiceProvider
      * How long a desktop app session lasts: a year.
      */
     public const DESKTOP_SESSION_MINUTES = 60 * 24 * 365;
+
+    /**
+     * The name of the queue worker running in this process (its --name), if it is one.
+     */
+    private ?string $queueWorkerName = null;
 
     /**
      * Register any application services.
@@ -57,6 +66,25 @@ class AppServiceProvider extends ServiceProvider
         if ($this->runsAsInstalledDesktopApp() && $this->app->make(InstallationKey::class)->wasCreated()) {
             $this->forgetDataEncryptedWithAnotherKey();
         }
+
+        $this->pauseReviewRunnersAboveTheSetting();
+    }
+
+    /**
+     * A review runner above the number the user chose takes no new jobs: Laravel's worker waits instead while a
+     * Looping listener returns false. It is checked between jobs, so a review already running finishes.
+     */
+    private function pauseReviewRunnersAboveTheSetting(): void
+    {
+        Event::listen(WorkerStarting::class, function (WorkerStarting $event): void {
+            $this->queueWorkerName = $event->workerOptions->name;
+        });
+
+        Event::listen(Looping::class, fn (): ?bool => rescue(
+            fn (): bool => $this->app->make(ReviewRunners::class)->pauses($this->queueWorkerName),
+            false,
+            report: false,
+        ) ? false : null);
     }
 
     /**

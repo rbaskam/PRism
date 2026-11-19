@@ -13,6 +13,7 @@ use App\Services\AppSettings;
 use App\Services\Claude\ClaudeCode;
 use App\Services\Claude\ClaudeException;
 use App\Services\Git\Git;
+use App\Services\Git\PullRequestCheckout;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Facades\Process;
@@ -217,6 +218,30 @@ it('reviews a worktree of the local checkout at the commit the review was queued
     Process::assertRan(fn (PendingProcess $process): bool => in_array('--output-format', $process->command, true)
         && str_starts_with($process->path, storage_path('app/worktrees'))
         && $process->environment['GH_REPO'] === 'acme/app');
+});
+
+it('keeps the checkout to itself while it fetches the pull request, so review runners take turns', function () {
+    GithubAccount::factory()->create(['token' => 'ghp_test']);
+    connectClaude();
+    $pullRequest = PullRequest::factory()->for(trackedRepository('acme/app', ['local_path' => sys_get_temp_dir()]))->create(['number' => 7]);
+    $run = ReviewRun::factory()->queued()->for($pullRequest)->create(['head_sha' => 'abc123']);
+    $anotherRunnerCouldFetch = null;
+    Process::fake([
+        '*--output-format*' => Process::result(claudeOutput(['summary' => 's', 'verdict' => 'approve', 'findings' => [], 'previous_findings' => []])),
+        '*--no-write-fetch-head*' => function () use (&$anotherRunnerCouldFetch) {
+            $anotherRunnerCouldFetch = PullRequestCheckout::lock(sys_get_temp_dir())->get();
+
+            return Process::result('');
+        },
+        '*rev-parse*refs/prism/pr-7*' => Process::result('abc123'),
+        '*' => Process::result(''),
+    ]);
+
+    RunPullRequestReview::dispatchSync($run);
+
+    expect($run->fresh()->status)->toBe(AiTaskStatus::Completed)
+        ->and($anotherRunnerCouldFetch)->toBeFalse()
+        ->and(PullRequestCheckout::lock(sys_get_temp_dir())->get())->toBeTrue();
 });
 
 it('reviews from the diff alone when GitHub has a different head than the one queued', function () {

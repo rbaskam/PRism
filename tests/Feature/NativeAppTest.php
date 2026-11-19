@@ -2,8 +2,11 @@
 
 use App\Jobs\SyncGithub;
 use App\Providers\NativeAppServiceProvider;
+use App\Services\AppSettings;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Native\Desktop\DataObjects\QueueConfig;
+use Native\Desktop\Facades\QueueWorker;
 use Native\Desktop\Facades\Window;
 use Native\Desktop\Windows\Window as NativeWindow;
 
@@ -12,6 +15,7 @@ beforeEach(function () {
     Http::preventStrayRequests();
     Http::fake(['native.test/api/*' => Http::response()]);
     Queue::fake();
+    $this->queueWorkers = QueueWorker::fake();
     Window::fake()->alwaysReturnWindows([new NativeWindow(NativeAppServiceProvider::MAIN_WINDOW)]);
 });
 
@@ -21,6 +25,15 @@ it('syncs with GitHub when the app starts', function () {
     app(NativeAppServiceProvider::class)->boot();
 
     Queue::assertPushed(SyncGithub::class);
+});
+
+it('starts the review runners the user chose beyond the first, which NativePHP starts itself', function () {
+    app(AppSettings::class)->set(AppSettings::REVIEW_RUNNERS, 3);
+
+    app(NativeAppServiceProvider::class)->boot();
+
+    expect(collect($this->queueWorkers->ups)->map(fn (QueueConfig $config): string => $config->alias)->all())->toBe(['reviews-2', 'reviews-3']);
+    $this->queueWorkers->assertUp(fn (QueueConfig $config): bool => $config->queuesToConsume === ['reviews'] && $config->timeout === 1800);
 });
 
 it('waits for GitHub to be connected before syncing', function () {
